@@ -1,0 +1,12 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist/
+tsconfig.tsbuildinfo
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo

@@ -1,0 +1,48 @@
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: agent-mcp-jwks
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  policies:
+    tls:
+      sni: {{ .KeycloakHost }}
+  static:
+    host: {{ .KeycloakHost }}
+    port: 443
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: agent-mcp-auth
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: agent-mcp
+  traffic:
+    jwtAuthentication:
+      mode: Strict
+      providers:
+        - issuer: https://{{ .KeycloakHost }}/realms/agw-dev
+          audiences:
+            - account
+          jwks:
+            remote:
+              jwksPath: realms/agw-dev/protocol/openid-connect/certs
+              cacheDuration: 5m
+              backendRef:
+                group: enterpriseagentgateway.solo.io
+                kind: EnterpriseAgentgatewayBackend
+                name: agent-mcp-jwks
+      mcp:
+        provider: Keycloak
+        resourceMetadata:
+          resource: https://{{ .GatewayHost }}/mcp
+          scopesSupported:
+            - email

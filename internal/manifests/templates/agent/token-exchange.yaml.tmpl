@@ -1,0 +1,85 @@
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: agent-token-exchange-jwks
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  policies:
+    tls:
+      sni: {{ .KeycloakHost }}
+  static:
+    host: {{ .KeycloakHost }}
+    port: 443
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: agent-token-exchange-endpoint
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  policies:
+    tls:
+      sni: {{ .KeycloakHost }}
+  static:
+    host: {{ .KeycloakHost }}
+    port: 443
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agent-token-exchange-client-secret
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+type: Opaque
+stringData:
+  client_secret: {{ .OAuthTokenExchangeClientSecret }}
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: agent-token-exchange
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: agent-mcp
+  traffic:
+    jwtAuthentication:
+      mode: Strict
+      providers:
+        - issuer: https://{{ .KeycloakHost }}/realms/agw-dev
+          audiences:
+            - account
+          jwks:
+            remote:
+              jwksPath: realms/agw-dev/protocol/openid-connect/certs
+              cacheDuration: 5m
+              backendRef:
+                group: enterpriseagentgateway.solo.io
+                kind: EnterpriseAgentgatewayBackend
+                name: agent-token-exchange-jwks
+  backend:
+    auth:
+      oauthTokenExchange:
+        backendRef:
+          group: enterpriseagentgateway.solo.io
+          kind: EnterpriseAgentgatewayBackend
+          name: agent-token-exchange-endpoint
+        path: /realms/agw-dev/protocol/openid-connect/token
+        grantType: TokenExchange
+        clientAuth:
+          method: ClientSecretBasic
+          clientId: agw-token-exchange
+          secretRef:
+            name: agent-token-exchange-client-secret
+            key: client_secret
+        subjectToken:
+          tokenType: AccessToken

@@ -1,0 +1,118 @@
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: auth-rbac-jwks
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  policies:
+    tls:
+      sni: {{ .KeycloakHost }}
+  static:
+    host: {{ .KeycloakHost }}
+    port: 443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-rbac-echo
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+    app: auth-rbac-echo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-rbac-echo
+  template:
+    metadata:
+      labels:
+        app: auth-rbac-echo
+    spec:
+      containers:
+        - name: httpbin
+          image: kennethreitz/httpbin
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-rbac-echo
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  selector:
+    app: auth-rbac-echo
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: auth-rbac-echo
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  parentRefs:
+    - name: {{ .GatewayName }}
+      namespace: {{ .GatewayNS }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /secure/rbac
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /headers
+      backendRefs:
+        - name: auth-rbac-echo
+          port: 80
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: auth-rbac
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: auth-rbac-echo
+  traffic:
+    jwtAuthentication:
+      mode: Strict
+      providers:
+        - issuer: https://{{ .KeycloakHost }}/realms/agw-dev
+          audiences:
+            - account
+          jwks:
+            remote:
+              jwksPath: realms/agw-dev/protocol/openid-connect/certs
+              cacheDuration: 5m
+              backendRef:
+                group: enterpriseagentgateway.solo.io
+                kind: EnterpriseAgentgatewayBackend
+                name: auth-rbac-jwks
+    authorization:
+      action: Allow
+      policy:
+        matchExpressions:
+          - "jwt['team'] == 'team-alpha'"

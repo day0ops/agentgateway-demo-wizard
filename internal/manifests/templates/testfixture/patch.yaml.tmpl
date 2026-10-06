@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-object
+  namespace: {{ .Namespace }}
+data:
+  owned-field: 'set'

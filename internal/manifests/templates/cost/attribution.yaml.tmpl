@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cost-attribution-catalog
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+data:
+  catalog.json: |
+    {
+      "providers": {
+        "openai": {
+          "models": {
+            "gpt-4o-mini": {
+              "rates": {
+                "input": "0.15",
+                "output": "0.6",
+                "cacheRead": "0.075",
+                "cacheWrite": "0.0",
+                "reasoning": "0.0",
+                "inputAudio": "0.0",
+                "outputAudio": "0.0"
+              }
+            }
+          }
+        }
+      }
+    }
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayParameters
+metadata:
+  name: cost-attribution-params
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  modelCatalog:
+    sources:
+      - configMap:
+          name: cost-attribution-catalog
+          key: catalog.json
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cost-attribution-openai-secret
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+type: Opaque
+stringData:
+  Authorization: {{ .OpenAIKey }}
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: cost-attribution-openai
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  ai:
+    provider:
+      openai:
+        model: gpt-4o-mini
+  policies:
+    auth:
+      secretRef:
+        name: cost-attribution-openai-secret
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cost-attribution-openai
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  parentRefs:
+    - name: {{ .GatewayName }}
+      namespace: {{ .GatewayNS }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /cost/openai
+      backendRefs:
+        - name: cost-attribution-openai
+          namespace: {{ .Namespace }}
+          group: enterpriseagentgateway.solo.io
+          kind: EnterpriseAgentgatewayBackend

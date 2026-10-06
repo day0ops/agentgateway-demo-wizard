@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cost-budgets-virtual-keys
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+type: Opaque
+stringData:
+  team-alpha: '{"key":"sk-team-alpha-demo-budget","metadata":{"id":"team-alpha","user_id":"team-alpha"}}'
+  team-beta: '{"key":"sk-team-beta-demo-budget","metadata":{"id":"team-beta","user_id":"team-beta"}}'
+---
+apiVersion: ratelimit.solo.io/v1alpha1
+kind: RateLimitConfig
+metadata:
+  name: cost-budgets-ratelimit
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  raw:
+    descriptors:
+      - key: user_id
+        value: team-alpha
+        rateLimit:
+          unit: HOUR
+          requestsPerUnit: 100000
+      - key: user_id
+        value: team-beta
+        rateLimit:
+          unit: HOUR
+          requestsPerUnit: 100000
+    rateLimits:
+      - actions:
+          - cel:
+              expression: apiKey.user_id
+              key: user_id
+        type: TOKEN
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBudget
+metadata:
+  name: cost-budgets
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  budgets:
+    - name: team-beta-daily-tokens
+      subject:
+        virtualKey: team-beta
+      limit:
+        unit: Tokens
+        amount: 1
+      window:
+        unit: Day
+      onBudgetExceeded: Block
+    - name: team-alpha-daily-tokens
+      subject:
+        virtualKey: team-alpha
+      limit:
+        unit: Tokens
+        amount: 1
+      window:
+        unit: Day
+      onBudgetExceeded: Audit
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: cost-budgets
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .GatewayName }}
+  traffic:
+    apiKeyAuthentication:
+      mode: Strict
+      secretRef:
+        name: cost-budgets-virtual-keys
+    entRateLimit:
+      global:
+        rateLimitConfigRefs:
+          - name: cost-budgets-ratelimit
+    entBudgetEnforcement: {}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cost-budgets-openai-secret
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+type: Opaque
+stringData:
+  Authorization: {{ .OpenAIKey }}
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: cost-budgets-openai
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  ai:
+    provider:
+      openai:
+        model: gpt-4o-mini
+  policies:
+    auth:
+      secretRef:
+        name: cost-budgets-openai-secret
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cost-budgets-openai
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  parentRefs:
+    - name: {{ .GatewayName }}
+      namespace: {{ .GatewayNS }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /cost/budgets
+      backendRefs:
+        - name: cost-budgets-openai
+          namespace: {{ .Namespace }}
+          group: enterpriseagentgateway.solo.io
+          kind: EnterpriseAgentgatewayBackend
