@@ -18,40 +18,44 @@ import (
 const keycloakRealm = "agw-dev"
 const keycloakClientID = "agw-client-public"
 
-type demoUser struct {
-	username string
-	password string
-}
-
-// demoUsers maps the wizard's fixed identities to the Keycloak users seeded
-// in the agw-dev realm (Task 13). "anonymous" and "" are handled separately -
-// they skip token acquisition entirely.
-var demoUsers = map[string]demoUser{
-	"team-alpha": {username: "team-alpha-user", password: "Password1!"},
-	"team-beta":  {username: "team-beta-user", password: "Password1!"},
+// demoUsers maps the wizard's fixed identities to the Keycloak usernames
+// seeded in the agw-dev realm by agentgateway-field-kit's keycloak addon
+// (config.realms[].users in a profile like
+// config/profiles/eks-enterprise-agentgateway-complete.yaml) - "user1" and
+// "user2" carry the team_id attributes "team-alpha"/"team-beta"
+// respectively. Every seeded user shares one realm-wide default password
+// (field-kit's realm.defaultPassword), supplied here via Client.demoUserPassword
+// rather than hardcoded. "anonymous" and "" are handled separately - they
+// skip token acquisition entirely.
+var demoUsers = map[string]string{
+	"team-alpha": "user1",
+	"team-beta":  "user2",
 }
 
 // Client acquires tokens and proxies requests to a live agentgateway/Keycloak pair.
 type Client struct {
-	httpClient      *http.Client
-	keycloakBaseURL string
-	gatewayBaseURL  string
+	httpClient       *http.Client
+	keycloakBaseURL  string
+	gatewayBaseURL   string
+	demoUserPassword string
 }
 
 // NewClient builds a Client. keycloakBaseURL and gatewayBaseURL must each
 // include a scheme (e.g. "https://keycloak.demo.example.com").
-func NewClient(keycloakBaseURL, gatewayBaseURL string) *Client {
+// demoUserPassword is the shared password for every demoUsers entry.
+func NewClient(keycloakBaseURL, gatewayBaseURL, demoUserPassword string) *Client {
 	return &Client{
-		httpClient:      &http.Client{Timeout: 15 * time.Second},
-		keycloakBaseURL: strings.TrimRight(keycloakBaseURL, "/"),
-		gatewayBaseURL:  strings.TrimRight(gatewayBaseURL, "/"),
+		httpClient:       &http.Client{Timeout: 15 * time.Second},
+		keycloakBaseURL:  strings.TrimRight(keycloakBaseURL, "/"),
+		gatewayBaseURL:   strings.TrimRight(gatewayBaseURL, "/"),
+		demoUserPassword: demoUserPassword,
 	}
 }
 
 // Token acquires an access token for one of the wizard's fixed demo
 // identities via a Keycloak password grant.
 func (c *Client) Token(ctx context.Context, identity string) (string, error) {
-	user, ok := demoUsers[identity]
+	username, ok := demoUsers[identity]
 	if !ok {
 		return "", fmt.Errorf("unknown identity %q", identity)
 	}
@@ -59,8 +63,8 @@ func (c *Client) Token(ctx context.Context, identity string) (string, error) {
 	form := url.Values{
 		"client_id":  {keycloakClientID},
 		"grant_type": {"password"},
-		"username":   {user.username},
-		"password":   {user.password},
+		"username":   {username},
+		"password":   {c.demoUserPassword},
 	}
 
 	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", c.keycloakBaseURL, keycloakRealm)

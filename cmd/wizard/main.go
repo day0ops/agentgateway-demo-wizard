@@ -33,7 +33,7 @@ func main() {
 	}
 	applier := k8s.NewApplier(dyn, mapper)
 
-	gatewayClient := gateway.NewClient("https://"+cfg.KeycloakHost, "https://"+cfg.GatewayHost)
+	gatewayClient := gateway.NewClient("https://"+cfg.KeycloakHost, "https://"+cfg.GatewayHost, cfg.DemoUserPassword)
 	mcpClient := mcp.NewClient("https://"+cfg.GatewayHost, "/mcp")
 	agentRunner := agent.NewRunner(gatewayClient, mcpClient, "/agent-chat")
 

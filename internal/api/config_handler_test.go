@@ -31,7 +31,7 @@ func TestConfigHandler(t *testing.T) {
 	if body.GatewayHost != "agw.example.com" {
 		t.Fatalf("unexpected gatewayHost: %q", body.GatewayHost)
 	}
-	if len(body.Missing) != 3 {
-		t.Fatalf("expected 3 missing values, got %v", body.Missing)
+	if len(body.Missing) != 4 {
+		t.Fatalf("expected 4 missing values, got %v", body.Missing)
 	}
 }

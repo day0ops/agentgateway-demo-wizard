@@ -46,6 +46,7 @@ _output/
 _build/
 dist/
 build/
+bin/
 
 #### Go ####
 coverage.out

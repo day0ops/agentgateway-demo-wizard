@@ -16,15 +16,18 @@ func TestTokenReturnsAccessTokenForKnownIdentity(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		body, _ := io.ReadAll(r.Body)
-		if !strings.Contains(string(body), "username=team-alpha-user") {
-			t.Fatalf("expected team-alpha-user in form body, got: %s", body)
+		if !strings.Contains(string(body), "username=user1") {
+			t.Fatalf("expected user1 in form body, got: %s", body)
+		}
+		if !strings.Contains(string(body), "password=test-password") {
+			t.Fatalf("expected the configured demo password in form body, got: %s", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "test-token"})
 	}))
 	defer keycloak.Close()
 
-	client := NewClient(keycloak.URL, "http://unused")
+	client := NewClient(keycloak.URL, "http://unused", "test-password")
 
 	token, err := client.Token(context.Background(), "team-alpha")
 	if err != nil {
@@ -36,7 +39,7 @@ func TestTokenReturnsAccessTokenForKnownIdentity(t *testing.T) {
 }
 
 func TestTokenRejectsUnknownIdentity(t *testing.T) {
-	client := NewClient("http://unused", "http://unused")
+	client := NewClient("http://unused", "http://unused", "test-password")
 	if _, err := client.Token(context.Background(), "nobody"); err == nil {
 		t.Fatalf("expected an error for an unknown identity")
 	}
@@ -56,7 +59,7 @@ func TestProxyAttachesBearerTokenAndReturnsRawResponse(t *testing.T) {
 	}))
 	defer gatewayServer.Close()
 
-	client := NewClient(keycloak.URL, gatewayServer.URL)
+	client := NewClient(keycloak.URL, gatewayServer.URL, "test-password")
 
 	resp, err := client.Proxy(context.Background(), Request{
 		Identity: "team-beta",
@@ -85,7 +88,7 @@ func TestProxyAnonymousIdentitySkipsToken(t *testing.T) {
 	}))
 	defer gatewayServer.Close()
 
-	client := NewClient("http://unused", gatewayServer.URL)
+	client := NewClient("http://unused", gatewayServer.URL, "test-password")
 
 	resp, err := client.Proxy(context.Background(), Request{Identity: "anonymous", Path: "/openai", Body: "{}"})
 	if err != nil {
@@ -111,7 +114,7 @@ func TestProxyStreamCopiesChunksAsTheyArrive(t *testing.T) {
 	}))
 	defer gatewayServer.Close()
 
-	client := NewClient("http://unused", gatewayServer.URL)
+	client := NewClient("http://unused", gatewayServer.URL, "test-password")
 	rec := httptest.NewRecorder()
 
 	err := client.ProxyStream(context.Background(), Request{Identity: "anonymous", Path: "/openai", Body: `{"stream":true}`}, rec)

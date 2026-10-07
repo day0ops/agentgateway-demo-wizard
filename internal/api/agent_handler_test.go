@@ -20,7 +20,7 @@ func TestAgentRunHandlerStreamsHops(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	gatewayClient := gateway.NewClient("http://unused", server.URL)
+	gatewayClient := gateway.NewClient("http://unused", server.URL, "test-password")
 	mcpClient := mcp.NewClient(server.URL, "/mcp")
 	runner := agent.NewRunner(gatewayClient, mcpClient, "/openai/v1/chat/completions")
 

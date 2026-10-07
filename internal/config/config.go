@@ -19,6 +19,7 @@ type Config struct {
 	StockMCPImage                  string
 	CurrencyMCPImage               string
 	OAuthTokenExchangeClientSecret string
+	DemoUserPassword               string
 }
 
 // Load reads configuration from environment variables. It never errors:
@@ -35,6 +36,7 @@ func Load() *Config {
 		StockMCPImage:                  envOrDefault("STOCK_SERVER_MCP_IMAGE", defaultStockMCPImage),
 		CurrencyMCPImage:               envOrDefault("CURRENCY_SERVER_MCP_IMAGE", defaultCurrencyMCPImage),
 		OAuthTokenExchangeClientSecret: os.Getenv("OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET"),
+		DemoUserPassword:               os.Getenv("DEMO_USER_PASSWORD"),
 	}
 }
 
@@ -56,6 +58,9 @@ func (c *Config) Missing() []string {
 	}
 	if c.OAuthTokenExchangeClientSecret == "" {
 		missing = append(missing, "OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET")
+	}
+	if c.DemoUserPassword == "" {
+		missing = append(missing, "DEMO_USER_PASSWORD")
 	}
 	return missing
 }

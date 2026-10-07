@@ -16,7 +16,7 @@ func TestRequestHandlerProxiesToGateway(t *testing.T) {
 	}))
 	defer gatewayServer.Close()
 
-	client := gateway.NewClient("http://unused", gatewayServer.URL)
+	client := gateway.NewClient("http://unused", gatewayServer.URL, "test-password")
 	s := NewServer(WithGateway(client))
 
 	reqBody := `{"identity":"anonymous","method":"POST","path":"/openai","body":"{}"}`
@@ -44,7 +44,7 @@ func TestRequestHandlerStreamsWhenBodyRequestsStreaming(t *testing.T) {
 	}))
 	defer gatewayServer.Close()
 
-	client := gateway.NewClient("http://unused", gatewayServer.URL)
+	client := gateway.NewClient("http://unused", gatewayServer.URL, "test-password")
 	s := NewServer(WithGateway(client))
 
 	reqBody := `{"identity":"anonymous","method":"POST","path":"/openai","body":"{\"stream\":true}"}`
@@ -64,7 +64,7 @@ func TestRequestHandlerStreamsWhenBodyRequestsStreaming(t *testing.T) {
 }
 
 func TestRequestHandlerSurfacesTransportErrors(t *testing.T) {
-	client := gateway.NewClient("http://unused", "http://127.0.0.1:1")
+	client := gateway.NewClient("http://unused", "http://127.0.0.1:1", "test-password")
 	s := NewServer(WithGateway(client))
 
 	reqBody := `{"identity":"anonymous","method":"POST","path":"/openai","body":"{}"}`

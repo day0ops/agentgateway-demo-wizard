@@ -16,5 +16,5 @@ spec:
         action: Allow
         policy:
           matchExpressions:
-            - "jwt['team'] == 'team-alpha'"
-            - "jwt['team'] == 'team-beta' && mcp.tool.target == 'stock'"
+            - "jwt['team_id'] == 'team-alpha'"
+            - "jwt['team_id'] == 'team-beta' && mcp.tool.target == 'stock'"
