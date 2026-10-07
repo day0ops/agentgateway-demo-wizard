@@ -4,7 +4,10 @@
 // pure renderer of this registry via GET /api/scenarios.
 package scenarios
 
-import "github.com/day0ops/agentgateway-demo-wizard/internal/manifests"
+import (
+	"github.com/day0ops/agentgateway-demo-wizard/internal/manifests"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
 
 // Pillar is one of the demo's top-level sections, shown in the breadcrumb.
 type Pillar struct {
@@ -40,11 +43,23 @@ type Step struct {
 // (k8s.Applier.ApplyPatch/RevertPatch). As of this plan, only the
 // cost-attribution policy (Task 14) uses these.
 type Policy struct {
-	ID                      string `json:"id"`
-	Title                   string `json:"title"`
-	ManifestPath            string `json:"-"`
-	PatchManifestPath       string `json:"-"`
-	PatchRevertManifestPath string `json:"-"`
+	ID                      string    `json:"id"`
+	Title                   string    `json:"title"`
+	ManifestPath            string    `json:"-"`
+	PatchManifestPath       string    `json:"-"`
+	PatchRevertManifestPath string    `json:"-"`
+	ReadOnly                bool      `json:"readOnly"`
+	ViewRefs                []ViewRef `json:"-"`
+}
+
+// ViewRef names one pre-provisioned resource a ReadOnly Policy displays via
+// GET /api/config/view. It is never applied or deleted by this repo - the
+// resource is owned by whatever provisioned it (see
+// docs/superpowers/specs/2026-10-08-demo-wizard-field-kit-integration-design.md
+// in agentgateway-field-kit for the resources the routing pillar expects).
+type ViewRef struct {
+	GVR  schema.GroupVersionResource
+	Name string
 }
 
 // ManifestParams are the template variables available to a policy's manifest.
