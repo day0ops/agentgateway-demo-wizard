@@ -23,7 +23,6 @@ type Params struct {
 	GatewayHost                    string
 	KeycloakHost                   string
 	OpenAIKey                      string
-	AnthropicKey                   string
 	StockMCPImage                  string
 	CurrencyMCPImage               string
 	OAuthTokenExchangeClientSecret string

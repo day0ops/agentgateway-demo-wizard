@@ -207,7 +207,6 @@ func (s *Server) manifestParams() scenarios.ManifestParams {
 		params.GatewayHost = s.cfg.GatewayHost
 		params.KeycloakHost = s.cfg.KeycloakHost
 		params.OpenAIKey = s.cfg.OpenAIKey
-		params.AnthropicKey = s.cfg.AnthropicKey
 		params.StockMCPImage = s.cfg.StockMCPImage
 		params.CurrencyMCPImage = s.cfg.CurrencyMCPImage
 		params.OAuthTokenExchangeClientSecret = s.cfg.OAuthTokenExchangeClientSecret

@@ -10,7 +10,7 @@ import (
 )
 
 func TestConfigHandler(t *testing.T) {
-	cfg := &config.Config{GatewayHost: "agw.example.com", KeycloakHost: "", OpenAIKey: "sk-x", AnthropicKey: ""}
+	cfg := &config.Config{GatewayHost: "agw.example.com", KeycloakHost: "", OpenAIKey: "sk-x"}
 	s := NewServer(WithConfig(cfg))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
@@ -31,7 +31,7 @@ func TestConfigHandler(t *testing.T) {
 	if body.GatewayHost != "agw.example.com" {
 		t.Fatalf("unexpected gatewayHost: %q", body.GatewayHost)
 	}
-	if len(body.Missing) != 4 {
-		t.Fatalf("expected 4 missing values, got %v", body.Missing)
+	if len(body.Missing) != 3 {
+		t.Fatalf("expected 3 missing values, got %v", body.Missing)
 	}
 }
