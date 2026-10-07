@@ -43,6 +43,7 @@ func NewServer(opts ...Option) *Server {
 	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
 	s.mux.HandleFunc("GET /api/config", s.handleConfig)
 	s.mux.HandleFunc("GET /api/scenarios", s.handleScenarios)
+	s.mux.HandleFunc("GET /api/config/view", s.handleConfigView)
 	s.mux.HandleFunc("POST /api/config/apply", s.handleConfigApply)
 	s.mux.HandleFunc("POST /api/config/revert", s.handleConfigRevert)
 	s.mux.HandleFunc("POST /api/config/reset", s.handleConfigReset)
