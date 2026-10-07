@@ -10,10 +10,46 @@ type PolicyState = {
 
 const idleState: PolicyState = { status: "idle", showYaml: false };
 
+type ViewState = {
+  status: "idle" | "loading" | "shown" | "not-provisioned" | "error";
+  refs?: { name: string; found: boolean; yaml?: string }[];
+  message?: string;
+};
+
+const idleViewState: ViewState = { status: "idle" };
+
 export function ConfigurePane({ policies }: { policies: Policy[] }) {
   const [state, setState] = useState<Record<string, PolicyState>>({});
+  const [viewState, setViewState] = useState<Record<string, ViewState>>({});
 
   if (policies.length === 0) return null;
+
+  async function viewConfig(policy: Policy) {
+    setViewState((s) => ({ ...s, [policy.id]: { status: "loading" } }));
+
+    const res = await fetch(`/api/config/view?policyId=${policy.id}`);
+    if (!res.ok) {
+      const message = await res.text();
+      setViewState((s) => ({
+        ...s,
+        [policy.id]: { status: "error", message },
+      }));
+      return;
+    }
+
+    const { refs } = (await res.json()) as {
+      refs: { name: string; found: boolean; yaml?: string }[];
+    };
+    const anyFound = refs.some((r) => r.found);
+    setViewState((s) => ({
+      ...s,
+      [policy.id]: { status: anyFound ? "shown" : "not-provisioned", refs },
+    }));
+  }
+
+  function hideConfig(policyId: string) {
+    setViewState((s) => ({ ...s, [policyId]: idleViewState }));
+  }
 
   async function apply(policy: Policy) {
     setState((s) => ({
@@ -144,6 +180,64 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
         Configure
       </h2>
       {policies.map((policy) => {
+        if (policy.readOnly) {
+          const vst = viewState[policy.id] ?? idleViewState;
+          return (
+            <div
+              key={policy.id}
+              className="rounded-lg border border-slate-200 p-4 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{policy.title}</span>
+                <span className="text-xs text-slate-500">pre-provisioned</span>
+              </div>
+
+              {vst.status === "error" && (
+                <p className="mt-2 text-sm text-red-700 dark:text-red-300">
+                  {vst.message}
+                </p>
+              )}
+              {vst.status === "not-provisioned" && (
+                <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                  Not yet provisioned - deploy the field-kit usecase for this
+                  demo first.
+                </p>
+              )}
+
+              <div className="mt-3 flex gap-2">
+                {vst.status === "shown" ? (
+                  <button
+                    onClick={() => hideConfig(policy.id)}
+                    className="rounded bg-slate-200 px-3 py-1 text-sm dark:bg-slate-800"
+                  >
+                    Hide config
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => viewConfig(policy)}
+                    disabled={vst.status === "loading"}
+                    className="rounded bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                  >
+                    View config
+                  </button>
+                )}
+              </div>
+
+              {vst.status === "shown" &&
+                vst.refs
+                  ?.filter((r) => r.found)
+                  .map((r) => (
+                    <pre
+                      key={r.name}
+                      className="mt-3 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100"
+                    >
+                      {r.yaml}
+                    </pre>
+                  ))}
+            </div>
+          );
+        }
+
         const st = state[policy.id] ?? idleState;
         // A failed revert leaves the policy still applied in the cluster, so
         // keep offering Revert (not Apply) as long as applied yaml is present.
