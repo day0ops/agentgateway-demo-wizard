@@ -80,28 +80,3 @@ cd web && npm test -- --run     # Vitest component tests
 cd web && npm run test:e2e      # Playwright, against a mocked backend - no cluster needed
 make lint                       # golangci-lint
 ```
-
-## The demo script
-
-| #   | Pillar                                        | Steps                                                                                                 | Proves                                                              |
-| --- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| -   | Welcome (~2 min)                              | Welcome to Acme Corp                                                                                  | the persona and the story spine                                     |
-| 1   | One endpoint, many models (~12 min)           | Model routing by name, Dynamic routing, Automatic fallback, Streaming responses                       | one stable endpoint, many providers, automatic resilience           |
-| 2   | Who's allowed to do what (~10 min)            | JWT authentication, Team / role authZ                                                                 | identity enforced at the edge, deny-by-default authorization        |
-| 3   | What gets through (~3 min)                    | Not everything should get through                                                                     | unsafe content blocked inline, sensitive data masked on the way out |
-| 4   | You can't govern what you can't see (~13 min) | Cost attribution, Budgets and spend limits (plus live virtual-key create/rotate)                      | per-request pricing, hard spend ceilings                            |
-| 5   | From models to agents (~15 min)               | Agent to MCP tool call, MCP authentication, Token exchange (OBO), Tool authZ / progressive disclosure | the same gateway governs agentic tool traffic                       |
-| -   | Wrap-up (~1 min)                              | One gateway, five guarantees                                                                          | the through-line: one control point, five guarantees                |
-
-Pillars 1-4 are independent - each step's resources are uniquely named and independently revertible, so they can be shown in any order a customer's interest dictates. Pillar 5's four steps are intentionally cumulative (5.2, 5.3, and 5.4 build on 5.1's MCP backend and route) and are meant to be shown in order, matching how the capability actually layers in a real deployment.
-
-A **Reset** affordance (calling `POST /api/config/reset`) reverts every policy applied so far, returning the cluster to its pre-provisioned baseline between rehearsals or back-to-back calls.
-
-Pillar 4's `cost-budgets` step is the one exception to "independent and revertible in any order": its policy applies `apiKeyAuthentication: Strict` to the shared `Gateway`, matching the real product's own budget-enforcement pattern. While it's applied, every other route also requires a valid virtual API key, so presenters should revert `cost-budgets` (or hit the global Reset) before demonstrating any other pillar. The same step's virtual-key panel shares that caveat: any key created or rotated live is also subject to the Gateway-wide `apiKeyAuthentication: Strict` while `cost-budgets` is applied.
-
-## Known limitations
-
-- `get_exchange_rate`'s `{from, to}` argument schema (`cmd/wizard/main.go`) is this wizard's best-effort guess, not a confirmed contract with that MCP server - `get_stock_price`'s `{symbol}` schema is the one directly confirmed from the field-kit's own usecase tests.
-- The two MCP server container images are Solo-internal GAR images (see `STOCK_SERVER_MCP_IMAGE`/`CURRENCY_SERVER_MCP_IMAGE` above).
-- The wizard assumes a single presenter/session at a time - the Kubernetes applier's apply/revert tracking is in-memory and process-global, not per-browser-session.
-- `RevertPatch`'s exact field-release behavior (Task 14) is verified against a real cluster's server-side apply, not the fake dynamic client used in unit tests; its non-deletion safety property is what the unit tests assert.
