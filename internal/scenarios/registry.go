@@ -1,5 +1,18 @@
 package scenarios
 
+import "k8s.io/apimachinery/pkg/runtime/schema"
+
+// routingBackendGVR identifies the enterpriseagentgateway.solo.io Backend CRD
+// the 3 routing-pillar read-only policies display. These objects are
+// pre-provisioned by the agentgateway-field-kit usecase, not by this repo -
+// see docs/superpowers/specs/2026-10-08-demo-wizard-field-kit-integration-design.md
+// in that sibling repo for the full naming contract.
+var routingBackendGVR = schema.GroupVersionResource{
+	Group:    "enterpriseagentgateway.solo.io",
+	Version:  "v1alpha1",
+	Resource: "enterpriseagentgatewaybackends",
+}
+
 // Registry returns the wizard's full demo script, in presentation order.
 func Registry() []Pillar {
 	pillars := []Pillar{
@@ -78,7 +91,15 @@ func routingPillar() Pillar {
 					"  AGW->>ANT: forward\n" +
 					"  ANT-->>Client: response",
 				Policies: []Policy{
-					{ID: "routing-by-name", Title: "Model-by-name routing", ManifestPath: "routing/by-name.yaml.tmpl"},
+					{
+						ID:       "routing-by-name",
+						Title:    "Model-by-name routing",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: routingBackendGVR, Name: "routing-by-name-openai"},
+							{GVR: routingBackendGVR, Name: "routing-by-name-anthropic"},
+						},
+					},
 				},
 				Presets: []RequestPreset{
 					{
@@ -114,7 +135,15 @@ func routingPillar() Pillar {
 					"  AGW -->|fast| Fast[gpt-4o-mini]\n" +
 					"  AGW -->|premium| Premium[gpt-4o]",
 				Policies: []Policy{
-					{ID: "routing-dynamic", Title: "Dynamic tier routing", ManifestPath: "routing/dynamic-tier.yaml.tmpl"},
+					{
+						ID:       "routing-dynamic",
+						Title:    "Dynamic tier routing",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: routingBackendGVR, Name: "routing-dynamic-fast"},
+							{GVR: routingBackendGVR, Name: "routing-dynamic-premium"},
+						},
+					},
 				},
 				Presets: []RequestPreset{
 					{
@@ -154,7 +183,14 @@ func routingPillar() Pillar {
 					"  AGW->>Premium: fail over automatically\n" +
 					"  Premium-->>Client: response",
 				Policies: []Policy{
-					{ID: "routing-fallback", Title: "Priority-tiered failover", ManifestPath: "routing/fallback.yaml.tmpl"},
+					{
+						ID:       "routing-fallback",
+						Title:    "Priority-tiered failover",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: routingBackendGVR, Name: "routing-fallback"},
+						},
+					},
 				},
 				Presets: []RequestPreset{
 					{

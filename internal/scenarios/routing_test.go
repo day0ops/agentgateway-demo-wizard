@@ -1,9 +1,6 @@
 package scenarios
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestRegistryIncludesPillar1Routing(t *testing.T) {
 	reg := Registry()
@@ -27,49 +24,50 @@ func TestRegistryIncludesPillar1Routing(t *testing.T) {
 	}
 }
 
-func TestRoutingPoliciesRenderValidManifests(t *testing.T) {
-	params := ManifestParams{
-		Namespace:    "agentgateway-system",
-		GatewayName:  "agentgateway-gw",
-		GatewayNS:    "agentgateway-system",
-		OpenAIKey:    "sk-test",
-		AnthropicKey: "sk-ant-test",
-	}
-
+func TestRoutingPoliciesAreReadOnlyAndNeverApply(t *testing.T) {
 	routing := Registry()[1]
 
-	for _, step := range routing.Steps {
-		if len(step.Policies) == 0 {
-			continue // routing-streaming reuses routing-by-name's already-applied policy
-		}
-		for _, policy := range step.Policies {
-			docs, err := policy.Render(params)
-			if err != nil {
-				t.Fatalf("rendering policy %q: %v", policy.ID, err)
-			}
-			if len(docs) == 0 {
-				t.Fatalf("policy %q rendered no documents", policy.ID)
-			}
+	wantViewRefNames := map[string][]string{
+		"routing-by-name":  {"routing-by-name-openai", "routing-by-name-anthropic"},
+		"routing-dynamic":  {"routing-dynamic-fast", "routing-dynamic-premium"},
+		"routing-fallback": {"routing-fallback"},
+	}
 
-			joined := string(docs[0])
-			for _, d := range docs[1:] {
-				joined += "\n---\n" + string(d)
+	for _, step := range routing.Steps {
+		want, hasPolicy := wantViewRefNames[step.ID]
+		if !hasPolicy {
+			continue // routing-streaming has no policy of its own
+		}
+		if len(step.Policies) != 1 {
+			t.Fatalf("step %q: expected exactly 1 policy, got %d", step.ID, len(step.Policies))
+		}
+		p := step.Policies[0]
+
+		if !p.ReadOnly {
+			t.Fatalf("step %q: expected policy to be ReadOnly", step.ID)
+		}
+		if p.ManifestPath != "" {
+			t.Fatalf("step %q: expected empty ManifestPath on a read-only policy, got %q", step.ID, p.ManifestPath)
+		}
+
+		if len(p.ViewRefs) != len(want) {
+			t.Fatalf("step %q: expected %d ViewRefs, got %d", step.ID, len(want), len(p.ViewRefs))
+		}
+		for i, name := range want {
+			if p.ViewRefs[i].Name != name {
+				t.Fatalf("step %q: ViewRefs[%d].Name = %q, want %q", step.ID, i, p.ViewRefs[i].Name, name)
 			}
-			if !strings.Contains(joined, "EnterpriseAgentgatewayBackend") {
-				t.Fatalf("policy %q: expected an EnterpriseAgentgatewayBackend, got: %s", policy.ID, joined)
+			if p.ViewRefs[i].GVR.Resource != "enterpriseagentgatewaybackends" {
+				t.Fatalf("step %q: ViewRefs[%d].GVR.Resource = %q, want enterpriseagentgatewaybackends", step.ID, i, p.ViewRefs[i].GVR.Resource)
 			}
-			if !strings.Contains(joined, "HTTPRoute") {
-				t.Fatalf("policy %q: expected an HTTPRoute, got: %s", policy.ID, joined)
-			}
-			if strings.Contains(joined, "{{") {
-				t.Fatalf("policy %q: unresolved template variable in output: %s", policy.ID, joined)
-			}
-			if !strings.Contains(joined, params.Namespace) {
-				t.Fatalf("policy %q: expected the rendered namespace %q to appear, got: %s", policy.ID, params.Namespace, joined)
-			}
-			if !strings.Contains(joined, params.GatewayName) {
-				t.Fatalf("policy %q: expected the rendered gateway name %q to appear, got: %s", policy.ID, params.GatewayName, joined)
-			}
+		}
+
+		docs, err := p.Render(ManifestParams{Namespace: "agentgateway-system"})
+		if err != nil {
+			t.Fatalf("step %q: Render errored: %v", step.ID, err)
+		}
+		if docs != nil {
+			t.Fatalf("step %q: expected a read-only policy to render nothing, got %v", step.ID, docs)
 		}
 	}
 }
