@@ -20,7 +20,7 @@ describe("estimateCostFromResponseBody", () => {
 
   it("returns null for an unpriced model", () => {
     const body = JSON.stringify({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-5-20250415",
       usage: { prompt_tokens: 100, completion_tokens: 100 },
     });
     expect(estimateCostFromResponseBody(body)).toBeNull();
