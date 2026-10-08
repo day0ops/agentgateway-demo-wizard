@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Play, Undo2, Eye, EyeOff } from "lucide-react";
 import type { Policy } from "../lib/api";
 import { StatusBadge } from "./StatusBadge";
+import { CodeBlock } from "./CodeBlock";
 
 type PolicyState = {
   status: "idle" | "applying" | "applied" | "error";
@@ -231,12 +232,9 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 vst.refs
                   ?.filter((r) => r.found)
                   .map((r) => (
-                    <pre
-                      key={r.name}
-                      className="mt-3 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100"
-                    >
-                      {r.yaml}
-                    </pre>
+                    <div key={r.name} className="mt-3">
+                      <CodeBlock code={r.yaml ?? ""} />
+                    </div>
                   ))}
             </div>
           );
@@ -303,9 +301,9 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
             </div>
 
             {st.showYaml && st.yaml && (
-              <pre className="mt-3 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
-                {st.yaml}
-              </pre>
+              <div className="mt-3">
+                <CodeBlock code={st.yaml} />
+              </div>
             )}
           </div>
         );

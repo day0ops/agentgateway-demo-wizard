@@ -61,7 +61,12 @@ describe("ConfigurePane", () => {
     fireEvent.click(screen.getByText("Apply"));
 
     await waitFor(() =>
-      expect(screen.getByText("kind: Foo")).toBeInTheDocument(),
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.tagName === "CODE" && element.textContent === "kind: Foo",
+        ),
+      ).toBeInTheDocument(),
     );
     expect(screen.getByText("hide YAML")).toBeInTheDocument();
   });
