@@ -71,3 +71,23 @@ func TestMissingAllConfigured(t *testing.T) {
 		t.Fatalf("expected 0 missing vars, got %d: %v", len(missing), missing)
 	}
 }
+
+func TestLoadDefaultsSTSHostWhenUnset(t *testing.T) {
+	t.Setenv("STS_HOST", "")
+
+	cfg := Load()
+
+	if cfg.STSHost != defaultSTSHost {
+		t.Fatalf("expected the default STS host, got %q", cfg.STSHost)
+	}
+}
+
+func TestLoadRespectsSTSHostOverride(t *testing.T) {
+	t.Setenv("STS_HOST", "sts.other-namespace.svc.cluster.local:7777")
+
+	cfg := Load()
+
+	if cfg.STSHost != "sts.other-namespace.svc.cluster.local:7777" {
+		t.Fatalf("expected the overridden STS host, got %q", cfg.STSHost)
+	}
+}
