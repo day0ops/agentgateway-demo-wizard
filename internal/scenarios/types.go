@@ -13,7 +13,11 @@ import (
 type Pillar struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
-	Steps []Step `json:"steps"`
+	// Teaser is a one-line, benefit-oriented summary of what this pillar
+	// demonstrates. Empty for the intro/wrap-up pillars, which aren't
+	// features themselves - the welcome step lists every pillar that has one.
+	Teaser string `json:"teaser"`
+	Steps  []Step `json:"steps"`
 }
 
 // Step is one screen of the wizard within a Pillar.

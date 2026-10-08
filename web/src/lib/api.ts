@@ -29,6 +29,7 @@ export type Step = {
 export type Pillar = {
   id: string;
   title: string;
+  teaser: string;
   steps: Step[];
 };
 
