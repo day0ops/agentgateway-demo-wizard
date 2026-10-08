@@ -41,7 +41,7 @@ describe("ConfigurePane", () => {
     fireEvent.click(screen.getByText("Apply"));
 
     await waitFor(() =>
-      expect(screen.getByText("● applied")).toBeInTheDocument(),
+      expect(screen.getByText("applied")).toBeInTheDocument(),
     );
     expect(screen.getByText("Revert")).toBeInTheDocument();
   });
@@ -99,7 +99,7 @@ describe("ConfigurePane", () => {
     await waitFor(() =>
       expect(screen.getByText('unknown policy "x"')).toBeInTheDocument(),
     );
-    expect(screen.getByText("● error")).toBeInTheDocument();
+    expect(screen.getByText("error")).toBeInTheDocument();
   });
 
   it("surfaces a stream read failure instead of hanging on 'applying'", async () => {
@@ -126,7 +126,7 @@ describe("ConfigurePane", () => {
     await waitFor(() =>
       expect(screen.getByText("stream disconnected")).toBeInTheDocument(),
     );
-    expect(screen.getByText("● error")).toBeInTheDocument();
+    expect(screen.getByText("error")).toBeInTheDocument();
     expect(screen.getByText("Apply")).not.toBeDisabled();
   });
 

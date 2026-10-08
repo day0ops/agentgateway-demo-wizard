@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Play, Undo2, Eye, EyeOff } from "lucide-react";
 import type { Policy } from "../lib/api";
+import { StatusBadge } from "./StatusBadge";
 
 type PolicyState = {
   status: "idle" | "applying" | "applied" | "error";
@@ -185,7 +187,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
           return (
             <div
               key={policy.id}
-              className="rounded-lg border border-slate-200 p-4 dark:border-slate-800"
+              className="rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800"
             >
               <div className="flex items-center justify-between">
                 <span className="font-medium">{policy.title}</span>
@@ -208,16 +210,18 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 {vst.status === "shown" ? (
                   <button
                     onClick={() => hideConfig(policy.id)}
-                    className="rounded bg-slate-200 px-3 py-1 text-sm dark:bg-slate-800"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm dark:bg-slate-800"
                   >
+                    <EyeOff size={14} />
                     Hide config
                   </button>
                 ) : (
                   <button
                     onClick={() => viewConfig(policy)}
                     disabled={vst.status === "loading"}
-                    className="rounded bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
                   >
+                    <Eye size={14} />
                     View config
                   </button>
                 )}
@@ -247,7 +251,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
         return (
           <div
             key={policy.id}
-            className={`rounded-lg border p-4 ${
+            className={`rounded-xl border p-4 shadow-sm ${
               st.status === "error"
                 ? "border-red-500 bg-red-50 dark:bg-red-950"
                 : "border-slate-200 dark:border-slate-800"
@@ -255,12 +259,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
           >
             <div className="flex items-center justify-between">
               <span className="font-medium">{policy.title}</span>
-              <span className="text-xs text-slate-500">
-                {st.status === "applied" && "● applied"}
-                {st.status === "applying" && "… applying"}
-                {st.status === "error" && "● error"}
-                {st.status === "idle" && "○ not applied"}
-              </span>
+              <StatusBadge status={st.status} />
             </div>
 
             {st.status === "error" && (
@@ -273,16 +272,18 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
               {canRevert ? (
                 <button
                   onClick={() => revert(policy)}
-                  className="rounded bg-slate-200 px-3 py-1 text-sm dark:bg-slate-800"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm dark:bg-slate-800"
                 >
+                  <Undo2 size={14} />
                   Revert
                 </button>
               ) : (
                 <button
                   onClick={() => apply(policy)}
                   disabled={st.status === "applying"}
-                  className="rounded bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
                 >
+                  <Play size={14} />
                   Apply
                 </button>
               )}
