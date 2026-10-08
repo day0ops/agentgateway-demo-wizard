@@ -95,6 +95,95 @@ spec:
 	}
 }
 
+func TestConfigViewOmitsServerManagedNoiseFromYAML(t *testing.T) {
+	applier := newApplierForViewTest()
+	// managedFields/resourceVersion/uid/status aren't things a caller sets via
+	// Apply against a real API server either - they're server-assigned - but
+	// seeding them directly on the fixture is the simplest way to exercise the
+	// same object shape a real SSA response would have, since the fake dynamic
+	// client's Apply doesn't synthesize them itself.
+	backendDoc := `
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: present-backend
+  namespace: agentgateway-system
+  resourceVersion: "12345"
+  uid: abc-123-def
+  generation: 2
+  managedFields:
+    - manager: kubectl
+      operation: Apply
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+spec:
+  ai:
+    provider:
+      openai:
+        model: gpt-4o-mini
+`
+	if _, err := applier.Apply(context.Background(), "seed", [][]byte{[]byte(backendDoc)}); err != nil {
+		t.Fatalf("seeding fixture: %v", err)
+	}
+
+	s := NewServer(WithScenarios(testRegistryWithReadOnlyPolicy()), WithApplier(applier))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/config/view?policyId=test-view", nil)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, noisy := range []string{"managedFields", "resourceVersion", "uid", "generation", "status"} {
+		if strings.Contains(body, noisy) {
+			t.Fatalf("expected %q to be stripped from the view response, got: %s", noisy, body)
+		}
+	}
+	if !strings.Contains(body, "gpt-4o-mini") {
+		t.Fatalf("expected the backend's spec to survive stripping, got: %s", body)
+	}
+}
+
+func TestStripAppliedStateRemovesServerManagedNoise(t *testing.T) {
+	obj := map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata": map[string]interface{}{
+			"name":              "foo",
+			"namespace":         "demo",
+			"resourceVersion":   "12345",
+			"uid":               "abc-123",
+			"generation":        int64(2),
+			"creationTimestamp": "2026-10-08T00:00:00Z",
+			"managedFields":     []interface{}{map[string]interface{}{"manager": "kubectl"}},
+		},
+		"status": map[string]interface{}{"phase": "Active"},
+		"data":   map[string]interface{}{"key": "value"},
+	}
+
+	stripAppliedState(obj)
+
+	metadata, _ := obj["metadata"].(map[string]interface{})
+	for _, noisy := range []string{"resourceVersion", "uid", "generation", "creationTimestamp", "managedFields"} {
+		if _, present := metadata[noisy]; present {
+			t.Fatalf("expected metadata.%s to be stripped, got: %v", noisy, metadata)
+		}
+	}
+	if _, present := obj["status"]; present {
+		t.Fatalf("expected status to be stripped, got: %v", obj)
+	}
+	if metadata["name"] != "foo" || metadata["namespace"] != "demo" {
+		t.Fatalf("expected name/namespace preserved, got: %v", metadata)
+	}
+	if data, _ := obj["data"].(map[string]interface{}); data["key"] != "value" {
+		t.Fatalf("expected spec/data fields preserved, got: %v", obj)
+	}
+}
+
 func TestConfigViewUnknownPolicyReturns404(t *testing.T) {
 	applier := newApplierForTest()
 	s := NewServer(WithScenarios(testRegistryWithReadOnlyPolicy()), WithApplier(applier))
