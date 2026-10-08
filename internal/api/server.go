@@ -38,7 +38,9 @@ type Option func(*Server)
 // cmd/wizard/main.go). Empty if never called (local `go run`/`go test`
 // without ldflags).
 func WithVersion(v string) Option {
-	return func(s *Server) { s.version = v }
+	return func(s *Server) {
+		s.version = v
+	}
 }
 
 // NewServer builds the wizard's HTTP server with all routes registered.
