@@ -18,6 +18,12 @@ import (
 const keycloakRealm = "agw-dev"
 const keycloakClientID = "agw-client-public"
 
+// requestTimeout bounds every call this client makes, including live,
+// non-streaming LLM completions through Keycloak, agentgateway, and the
+// upstream provider - those can legitimately take tens of seconds since the
+// full completion must be generated before the response headers go out.
+const requestTimeout = 60 * time.Second
+
 // demoUsers maps the wizard's fixed identities to the Keycloak usernames
 // seeded in the agw-dev realm by agentgateway-field-kit's keycloak addon
 // (config.realms[].users in a profile like
@@ -45,7 +51,7 @@ type Client struct {
 // demoUserPassword is the shared password for every demoUsers entry.
 func NewClient(keycloakBaseURL, gatewayBaseURL, demoUserPassword string) *Client {
 	return &Client{
-		httpClient:       &http.Client{Timeout: 15 * time.Second},
+		httpClient:       &http.Client{Timeout: requestTimeout},
 		keycloakBaseURL:  strings.TrimRight(keycloakBaseURL, "/"),
 		gatewayBaseURL:   strings.TrimRight(gatewayBaseURL, "/"),
 		demoUserPassword: demoUserPassword,
