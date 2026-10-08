@@ -55,13 +55,13 @@ func introPillar() Pillar {
 		Steps: []Step{
 			{
 				ID:    "welcome",
-				Title: "Welcome to Acme Corp",
-				Explanation: "Acme Corp's platform team gives every internal team - team-alpha and " +
-					"team-beta - safe, governed access to LLMs and agentic tools. agentgateway is the " +
-					"one control point every one of those AI calls flows through. Over the next 45 " +
-					"minutes we'll walk through four things that single control point buys you: smart " +
-					"model routing with automatic fallback, identity-aware access control, full cost " +
-					"attribution, and governed agent-to-tool calling.",
+				Title: "Welcome to agentgateway",
+				Explanation: "agentgateway is the one control point every AI call in an organization - " +
+					"chat completions, agent tool calls - can flow through, instead of every team " +
+					"wiring up its own access, safety, and cost controls against each provider " +
+					"directly. This wizard drives a live agentgateway instance: each step applies real " +
+					"configuration to a real cluster and fires real requests through it, so you see " +
+					"the gateway's policies working rather than read about them. Here's what you'll see:",
 			},
 		},
 	}
@@ -69,8 +69,9 @@ func introPillar() Pillar {
 
 func routingPillar() Pillar {
 	return Pillar{
-		ID:    "routing",
-		Title: "One endpoint, many models",
+		ID:     "routing",
+		Title:  "One endpoint, many models",
+		Teaser: "Smart model routing with automatic fallback when a backend degrades.",
 		Steps: []Step{
 			{
 				ID:    "routing-by-name",
@@ -243,8 +244,9 @@ func routingPillar() Pillar {
 
 func authPillar() Pillar {
 	return Pillar{
-		ID:    "auth",
-		Title: "Who's allowed to do what",
+		ID:     "auth",
+		Title:  "Who's allowed to do what",
+		Teaser: "Identity-aware access control - every call is authenticated and authorized.",
 		Steps: []Step{
 			{
 				ID:    "auth-jwt",
@@ -337,8 +339,9 @@ func authPillar() Pillar {
 
 func guardrailsPillar() Pillar {
 	return Pillar{
-		ID:    "guardrails",
-		Title: "What gets through",
+		ID:     "guardrails",
+		Title:  "What gets through",
+		Teaser: "Content guardrails that block or mask what shouldn't get through.",
 		Steps: []Step{
 			{
 				ID:    "guardrails-prompt-guard",
@@ -396,8 +399,9 @@ func guardrailsPillar() Pillar {
 
 func costPillar() Pillar {
 	return Pillar{
-		ID:    "cost",
-		Title: "You can't govern what you can't see",
+		ID:     "cost",
+		Title:  "You can't govern what you can't see",
+		Teaser: "Full cost attribution, with budgets and virtual keys per team.",
 		Steps: []Step{
 			{
 				ID:    "cost-attribution",
@@ -485,8 +489,9 @@ func costPillar() Pillar {
 
 func agentPillar() Pillar {
 	return Pillar{
-		ID:    "agent",
-		Title: "From models to agents",
+		ID:     "agent",
+		Title:  "From models to agents",
+		Teaser: "Governed agent-to-tool calling, through the same control point.",
 		Steps: []Step{
 			{
 				ID:        "agent-mcp-server",

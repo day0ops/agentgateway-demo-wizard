@@ -16,11 +16,13 @@ const pillars: Pillar[] = [
   {
     id: "intro",
     title: "Welcome",
+    teaser: "",
     steps: [{ id: "welcome", title: "Welcome", ...emptyStep }],
   },
   {
     id: "routing",
     title: "Routing",
+    teaser: "",
     steps: [
       { id: "a", title: "A", ...emptyStep },
       { id: "b", title: "B", ...emptyStep },

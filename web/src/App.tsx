@@ -11,6 +11,7 @@ import { ConfigurePane } from "./components/ConfigurePane";
 import { DriveRequestPane } from "./components/DriveRequestPane";
 import { AgentRunPane } from "./components/AgentRunPane";
 import { VirtualKeyPane } from "./components/VirtualKeyPane";
+import { WelcomeFeatures } from "./components/WelcomeFeatures";
 
 export default function App() {
   const [pillars, setPillars] = useState<Pillar[]>([]);
@@ -124,6 +125,7 @@ export default function App() {
 
       <div className="flex-1 overflow-y-auto">
         <ExplanationBand key={activeStep.id} step={activeStep} />
+        {activeStep.id === "welcome" && <WelcomeFeatures pillars={pillars} />}
         {hasDemo && (
           <div className="grid grid-cols-2 gap-6 px-6 py-6">
             <ConfigurePane policies={activeStep.policies} />
