@@ -8,7 +8,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestNewClientUsesAGenerousTimeoutForLiveLLMCalls(t *testing.T) {
+	client := NewClient("http://unused", "http://unused", "test-password")
+	if client.httpClient.Timeout < 60*time.Second {
+		t.Fatalf("expected a timeout of at least 60s to tolerate slow live LLM responses, got %s", client.httpClient.Timeout)
+	}
+}
 
 func TestTokenReturnsAccessTokenForKnownIdentity(t *testing.T) {
 	keycloak := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
