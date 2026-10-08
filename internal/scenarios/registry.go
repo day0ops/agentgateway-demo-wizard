@@ -88,7 +88,7 @@ func routingPillar() Pillar {
 					"  Client->>AGW: POST /chat/by-name (X-Demo-Model: gpt-4o-mini)\n" +
 					"  AGW->>OAI: forward\n" +
 					"  OAI-->>Client: response\n" +
-					"  Client->>AGW: POST /chat/by-name (X-Demo-Model: claude-sonnet-4-5-20250415)\n" +
+					"  Client->>AGW: POST /chat/by-name (X-Demo-Model: claude-sonnet-5)\n" +
 					"  AGW->>ANT: forward\n" +
 					"  ANT-->>Client: response",
 				Policies: []Policy{
@@ -117,8 +117,8 @@ func routingPillar() Pillar {
 						Identity: "anonymous",
 						Method:   "POST",
 						Path:     "/chat/by-name",
-						Headers:  map[string]string{"X-Demo-Model": "claude-sonnet-4-5-20250415"},
-						Body:     `{"model":"claude-sonnet-4-5-20250415","messages":[{"role":"user","content":"What is agentgateway in one sentence?"}]}`,
+						Headers:  map[string]string{"X-Demo-Model": "claude-sonnet-5"},
+						Body:     `{"model":"claude-sonnet-5","messages":[{"role":"user","content":"What is agentgateway in one sentence?"}]}`,
 					},
 				},
 			},
