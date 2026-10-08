@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Send } from "lucide-react";
 import type { RequestPreset } from "../lib/api";
+import { prettyPrintJson } from "../lib/json";
+import { CodeBlock } from "./CodeBlock";
 
 type RequestState = {
   method: string;
@@ -41,7 +43,7 @@ export function DriveRequestPane({
     setRequest({
       method: preset.method,
       path: preset.path,
-      body: preset.body,
+      body: prettyPrintJson(preset.body),
       identity: preset.identity,
       headers: preset.headers,
       stream: preset.stream,
@@ -169,32 +171,45 @@ export function DriveRequestPane({
                 </span>
               </div>
               {Object.keys(request.headers).length > 0 && (
-                <div className="divide-y divide-slate-200 px-3 dark:divide-slate-800">
-                  {Object.entries(request.headers).map(([name, value]) => (
-                    <div
-                      key={name}
-                      className="flex gap-2 py-1.5 font-mono text-xs"
-                    >
-                      <span className="text-indigo-600 dark:text-indigo-400">
-                        {name}
-                      </span>
-                      <span className="text-slate-300 dark:text-slate-600">
-                        :
-                      </span>
-                      <span className="text-slate-700 dark:text-slate-300">
-                        {value}
-                      </span>
-                    </div>
-                  ))}
+                <div className="border-t border-slate-200 px-3 py-2 dark:border-slate-800">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Headers
+                  </div>
+                  <div className="mt-1 divide-y divide-slate-200 dark:divide-slate-800">
+                    {Object.entries(request.headers).map(([name, value]) => (
+                      <div
+                        key={name}
+                        className="flex gap-2 py-1.5 font-mono text-xs"
+                      >
+                        <span className="text-indigo-600 dark:text-indigo-400">
+                          {name}
+                        </span>
+                        <span className="text-slate-300 dark:text-slate-600">
+                          :
+                        </span>
+                        <span className="text-slate-700 dark:text-slate-300">
+                          {value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+              <div className="border-t border-slate-200 px-3 py-2 dark:border-slate-800">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Body
+                </div>
+                <textarea
+                  value={request.body}
+                  onChange={(e) =>
+                    setRequest({ ...request, body: e.target.value })
+                  }
+                  rows={Math.min(20, request.body.split("\n").length + 1)}
+                  className="mt-1 w-full resize-y rounded bg-slate-950 p-3 font-mono text-xs text-slate-100"
+                  spellCheck={false}
+                />
+              </div>
             </div>
-            <textarea
-              value={request.body}
-              onChange={(e) => setRequest({ ...request, body: e.target.value })}
-              rows={4}
-              className="w-full rounded border border-slate-200 bg-transparent p-2 font-mono text-xs dark:border-slate-700"
-            />
             <button
               onClick={send}
               disabled={result.status === "sending"}
@@ -215,9 +230,7 @@ export function DriveRequestPane({
         {result.status === "streaming" && (
           <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
             <div className="text-xs text-slate-500">streaming...</div>
-            <pre className="overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
-              {result.body}
-            </pre>
+            <CodeBlock language="json" code={result.body} />
           </div>
         )}
 
@@ -226,9 +239,7 @@ export function DriveRequestPane({
             <div className="text-xs text-slate-500">
               {result.statusCode} · {result.latencyMs}ms
             </div>
-            <pre className="overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-100">
-              {result.body}
-            </pre>
+            <CodeBlock language="json" code={prettyPrintJson(result.body)} />
           </div>
         )}
       </div>

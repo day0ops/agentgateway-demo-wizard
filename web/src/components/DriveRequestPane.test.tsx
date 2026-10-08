@@ -38,7 +38,13 @@ describe("DriveRequestPane", () => {
     await waitFor(() =>
       expect(screen.getByText("200 · 42ms")).toBeInTheDocument(),
     );
-    expect(screen.getByText('{"id":"chatcmpl-1"}')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "CODE" &&
+          element.textContent === '{\n  "id": "chatcmpl-1"\n}',
+      ),
+    ).toBeInTheDocument();
   });
 
   it("forwards the preset's headers in the request body sent to /api/request", async () => {

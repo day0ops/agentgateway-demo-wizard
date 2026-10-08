@@ -191,7 +191,9 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
               className="rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800"
             >
               <div className="flex items-center justify-between">
-                <span className="font-medium">{policy.title}</span>
+                {policy.title && (
+                  <span className="font-medium">{policy.title}</span>
+                )}
                 <span className="text-xs text-slate-500">pre-provisioned</span>
               </div>
 
@@ -232,7 +234,13 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 vst.refs
                   ?.filter((r) => r.found)
                   .map((r) => (
-                    <div key={r.name} className="mt-3">
+                    <div
+                      key={r.name}
+                      className="mt-3 overflow-hidden rounded border border-slate-200 dark:border-slate-800"
+                    >
+                      <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                        {r.name}
+                      </div>
                       <CodeBlock code={r.yaml ?? ""} />
                     </div>
                   ))}

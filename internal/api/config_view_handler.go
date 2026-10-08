@@ -53,6 +53,7 @@ func (s *Server) handleConfigView(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		stripAppliedState(obj.Object)
 		docYAML, err := yaml.Marshal(obj.Object)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err)
@@ -62,4 +63,19 @@ func (s *Server) handleConfigView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"refs": results})
+}
+
+// stripAppliedState removes fields a server assigns on write (managedFields,
+// resourceVersion, uid, generation, creationTimestamp) and the status
+// subresource from obj, in place - a policy's ViewRefs point at
+// already-applied cluster objects, but the point of this view is showing a
+// reader raw config they could apply themselves, not a dump of this
+// particular cluster's applied state.
+func stripAppliedState(obj map[string]any) {
+	if metadata, ok := obj["metadata"].(map[string]any); ok {
+		for _, field := range []string{"managedFields", "resourceVersion", "uid", "generation", "creationTimestamp", "selfLink"} {
+			delete(metadata, field)
+		}
+	}
+	delete(obj, "status")
 }
