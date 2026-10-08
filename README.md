@@ -63,7 +63,6 @@ cd web && npm install && cd ..
 export AGW_HOST=agentgateway.demo.example.com
 export KEYCLOAK_HOST=keycloak.demo.example.com
 export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
 export OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET=agw-token-exchange-secret
 export DEMO_USER_PASSWORD=Password1!
 
