@@ -70,6 +70,32 @@ func TestConfigApplyUnknownPolicyReturns404(t *testing.T) {
 	}
 }
 
+func TestConfigApplyReadOnlyPolicyReturns400(t *testing.T) {
+	applier := newApplierForTest()
+	s := NewServer(WithScenarios(testRegistryWithReadOnlyPolicy()), WithApplier(applier))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/config/apply", strings.NewReader(`{"policyId":"test-view"}`))
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for a read-only policy, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestConfigRevertReadOnlyPolicyReturns400(t *testing.T) {
+	applier := newApplierForTest()
+	s := NewServer(WithScenarios(testRegistryWithReadOnlyPolicy()), WithApplier(applier))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/config/revert", strings.NewReader(`{"policyId":"test-view"}`))
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for a read-only policy, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestConfigRevertThenReset(t *testing.T) {
 	applier := newApplierForTest()
 	s := NewServer(WithScenarios(testRegistryWithFixturePolicy()), WithApplier(applier))

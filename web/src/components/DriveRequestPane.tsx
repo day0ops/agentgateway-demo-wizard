@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Send } from "lucide-react";
 import type { RequestPreset } from "../lib/api";
 
 type RequestState = {
@@ -128,7 +129,7 @@ export function DriveRequestPane({
         Request &amp; Response
       </h2>
 
-      <div className="space-y-4 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+      <div className="space-y-4 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">
         <div className="flex flex-wrap gap-2">
           {presets.map((preset) => (
             <button
@@ -164,8 +165,9 @@ export function DriveRequestPane({
             <button
               onClick={send}
               disabled={result.status === "sending"}
-              className="rounded bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
             >
+              <Send size={14} />
               Send
             </button>
           </div>

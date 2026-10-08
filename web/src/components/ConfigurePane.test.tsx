@@ -33,13 +33,15 @@ describe("ConfigurePane", () => {
 
     render(
       <ConfigurePane
-        policies={[{ id: "fallback", title: "Automatic fallback" }]}
+        policies={[
+          { id: "fallback", title: "Automatic fallback", readOnly: false },
+        ]}
       />,
     );
     fireEvent.click(screen.getByText("Apply"));
 
     await waitFor(() =>
-      expect(screen.getByText("● applied")).toBeInTheDocument(),
+      expect(screen.getByText("applied")).toBeInTheDocument(),
     );
     expect(screen.getByText("Revert")).toBeInTheDocument();
   });
@@ -51,7 +53,9 @@ describe("ConfigurePane", () => {
 
     render(
       <ConfigurePane
-        policies={[{ id: "fallback", title: "Automatic fallback" }]}
+        policies={[
+          { id: "fallback", title: "Automatic fallback", readOnly: false },
+        ]}
       />,
     );
     fireEvent.click(screen.getByText("Apply"));
@@ -68,7 +72,9 @@ describe("ConfigurePane", () => {
     ]) as unknown as typeof fetch;
 
     render(
-      <ConfigurePane policies={[{ id: "broken", title: "Broken policy" }]} />,
+      <ConfigurePane
+        policies={[{ id: "broken", title: "Broken policy", readOnly: false }]}
+      />,
     );
     fireEvent.click(screen.getByText("Apply"));
 
@@ -84,14 +90,16 @@ describe("ConfigurePane", () => {
       })) as unknown as typeof fetch;
 
     render(
-      <ConfigurePane policies={[{ id: "missing", title: "Missing policy" }]} />,
+      <ConfigurePane
+        policies={[{ id: "missing", title: "Missing policy", readOnly: false }]}
+      />,
     );
     fireEvent.click(screen.getByText("Apply"));
 
     await waitFor(() =>
       expect(screen.getByText('unknown policy "x"')).toBeInTheDocument(),
     );
-    expect(screen.getByText("● error")).toBeInTheDocument();
+    expect(screen.getByText("error")).toBeInTheDocument();
   });
 
   it("surfaces a stream read failure instead of hanging on 'applying'", async () => {
@@ -108,7 +116,9 @@ describe("ConfigurePane", () => {
 
     render(
       <ConfigurePane
-        policies={[{ id: "fallback", title: "Automatic fallback" }]}
+        policies={[
+          { id: "fallback", title: "Automatic fallback", readOnly: false },
+        ]}
       />,
     );
     fireEvent.click(screen.getByText("Apply"));
@@ -116,7 +126,7 @@ describe("ConfigurePane", () => {
     await waitFor(() =>
       expect(screen.getByText("stream disconnected")).toBeInTheDocument(),
     );
-    expect(screen.getByText("● error")).toBeInTheDocument();
+    expect(screen.getByText("error")).toBeInTheDocument();
     expect(screen.getByText("Apply")).not.toBeDisabled();
   });
 
@@ -149,7 +159,9 @@ describe("ConfigurePane", () => {
 
     render(
       <ConfigurePane
-        policies={[{ id: "fallback", title: "Automatic fallback" }]}
+        policies={[
+          { id: "fallback", title: "Automatic fallback", readOnly: false },
+        ]}
       />,
     );
     fireEvent.click(screen.getByText("Apply"));
@@ -163,5 +175,94 @@ describe("ConfigurePane", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Revert")).toBeInTheDocument();
+  });
+});
+
+describe("ConfigurePane - read-only policies", () => {
+  it("shows a View config button instead of Apply for a read-only policy", () => {
+    render(
+      <ConfigurePane
+        policies={[
+          {
+            id: "routing-fallback",
+            title: "Priority-tiered failover",
+            readOnly: true,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("View config")).toBeInTheDocument();
+    expect(screen.queryByText("Apply")).not.toBeInTheDocument();
+  });
+
+  it("fetches and reveals config, then hides it again, without ever POSTing apply/revert", async () => {
+    const calls: string[] = [];
+    globalThis.fetch = ((url: RequestInfo | URL) => {
+      calls.push(String(url));
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          refs: [
+            {
+              name: "routing-fallback",
+              found: true,
+              yaml: "kind: EnterpriseAgentgatewayBackend",
+            },
+          ],
+        }),
+      });
+    }) as unknown as typeof fetch;
+
+    render(
+      <ConfigurePane
+        policies={[
+          {
+            id: "routing-fallback",
+            title: "Priority-tiered failover",
+            readOnly: true,
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("View config"));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/EnterpriseAgentgatewayBackend/),
+      ).toBeInTheDocument(),
+    );
+    expect(calls).toEqual(["/api/config/view?policyId=routing-fallback"]);
+
+    fireEvent.click(screen.getByText("Hide config"));
+    expect(
+      screen.queryByText(/EnterpriseAgentgatewayBackend/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a not-yet-provisioned state for a found:false ref", async () => {
+    globalThis.fetch = (() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({
+          refs: [{ name: "routing-fallback", found: false }],
+        }),
+      })) as unknown as typeof fetch;
+
+    render(
+      <ConfigurePane
+        policies={[
+          {
+            id: "routing-fallback",
+            title: "Priority-tiered failover",
+            readOnly: true,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByText("View config"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/not yet provisioned/i)).toBeInTheDocument(),
+    );
   });
 });

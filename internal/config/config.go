@@ -15,7 +15,6 @@ type Config struct {
 	GatewayHost                    string
 	KeycloakHost                   string
 	OpenAIKey                      string
-	AnthropicKey                   string
 	StockMCPImage                  string
 	CurrencyMCPImage               string
 	OAuthTokenExchangeClientSecret string
@@ -32,7 +31,6 @@ func Load() *Config {
 		GatewayHost:                    os.Getenv("AGW_HOST"),
 		KeycloakHost:                   os.Getenv("KEYCLOAK_HOST"),
 		OpenAIKey:                      os.Getenv("OPENAI_API_KEY"),
-		AnthropicKey:                   os.Getenv("ANTHROPIC_API_KEY"),
 		StockMCPImage:                  envOrDefault("STOCK_SERVER_MCP_IMAGE", defaultStockMCPImage),
 		CurrencyMCPImage:               envOrDefault("CURRENCY_SERVER_MCP_IMAGE", defaultCurrencyMCPImage),
 		OAuthTokenExchangeClientSecret: os.Getenv("OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET"),
@@ -52,9 +50,6 @@ func (c *Config) Missing() []string {
 	}
 	if c.OpenAIKey == "" {
 		missing = append(missing, "OPENAI_API_KEY")
-	}
-	if c.AnthropicKey == "" {
-		missing = append(missing, "ANTHROPIC_API_KEY")
 	}
 	if c.OAuthTokenExchangeClientSecret == "" {
 		missing = append(missing, "OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET")

@@ -129,7 +129,7 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE="${REGISTRY}/${REPO_PATH}/${IMAGE_NAME}:${NEW_TAG}"
-          docker build -f Dockerfile -t "$IMAGE" .
+          docker build --build-arg VERSION="${NEW_TAG}" -f Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
 
   create-release:

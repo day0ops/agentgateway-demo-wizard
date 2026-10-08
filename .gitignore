@@ -60,3 +60,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .vite/
+
+#### Git worktrees ####
+.worktrees/

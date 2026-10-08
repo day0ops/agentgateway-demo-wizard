@@ -48,6 +48,10 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("unknown policy %q", req.PolicyID), http.StatusNotFound)
 		return
 	}
+	if policy.ReadOnly {
+		http.Error(w, fmt.Sprintf("policy %q is read-only, no config to apply/revert", policy.ID), http.StatusBadRequest)
+		return
+	}
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -135,6 +139,10 @@ func (s *Server) handleConfigRevert(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("unknown policy %q", req.PolicyID), http.StatusNotFound)
 		return
 	}
+	if policy.ReadOnly {
+		http.Error(w, fmt.Sprintf("policy %q is read-only, no config to apply/revert", policy.ID), http.StatusBadRequest)
+		return
+	}
 
 	if err := s.applier.Revert(r.Context(), policy.ID); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err)
@@ -207,7 +215,6 @@ func (s *Server) manifestParams() scenarios.ManifestParams {
 		params.GatewayHost = s.cfg.GatewayHost
 		params.KeycloakHost = s.cfg.KeycloakHost
 		params.OpenAIKey = s.cfg.OpenAIKey
-		params.AnthropicKey = s.cfg.AnthropicKey
 		params.StockMCPImage = s.cfg.StockMCPImage
 		params.CurrencyMCPImage = s.cfg.CurrencyMCPImage
 		params.OAuthTokenExchangeClientSecret = s.cfg.OAuthTokenExchangeClientSecret

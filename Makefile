@@ -1,10 +1,12 @@
 .PHONY: build run dev test lint docker-build web-dist
 
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 web-dist:
 	@test -f web/dist/index.html || (cd web && npm ci && npm run build)
 
 build: web-dist
-	go build -o bin/wizard ./cmd/wizard
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/wizard ./cmd/wizard
 
 run: build
 	./bin/wizard

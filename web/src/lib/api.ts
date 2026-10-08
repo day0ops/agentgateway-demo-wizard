@@ -1,6 +1,7 @@
 export type Policy = {
   id: string;
   title: string;
+  readOnly: boolean;
 };
 
 export type RequestPreset = {
@@ -35,6 +36,7 @@ export type AppConfig = {
   gatewayHost: string;
   keycloakHost: string;
   missing: string[];
+  version: string;
 };
 
 export async function fetchScenarios(): Promise<Pillar[]> {

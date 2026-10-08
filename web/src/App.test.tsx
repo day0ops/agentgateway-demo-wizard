@@ -17,7 +17,12 @@ function mockFetch(scenarios: unknown, config: unknown) {
   }) as unknown as typeof fetch;
 }
 
-const emptyConfig = { gatewayHost: "", keycloakHost: "", missing: [] };
+const emptyConfig = {
+  gatewayHost: "",
+  keycloakHost: "",
+  missing: [],
+  version: "",
+};
 
 describe("App", () => {
   it("renders the wizard title", async () => {
@@ -69,6 +74,32 @@ describe("App", () => {
     expect(await screen.findByText("Welcome to Acme Corp")).toBeInTheDocument();
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
     expect(screen.queryByText("Request & Response")).not.toBeInTheDocument();
+  });
+
+  it("renders the version from /api/config in the footer", async () => {
+    const pillars = [
+      {
+        id: "intro",
+        title: "Welcome",
+        steps: [
+          {
+            id: "welcome",
+            title: "Welcome to Acme Corp",
+            explanation: "",
+            diagram: "",
+            policies: [],
+            presets: [],
+            agentDemo: false,
+          },
+        ],
+      },
+    ];
+    globalThis.fetch = mockFetch(pillars, {
+      ...emptyConfig,
+      version: "v0.2.0",
+    });
+    render(<App />);
+    expect(await screen.findByText("v0.2.0")).toBeInTheDocument();
   });
 
   it("shows an error message when scenarios fail to load", async () => {
