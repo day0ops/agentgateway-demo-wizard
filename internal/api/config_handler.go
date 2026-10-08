@@ -18,10 +18,11 @@ type configResponse struct {
 	GatewayHost  string   `json:"gatewayHost"`
 	KeycloakHost string   `json:"keycloakHost"`
 	Missing      []string `json:"missing"`
+	Version      string   `json:"version"`
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
-	resp := configResponse{Missing: []string{}}
+	resp := configResponse{Missing: []string{}, Version: s.version}
 	if s.cfg != nil {
 		resp.GatewayHost = s.cfg.GatewayHost
 		resp.KeycloakHost = s.cfg.KeycloakHost

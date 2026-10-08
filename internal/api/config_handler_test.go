@@ -35,3 +35,40 @@ func TestConfigHandler(t *testing.T) {
 		t.Fatalf("expected 3 missing values, got %v", body.Missing)
 	}
 }
+
+func TestConfigHandlerIncludesVersion(t *testing.T) {
+	cfg := &config.Config{GatewayHost: "agw.example.com"}
+	s := NewServer(WithConfig(cfg), WithVersion("v0.2.0"))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	var body struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+	if body.Version != "v0.2.0" {
+		t.Fatalf("expected version %q, got %q", "v0.2.0", body.Version)
+	}
+}
+
+func TestConfigHandlerDefaultsVersionToDev(t *testing.T) {
+	s := NewServer(WithConfig(&config.Config{}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	var body struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+	if body.Version != "" {
+		t.Fatalf("expected empty version when WithVersion is never called, got %q", body.Version)
+	}
+}

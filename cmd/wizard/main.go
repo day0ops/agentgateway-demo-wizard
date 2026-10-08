@@ -16,6 +16,10 @@ import (
 	"github.com/day0ops/agentgateway-demo-wizard/web"
 )
 
+// version is set at build time via -ldflags "-X main.version=...". Defaults
+// to "dev" for local `go run`/`go build` without that flag.
+var version = "dev"
+
 func main() {
 	addr := os.Getenv("WIZARD_ADDR")
 	if addr == "" {
@@ -44,6 +48,7 @@ func main() {
 		api.WithApplier(applier),
 		api.WithGateway(gatewayClient),
 		api.WithAgent(agentRunner, agentToolSpecs()),
+		api.WithVersion(version),
 	)
 
 	log.Printf("agentgateway-demo-wizard listening on %s", addr)

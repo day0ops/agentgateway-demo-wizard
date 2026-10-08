@@ -27,10 +27,19 @@ type Server struct {
 	gatewayClient          *gateway.Client
 	agentRunner            *agent.Runner
 	agentTools             []agent.ToolSpec
+	version                string
 }
 
 // Option configures a Server at construction time.
 type Option func(*Server)
+
+// WithVersion sets the version string GET /api/config reports - the git tag
+// this binary was built from, injected via -ldflags at build time (see
+// cmd/wizard/main.go). Empty if never called (local `go run`/`go test`
+// without ldflags).
+func WithVersion(v string) Option {
+	return func(s *Server) { s.version = v }
+}
 
 // NewServer builds the wizard's HTTP server with all routes registered.
 func NewServer(opts ...Option) *Server {
