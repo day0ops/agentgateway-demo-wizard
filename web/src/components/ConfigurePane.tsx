@@ -190,10 +190,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
               key={policy.id}
               className="rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800"
             >
-              <div className="flex items-center justify-between">
-                {policy.title && (
-                  <span className="font-medium">{policy.title}</span>
-                )}
+              <div className="flex items-center justify-end">
                 <span className="text-xs text-slate-500">pre-provisioned</span>
               </div>
 
@@ -263,8 +260,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 : "border-slate-200 dark:border-slate-800"
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{policy.title}</span>
+            <div className="flex items-center justify-end">
               <StatusBadge status={st.status} />
             </div>
 

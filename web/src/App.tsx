@@ -128,11 +128,19 @@ export default function App() {
         {activeStep.id === "welcome" && <WelcomeFeatures pillars={pillars} />}
         {hasDemo && (
           <div className="grid grid-cols-2 gap-6 px-6 py-6">
-            <ConfigurePane policies={activeStep.policies} />
+            <ConfigurePane
+              key={`${activeStep.id}-configure`}
+              policies={activeStep.policies}
+            />
             {activeStep.agentDemo ? (
-              <AgentRunPane identity="team-alpha" model="gpt-4o-mini" />
+              <AgentRunPane
+                key={`${activeStep.id}-agent`}
+                identity="team-alpha"
+                model="gpt-4o-mini"
+              />
             ) : (
               <DriveRequestPane
+                key={`${activeStep.id}-request`}
                 presets={activeStep.presets}
                 onResponse={recordResponseCost}
               />

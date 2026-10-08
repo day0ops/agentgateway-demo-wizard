@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import App from "./App";
 
@@ -100,6 +100,94 @@ describe("App", () => {
     });
     render(<App />);
     expect(await screen.findByText("v0.2.0")).toBeInTheDocument();
+  });
+
+  it("clears the drive-request pane's response when navigating to the next step", async () => {
+    const stepTemplate = {
+      explanation: "",
+      diagram: "",
+      policies: [],
+      agentDemo: false,
+    };
+    const pillars = [
+      {
+        id: "routing",
+        title: "Routing",
+        steps: [
+          {
+            ...stepTemplate,
+            id: "step-one",
+            title: "Step one",
+            presets: [
+              {
+                id: "ask",
+                title: "Ask",
+                identity: "anonymous",
+                method: "POST",
+                path: "/chat",
+                headers: {},
+                body: "{}",
+                stream: false,
+              },
+            ],
+          },
+          {
+            ...stepTemplate,
+            id: "step-two",
+            title: "Step two",
+            presets: [
+              {
+                id: "ask-two",
+                title: "Ask again",
+                identity: "anonymous",
+                method: "POST",
+                path: "/chat",
+                headers: {},
+                body: "{}",
+                stream: false,
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    globalThis.fetch = ((url: RequestInfo | URL) => {
+      if (url === "/api/config") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => emptyConfig,
+        } as unknown as Response);
+      }
+      if (url === "/api/request") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            statusCode: 200,
+            body: '{"id":"chatcmpl-1"}',
+            latencyMs: 10,
+          }),
+        } as unknown as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => pillars,
+      } as unknown as Response);
+    }) as unknown as typeof fetch;
+
+    render(<App />);
+
+    expect(await screen.findByText("Step one")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Ask"));
+    fireEvent.click(screen.getByText("Send"));
+    await waitFor(() =>
+      expect(screen.getByText("200 · 10ms")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByText("next"));
+    expect(await screen.findByText("Step two")).toBeInTheDocument();
+    expect(screen.queryByText("200 · 10ms")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ask")).not.toBeInTheDocument();
   });
 
   it("shows an error message when scenarios fail to load", async () => {
