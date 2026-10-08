@@ -93,7 +93,6 @@ func routingPillar() Pillar {
 				Policies: []Policy{
 					{
 						ID:       "routing-by-name",
-						Title:    "Model-by-name routing",
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
 							{GVR: routingBackendGVR, Name: "routing-by-name-openai"},
@@ -104,7 +103,7 @@ func routingPillar() Pillar {
 				Presets: []RequestPreset{
 					{
 						ID:       "ask-gpt-4o-mini",
-						Title:    "Ask for gpt-4o-mini",
+						Title:    "Route to OpenAI",
 						Identity: "anonymous",
 						Method:   "POST",
 						Path:     "/chat/by-name",
@@ -113,7 +112,7 @@ func routingPillar() Pillar {
 					},
 					{
 						ID:       "ask-claude",
-						Title:    "Ask for Claude",
+						Title:    "Route to Anthropic",
 						Identity: "anonymous",
 						Method:   "POST",
 						Path:     "/chat/by-name",
