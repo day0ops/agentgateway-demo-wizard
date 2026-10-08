@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 
 type CreatedKey = {
   name: string;
@@ -91,7 +92,7 @@ export function VirtualKeyPane() {
         Virtual Keys
       </h2>
 
-      <div className="space-y-3 rounded-lg border border-slate-200 p-4 dark:border-slate-800">
+      <div className="space-y-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">
         <div className="flex flex-wrap gap-2">
           <input
             value={form.name}
@@ -126,7 +127,7 @@ export function VirtualKeyPane() {
         {keys.map((key) => (
           <div
             key={key.name}
-            className="space-y-1 rounded border border-slate-200 p-3 text-sm dark:border-slate-800"
+            className="space-y-1 rounded-lg border border-slate-200 p-3 text-sm shadow-sm dark:border-slate-800"
           >
             <div className="flex items-center justify-between">
               <span className="font-medium">
@@ -135,8 +136,9 @@ export function VirtualKeyPane() {
               <div className="flex gap-2">
                 <button
                   onClick={() => rotateKey(key.name)}
-                  className="rounded bg-slate-200 px-2 py-0.5 text-xs dark:bg-slate-800"
+                  className="inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs shadow-sm dark:bg-slate-800"
                 >
+                  <RefreshCw size={12} />
                   Rotate
                 </button>
                 <button

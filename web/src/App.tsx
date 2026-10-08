@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchConfig, fetchScenarios, type Pillar } from "./lib/api";
 import { initTheme } from "./lib/theme";
 import { estimateCostFromResponseBody } from "./lib/cost";
@@ -142,15 +143,17 @@ export default function App() {
       <div className="flex shrink-0 justify-between border-t border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-950">
         <button
           onClick={previousStep}
-          className="text-sm text-slate-500 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
         >
-          ← previous
+          <ChevronLeft size={14} />
+          previous
         </button>
         <button
           onClick={nextStep}
-          className="text-sm text-slate-500 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
         >
-          next →
+          next
+          <ChevronRight size={14} />
         </button>
       </div>
     </div>
