@@ -36,6 +36,7 @@ export type AppConfig = {
   gatewayHost: string;
   keycloakHost: string;
   missing: string[];
+  version: string;
 };
 
 export async function fetchScenarios(): Promise<Pillar[]> {

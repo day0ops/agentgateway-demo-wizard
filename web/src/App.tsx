@@ -17,6 +17,7 @@ export default function App() {
   const [activePillarIndex, setActivePillarIndex] = useState(0);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [missingEnvVars, setMissingEnvVars] = useState<string[]>([]);
+  const [version, setVersion] = useState("");
   const [scenariosError, setScenariosError] = useState<string | null>(null);
   const [totalCostUsd, setTotalCostUsd] = useState(0);
   const [costRequestCount, setCostRequestCount] = useState(0);
@@ -36,7 +37,10 @@ export default function App() {
         setScenariosError(err instanceof Error ? err.message : String(err)),
       );
     fetchConfig()
-      .then((config) => setMissingEnvVars(config.missing))
+      .then((config) => {
+        setMissingEnvVars(config.missing);
+        setVersion(config.version);
+      })
       .catch((err) => console.error("failed to load config", err));
   }, []);
 
@@ -140,7 +144,7 @@ export default function App() {
         )}
       </div>
 
-      <div className="flex shrink-0 justify-between border-t border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-950">
         <button
           onClick={previousStep}
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
@@ -148,6 +152,11 @@ export default function App() {
           <ChevronLeft size={14} />
           previous
         </button>
+        {version && (
+          <span className="text-xs text-slate-400 dark:text-slate-600">
+            {version}
+          </span>
+        )}
         <button
           onClick={nextStep}
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
