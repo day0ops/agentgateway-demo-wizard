@@ -30,6 +30,11 @@ type Step struct {
 	Presets     []RequestPreset `json:"presets"`
 	AgentDemo   bool            `json:"agentDemo"`
 	VirtualKeys bool            `json:"virtualKeys"`
+	// LoginDemo marks the one step (auth pillar's "Real login") that
+	// renders a dedicated login pane instead of Configure/Request panes -
+	// there's no policy to apply and no request to drive, just a real
+	// Authorization Code redirect.
+	LoginDemo bool `json:"loginDemo"`
 }
 
 // Policy is one clickops Configure-pane card: a named group of manifests the
@@ -107,4 +112,15 @@ type RequestPreset struct {
 	Headers  map[string]string `json:"headers"`
 	Body     string            `json:"body"`
 	Stream   bool              `json:"stream"`
+	// RequiresSessionToken marks a preset that must use the real token
+	// captured by the auth pillar's login step instead of
+	// gateway.Client's own Resource Owner Password Credentials shortcut -
+	// handleRequest returns a clear "log in first" error rather than
+	// silently falling back when one isn't present.
+	RequiresSessionToken bool `json:"requiresSessionToken"`
+	// ExchangeViaSTS marks a preset whose captured session token must be
+	// exchanged through Solo's legacy STS (Delegation, sub+act claims)
+	// before being forwarded - only meaningful alongside
+	// RequiresSessionToken.
+	ExchangeViaSTS bool `json:"exchangeViaSts"`
 }

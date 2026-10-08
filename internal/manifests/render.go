@@ -26,6 +26,7 @@ type Params struct {
 	StockMCPImage                  string
 	CurrencyMCPImage               string
 	OAuthTokenExchangeClientSecret string
+	STSHost                        string
 }
 
 // Render executes the template at path (relative to templates/) with params
