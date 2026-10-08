@@ -55,7 +55,7 @@ func TestConfigHandlerIncludesVersion(t *testing.T) {
 	}
 }
 
-func TestConfigHandlerDefaultsVersionToDev(t *testing.T) {
+func TestConfigHandlerDefaultsVersionToEmpty(t *testing.T) {
 	s := NewServer(WithConfig(&config.Config{}))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/config", nil)
