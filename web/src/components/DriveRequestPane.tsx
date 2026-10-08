@@ -11,6 +11,13 @@ type RequestState = {
   stream: boolean;
 };
 
+const methodBadgeClassName: Record<string, string> = {
+  GET: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
+  POST: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400",
+};
+const defaultMethodBadgeClassName =
+  "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+
 type ResultState =
   | { status: "idle" }
   | { status: "sending" }
@@ -144,18 +151,44 @@ export function DriveRequestPane({
 
         {request && (
           <div className="space-y-2">
-            <div className="text-xs text-slate-500">
-              {request.method} {request.path} - as {request.identity}
-            </div>
-            {Object.keys(request.headers).length > 0 && (
-              <div className="space-y-0.5 text-xs text-slate-500">
-                {Object.entries(request.headers).map(([name, value]) => (
-                  <div key={name}>
-                    {name}: {value}
-                  </div>
-                ))}
+            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+              <div className="flex flex-wrap items-center gap-2 bg-slate-50 px-3 py-2 dark:bg-slate-900">
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    methodBadgeClassName[request.method] ??
+                    defaultMethodBadgeClassName
+                  }`}
+                >
+                  {request.method}
+                </span>
+                <span className="font-mono text-xs text-slate-700 dark:text-slate-300">
+                  {request.path}
+                </span>
+                <span className="text-xs text-slate-400">
+                  as {request.identity}
+                </span>
               </div>
-            )}
+              {Object.keys(request.headers).length > 0 && (
+                <div className="divide-y divide-slate-200 px-3 dark:divide-slate-800">
+                  {Object.entries(request.headers).map(([name, value]) => (
+                    <div
+                      key={name}
+                      className="flex gap-2 py-1.5 font-mono text-xs"
+                    >
+                      <span className="text-indigo-600 dark:text-indigo-400">
+                        {name}
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-600">
+                        :
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <textarea
               value={request.body}
               onChange={(e) => setRequest({ ...request, body: e.target.value })}
