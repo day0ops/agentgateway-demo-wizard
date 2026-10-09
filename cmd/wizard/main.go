@@ -12,6 +12,7 @@ import (
 	"github.com/day0ops/agentgateway-demo-wizard/internal/gateway"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/k8s"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/mcp"
+	"github.com/day0ops/agentgateway-demo-wizard/internal/oauthlogin"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/scenarios"
 	"github.com/day0ops/agentgateway-demo-wizard/web"
 )
@@ -48,6 +49,7 @@ func main() {
 		api.WithApplier(applier),
 		api.WithGateway(gatewayClient),
 		api.WithAgent(agentRunner, agentToolSpecs()),
+		api.WithOAuthLogin("https://"+cfg.KeycloakHost, oauthlogin.DefaultActorTokenPath),
 		api.WithVersion(version),
 	)
 
