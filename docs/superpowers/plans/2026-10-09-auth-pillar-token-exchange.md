@@ -2444,7 +2444,7 @@ git commit -m "feat(wizard): wire the real-login OAuth flow into main"
 **Interfaces:**
 - Produces: `RequestPreset.requiresSessionToken: boolean`, `RequestPreset.exchangeViaSts: boolean`, `Step.loginDemo: boolean`
 
-No new test - this file has no existing test of its own (its exported functions are exercised indirectly through `App.test.tsx`, see Task 15). Verification is `npx tsc -b`. Note: existing test fixtures elsewhere in the repo (e.g. `App.test.tsx`'s `pillars` arrays) are plain untyped object literals passed through functions typed `unknown` - they are never structurally checked against `Step`/`RequestPreset`, so adding required fields here does not break any existing test or typecheck.
+No new test - this file has no existing test of its own (its exported functions are exercised indirectly through `App.test.tsx`, see Task 15). Verification is `npx tsc -b`. **Correction (found during implementation):** `App.test.tsx`'s own `pillars` arrays are indeed untyped object literals passed through functions typed `unknown`, but three other component test files type their fixtures explicitly against these exported types - `Breadcrumb.test.tsx` (`pillars: Pillar[]`), `ExplanationBand.test.tsx` (`step: Step`), and `DriveRequestPane.test.tsx` (`preset`/`headerPreset`/`streamPreset`: `RequestPreset`). Adding these new required fields breaks `tsc -b` for those three files. This task must also add `loginDemo: false` to every `Step` fixture in `Breadcrumb.test.tsx`/`ExplanationBand.test.tsx` and `requiresSessionToken: false, exchangeViaSts: false` to every `RequestPreset` fixture in `DriveRequestPane.test.tsx`, in the same commit, so `tsc -b` stays clean.
 
 - [ ] **Step 1: Add the new fields**
 
