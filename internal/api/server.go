@@ -5,12 +5,14 @@ package api
 import (
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/day0ops/agentgateway-demo-wizard/internal/agent"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/config"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/gateway"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/k8s"
+	"github.com/day0ops/agentgateway-demo-wizard/internal/oauthlogin"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/scenarios"
 )
 
@@ -28,6 +30,10 @@ type Server struct {
 	agentRunner            *agent.Runner
 	agentTools             []agent.ToolSpec
 	version                string
+	oauthStore             *oauthlogin.Store
+	keycloakBaseURL        string
+	actorTokenPath         string
+	oauthHTTPClient        *http.Client
 }
 
 // Option configures a Server at construction time.
@@ -40,6 +46,23 @@ type Option func(*Server)
 func WithVersion(v string) Option {
 	return func(s *Server) {
 		s.version = v
+	}
+}
+
+// WithOAuthLogin registers the real Authorization Code + PKCE login flow
+// (GET /auth/login, GET /auth/callback, GET /api/auth/status) used by the
+// auth pillar in place of the wizard's own Resource Owner Password
+// Credentials shortcut. keycloakBaseURL must include a scheme, matching
+// gateway.NewClient's own convention. actorTokenPath is where the wizard's
+// own Kubernetes ServiceAccount token is projected - see
+// oauthlogin.DefaultActorTokenPath for the production default; tests
+// override it to point at a fixture file.
+func WithOAuthLogin(keycloakBaseURL, actorTokenPath string) Option {
+	return func(s *Server) {
+		s.oauthStore = oauthlogin.NewStore()
+		s.keycloakBaseURL = strings.TrimRight(keycloakBaseURL, "/")
+		s.actorTokenPath = actorTokenPath
+		s.oauthHTTPClient = &http.Client{Timeout: 15 * time.Second}
 	}
 }
 
@@ -62,6 +85,9 @@ func NewServer(opts ...Option) *Server {
 	s.mux.HandleFunc("POST /api/agent/run", s.handleAgentRun)
 	s.mux.HandleFunc("POST /api/virtual-keys", s.handleVirtualKeyCreate)
 	s.mux.HandleFunc("POST /api/virtual-keys/{name}/rotate", s.handleVirtualKeyRotate)
+	s.mux.HandleFunc("GET /auth/login", s.handleAuthLogin)
+	s.mux.HandleFunc("GET /auth/callback", s.handleAuthCallback)
+	s.mux.HandleFunc("GET /api/auth/status", s.handleAuthStatus)
 	s.registerSPA()
 
 	return s
