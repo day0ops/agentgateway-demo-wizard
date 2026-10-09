@@ -78,6 +78,37 @@ describe("DriveRequestPane", () => {
     expect(sentBody.headers).toEqual({ "X-Demo-Model": "gpt-4o-mini" });
   });
 
+  it("forwards requiresSessionToken and exchangeViaSts in the request body sent to /api/request", async () => {
+    const stsPreset: RequestPreset = {
+      ...preset,
+      id: "exchange-sts",
+      requiresSessionToken: true,
+      exchangeViaSts: true,
+    };
+
+    const calls: Parameters<typeof fetch>[] = [];
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      calls.push(args);
+      return {
+        ok: true,
+        json: async () => ({
+          statusCode: 200,
+          body: '{"id":"chatcmpl-1"}',
+          latencyMs: 42,
+        }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    render(<DriveRequestPane presets={[stsPreset]} />);
+    fireEvent.click(screen.getByText("team-alpha asks a question"));
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => expect(calls.length).toBe(1));
+    const sentBody = JSON.parse(calls[0][1]?.body as string);
+    expect(sentBody.requiresSessionToken).toBe(true);
+    expect(sentBody.exchangeViaSts).toBe(true);
+  });
+
   it("shows an error message when the request fails", async () => {
     globalThis.fetch = (async () =>
       ({
