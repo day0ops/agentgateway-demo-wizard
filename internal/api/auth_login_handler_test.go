@@ -41,6 +41,9 @@ func TestHandleAuthLoginRedirectsToKeycloakWithPKCE(t *testing.T) {
 	if q.Get("code_challenge_method") != "S256" {
 		t.Fatalf("expected S256, got %q", q.Get("code_challenge_method"))
 	}
+	if q.Get("prompt") != "login" {
+		t.Fatalf("expected prompt=login to force re-authentication on every login, got %q", q.Get("prompt"))
+	}
 }
 
 func TestHandleAuthLoginRequiresIdentity(t *testing.T) {

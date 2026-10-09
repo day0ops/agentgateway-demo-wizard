@@ -41,6 +41,11 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		"state":                 {state},
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
+		// prompt=login forces Keycloak to show its login form even if an SSO
+		// session cookie already exists - without it, switching identities
+		// (e.g. team-alpha -> team-beta) silently re-authenticates as the
+		// previous user, filing the wrong team's token under the new identity.
+		"prompt": {"login"},
 	}
 	authorizeURL := s.keycloakBaseURL + "/realms/agw-dev/protocol/openid-connect/auth?" + params.Encode()
 	http.Redirect(w, r, authorizeURL, http.StatusFound)
