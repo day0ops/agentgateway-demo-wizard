@@ -97,7 +97,7 @@ spec:
     jwtAuthentication:
       mode: Strict
       providers:
-        - issuer: http://{{ .STSHost }}:{{ .STSPort }}
+        - issuer: {{ .STSHost }}:{{ .STSPort }}
           audiences:
             - agentgateway
           jwks:
