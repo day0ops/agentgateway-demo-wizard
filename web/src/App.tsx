@@ -12,6 +12,9 @@ import { DriveRequestPane } from "./components/DriveRequestPane";
 import { AgentRunPane } from "./components/AgentRunPane";
 import { VirtualKeyPane } from "./components/VirtualKeyPane";
 import { WelcomeFeatures } from "./components/WelcomeFeatures";
+import { LoginPane } from "./components/LoginPane";
+
+const AUTH_IDENTITIES = ["team-alpha", "team-beta"];
 
 export default function App() {
   const [pillars, setPillars] = useState<Pillar[]>([]);
@@ -33,7 +36,20 @@ export default function App() {
   useEffect(() => {
     initTheme();
     fetchScenarios()
-      .then(setPillars)
+      .then((loadedPillars) => {
+        setPillars(loadedPillars);
+        // Additive: a login redirect (see LoginPane) sends the browser back
+        // to "/?returnTo=<pillar id>" instead of the default welcome screen.
+        const returnTo = new URLSearchParams(window.location.search).get(
+          "returnTo",
+        );
+        if (!returnTo) return;
+        const index = loadedPillars.findIndex((p) => p.id === returnTo);
+        if (index >= 0) {
+          setActivePillarIndex(index);
+          setActiveStepIndex(0);
+        }
+      })
       .catch((err) =>
         setScenariosError(err instanceof Error ? err.message : String(err)),
       );
@@ -72,6 +88,7 @@ export default function App() {
   const activeStep = activePillar.steps[activeStepIndex];
   const hasDemo =
     activeStep.agentDemo ||
+    activeStep.loginDemo ||
     activeStep.policies.length > 0 ||
     activeStep.presets.length > 0;
 
@@ -126,7 +143,15 @@ export default function App() {
       <div className="flex-1 overflow-y-auto">
         <ExplanationBand key={activeStep.id} step={activeStep} />
         {activeStep.id === "welcome" && <WelcomeFeatures pillars={pillars} />}
-        {hasDemo && (
+        {activeStep.loginDemo && (
+          <div className="px-6 py-6">
+            <LoginPane
+              key={`${activeStep.id}-login`}
+              identities={AUTH_IDENTITIES}
+            />
+          </div>
+        )}
+        {hasDemo && !activeStep.loginDemo && (
           <div className="grid grid-cols-2 gap-6 px-6 py-6">
             <ConfigurePane
               key={`${activeStep.id}-configure`}

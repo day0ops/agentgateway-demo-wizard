@@ -137,3 +137,53 @@ func TestProxyStreamCopiesChunksAsTheyArrive(t *testing.T) {
 		t.Fatalf("expected both chunks in the streamed body, got: %s", body)
 	}
 }
+
+func TestProxyWithTokenUsesSuppliedTokenWithoutCallingKeycloak(t *testing.T) {
+	keycloakCalled := false
+	keycloak := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keycloakCalled = true
+		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "ropc-token"})
+	}))
+	defer keycloak.Close()
+
+	var gotAuth string
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient(keycloak.URL, gatewayServer.URL, "test-password")
+
+	resp, err := client.ProxyWithToken(context.Background(), Request{Identity: "team-alpha", Path: "/secure/exchange-standard", Body: "{}"}, "real-captured-token")
+	if err != nil {
+		t.Fatalf("ProxyWithToken: %v", err)
+	}
+	if keycloakCalled {
+		t.Fatalf("expected ProxyWithToken to never call Keycloak's token endpoint")
+	}
+	if gotAuth != "Bearer real-captured-token" {
+		t.Fatalf("expected the supplied token to be forwarded as-is, got %q", gotAuth)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestProxyWithTokenEmptyTokenOmitsAuthorizationHeader(t *testing.T) {
+	var gotAuth string
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "test-password")
+
+	if _, err := client.ProxyWithToken(context.Background(), Request{Path: "/secure/exchange-standard", Body: "{}"}, ""); err != nil {
+		t.Fatalf("ProxyWithToken: %v", err)
+	}
+	if gotAuth != "" {
+		t.Fatalf("expected no Authorization header for an empty token, got %q", gotAuth)
+	}
+}

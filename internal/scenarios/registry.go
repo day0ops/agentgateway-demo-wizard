@@ -248,48 +248,31 @@ func authPillar() Pillar {
 		Teaser: "Identity-aware access control - every call is authenticated and authorized.",
 		Steps: []Step{
 			{
-				ID:    "auth-jwt",
-				Title: "JWT authentication",
-				Explanation: "Identity is enforced at the edge, not in every backend service. " +
-					"agentgateway validates the caller's JWT against Keycloak before a request is " +
-					"ever forwarded - no token, no access, and the backend never has to implement " +
-					"auth itself.",
+				ID:        "auth-login",
+				Title:     "Real login",
+				LoginDemo: true,
+				Explanation: "Every other step in this pillar - and every other pillar in this wizard - " +
+					"uses a quick password grant: the wizard itself asks Keycloak for a token using a " +
+					"fixed demo username and password. That's fine for driving routing or cost demos, but " +
+					"it's the wrong way to authenticate a real user, since it means handing a password " +
+					"straight to a client. This step replaces it with a real Authorization Code + PKCE " +
+					"login: the wizard redirects your browser to Keycloak's own hosted login page, " +
+					"Keycloak redirects back with an authorization code, and the wizard exchanges that " +
+					"code for a real access token server-side. Every step after this one uses that real " +
+					"token, not a password grant.",
 				Diagram: "sequenceDiagram\n" +
-					"  participant Client\n" +
-					"  participant AGW as agentgateway\n" +
+					"  participant Browser\n" +
+					"  participant Wizard\n" +
 					"  participant KC as Keycloak\n" +
-					"  participant Echo as Echo backend\n" +
-					"  Client->>AGW: GET /secure/jwt (no token)\n" +
-					"  AGW-->>Client: 401\n" +
-					"  Client->>KC: password grant\n" +
-					"  KC-->>Client: JWT (team=team-alpha)\n" +
-					"  Client->>AGW: GET /secure/jwt (Bearer JWT)\n" +
-					"  AGW->>KC: validate JWT (JWKS)\n" +
-					"  AGW->>Echo: forward + x-gw-team header\n" +
-					"  Echo-->>Client: 200",
-				Policies: []Policy{
-					{ID: "auth-jwt", Title: "JWT authentication", ManifestPath: "auth/jwt.yaml.tmpl"},
-				},
-				Presets: []RequestPreset{
-					{
-						ID:       "no-token",
-						Title:    "No token",
-						Identity: "anonymous",
-						Method:   "GET",
-						Path:     "/secure/jwt",
-						Headers:  map[string]string{},
-						Body:     "",
-					},
-					{
-						ID:       "valid-token-team-alpha",
-						Title:    "Valid token (team-alpha)",
-						Identity: "team-alpha",
-						Method:   "GET",
-						Path:     "/secure/jwt",
-						Headers:  map[string]string{},
-						Body:     "",
-					},
-				},
+					"  Browser->>Wizard: GET /auth/login?identity=team-alpha\n" +
+					"  Wizard->>Wizard: generate PKCE verifier/challenge + state\n" +
+					"  Wizard-->>Browser: 302 to Keycloak (code_challenge, state)\n" +
+					"  Browser->>KC: real hosted login page\n" +
+					"  KC-->>Browser: 302 to /auth/callback (code, state)\n" +
+					"  Browser->>Wizard: GET /auth/callback\n" +
+					"  Wizard->>KC: POST /token (code + code_verifier)\n" +
+					"  KC-->>Wizard: real access token\n" +
+					"  Wizard-->>Browser: session cookie + redirect back into the wizard",
 			},
 			{
 				ID:    "auth-rbac",
@@ -313,22 +296,102 @@ func authPillar() Pillar {
 				},
 				Presets: []RequestPreset{
 					{
-						ID:       "team-alpha-allowed",
-						Title:    "team-alpha (allowed)",
-						Identity: "team-alpha",
-						Method:   "GET",
-						Path:     "/secure/rbac",
-						Headers:  map[string]string{},
-						Body:     "",
+						ID:                   "team-alpha-allowed",
+						Title:                "team-alpha (allowed)",
+						Identity:             "team-alpha",
+						Method:               "GET",
+						Path:                 "/secure/rbac",
+						Headers:              map[string]string{},
+						Body:                 "",
+						RequiresSessionToken: true,
 					},
 					{
-						ID:       "team-beta-denied",
-						Title:    "team-beta (denied)",
-						Identity: "team-beta",
-						Method:   "GET",
-						Path:     "/secure/rbac",
-						Headers:  map[string]string{},
-						Body:     "",
+						ID:                   "team-beta-denied",
+						Title:                "team-beta (denied)",
+						Identity:             "team-beta",
+						Method:               "GET",
+						Path:                 "/secure/rbac",
+						Headers:              map[string]string{},
+						Body:                 "",
+						RequiresSessionToken: true,
+					},
+				},
+			},
+			{
+				ID:    "auth-exchange-standard",
+				Title: "Standard token exchange (Impersonation)",
+				Explanation: "agentgateway supports two real token-exchange patterns; this is the one " +
+					"agentgateway recommends for new work. The gateway itself performs an RFC 8693 token " +
+					"exchange against Keycloak's own token endpoint - no extra infrastructure, reusing " +
+					"the same agw-token-exchange client already provisioned for the agent pillar's " +
+					"On-Behalf-Of step. The caller's real token (from the login step) is exchanged for a " +
+					"new one scoped to this backend before the request is forwarded - the same identity, " +
+					"re-signed (Impersonation), with no act claim.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant KC as Keycloak\n" +
+					"  participant Echo as Echo backend\n" +
+					"  Client->>AGW: GET /secure/exchange-standard (Bearer real token)\n" +
+					"  AGW->>KC: validate JWT (JWKS)\n" +
+					"  AGW->>KC: POST /token (grant_type=token-exchange)\n" +
+					"  KC-->>AGW: backend-scoped token\n" +
+					"  AGW->>Echo: forward with exchanged token\n" +
+					"  Echo-->>Client: 200",
+				Policies: []Policy{
+					{ID: "auth-exchange-standard", Title: "Standard token exchange (Impersonation)", ManifestPath: "auth/token-exchange-standard.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:                   "exchange-standard",
+						Title:                "Call through the exchange",
+						Identity:             "team-alpha",
+						Method:               "GET",
+						Path:                 "/secure/exchange-standard",
+						Headers:              map[string]string{},
+						Body:                 "",
+						RequiresSessionToken: true,
+					},
+				},
+			},
+			{
+				ID:    "auth-exchange-sts",
+				Title: "STS token exchange (Delegation)",
+				Explanation: "The second pattern is Solo's legacy, controller-side Security Token " +
+					"Service - still supported, not recommended for new work, but the only one of the " +
+					"two that produces an act claim: a token carrying both sub (the real user from the " +
+					"login step) and act (the wizard itself, as the delegating agent). That's the " +
+					"tradeoff - a separate STS component to run, in exchange for an audit trail that " +
+					"shows who asked and which agent acted on their behalf. The wizard's own backend " +
+					"calls the STS directly, using its own Kubernetes ServiceAccount token as the " +
+					"actor_token.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant Wizard\n" +
+					"  participant STS\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant Echo as Echo backend\n" +
+					"  Client->>Wizard: drive request (real session token)\n" +
+					"  Wizard->>STS: POST /oauth2/token (subject_token=user, actor_token=wizard SA)\n" +
+					"  STS-->>Wizard: token (sub=user, act=wizard)\n" +
+					"  Wizard->>AGW: GET /secure/exchange-sts (Bearer delegated token)\n" +
+					"  AGW->>STS: validate JWT (JWKS)\n" +
+					"  AGW->>Echo: forward\n" +
+					"  Echo-->>Client: 200",
+				Policies: []Policy{
+					{ID: "auth-exchange-sts", Title: "STS token exchange (Delegation)", ManifestPath: "auth/token-exchange-sts.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:                   "exchange-sts",
+						Title:                "Call through the STS exchange",
+						Identity:             "team-alpha",
+						Method:               "GET",
+						Path:                 "/secure/exchange-sts",
+						Headers:              map[string]string{},
+						Body:                 "",
+						RequiresSessionToken: true,
+						ExchangeViaSTS:       true,
 					},
 				},
 			},

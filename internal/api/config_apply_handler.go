@@ -218,6 +218,8 @@ func (s *Server) manifestParams() scenarios.ManifestParams {
 		params.StockMCPImage = s.cfg.StockMCPImage
 		params.CurrencyMCPImage = s.cfg.CurrencyMCPImage
 		params.OAuthTokenExchangeClientSecret = s.cfg.OAuthTokenExchangeClientSecret
+		params.STSHost = s.cfg.STSHost
+		params.STSPort = s.cfg.STSPort
 	}
 	return params
 }

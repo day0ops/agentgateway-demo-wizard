@@ -209,4 +209,190 @@ describe("App", () => {
       ).toBeInTheDocument(),
     );
   });
+
+  it("shows the login pane for a step with loginDemo instead of Configure/Request panes", async () => {
+    const pillars = [
+      {
+        id: "auth",
+        title: "Who's allowed to do what",
+        teaser: "",
+        steps: [
+          {
+            id: "auth-login",
+            title: "Real login",
+            explanation: "",
+            diagram: "",
+            policies: [],
+            presets: [],
+            agentDemo: false,
+            virtualKeys: false,
+            loginDemo: true,
+          },
+        ],
+      },
+    ];
+    globalThis.fetch = ((url: RequestInfo | URL) => {
+      if (url === "/api/config") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => emptyConfig,
+        } as unknown as Response);
+      }
+      if (typeof url === "string" && url.startsWith("/api/auth/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ loggedIn: false }),
+        } as unknown as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => pillars,
+      } as unknown as Response);
+    }) as unknown as typeof fetch;
+
+    render(<App />);
+
+    expect(await screen.findByText("Real login")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /log in as team-alpha/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Configure")).not.toBeInTheDocument();
+  });
+
+  it("keeps Configure/Request hidden for a loginDemo step even when policies and presets are present", async () => {
+    const pillars = [
+      {
+        id: "auth",
+        title: "Who's allowed to do what",
+        teaser: "",
+        steps: [
+          {
+            id: "auth-login",
+            title: "Real login",
+            explanation: "",
+            diagram: "",
+            policies: [{ id: "read-only", title: "Read only", readOnly: true }],
+            presets: [
+              {
+                id: "ask",
+                title: "Ask",
+                identity: "team-alpha",
+                method: "POST",
+                path: "/chat",
+                headers: {},
+                body: "{}",
+                stream: false,
+                requiresSessionToken: false,
+                exchangeViaSts: false,
+              },
+            ],
+            agentDemo: false,
+            virtualKeys: false,
+            loginDemo: true,
+          },
+        ],
+      },
+    ];
+    globalThis.fetch = ((url: RequestInfo | URL) => {
+      if (url === "/api/config") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => emptyConfig,
+        } as unknown as Response);
+      }
+      if (typeof url === "string" && url.startsWith("/api/auth/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ loggedIn: false }),
+        } as unknown as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => pillars,
+      } as unknown as Response);
+    }) as unknown as typeof fetch;
+
+    render(<App />);
+
+    expect(await screen.findByText("Real login")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /log in as team-alpha/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Configure")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ask")).not.toBeInTheDocument();
+  });
+
+  it("restores the matching pillar when the URL carries a returnTo param", async () => {
+    const pillars = [
+      {
+        id: "intro",
+        title: "Welcome",
+        teaser: "",
+        steps: [
+          {
+            id: "welcome",
+            title: "Welcome",
+            explanation: "",
+            diagram: "",
+            policies: [],
+            presets: [],
+            agentDemo: false,
+            virtualKeys: false,
+            loginDemo: false,
+          },
+        ],
+      },
+      {
+        id: "auth",
+        title: "Who's allowed to do what",
+        teaser: "",
+        steps: [
+          {
+            id: "auth-login",
+            title: "Real login",
+            explanation: "",
+            diagram: "",
+            policies: [],
+            presets: [],
+            agentDemo: false,
+            virtualKeys: false,
+            loginDemo: true,
+          },
+        ],
+      },
+    ];
+    globalThis.fetch = ((url: RequestInfo | URL) => {
+      if (url === "/api/config") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => emptyConfig,
+        } as unknown as Response);
+      }
+      if (typeof url === "string" && url.startsWith("/api/auth/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ loggedIn: false }),
+        } as unknown as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => pillars,
+      } as unknown as Response);
+    }) as unknown as typeof fetch;
+
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      value: { ...originalLocation, search: "?returnTo=auth" },
+      writable: true,
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText("Real login")).toBeInTheDocument();
+
+    Object.defineProperty(window, "location", {
+      value: originalLocation,
+      writable: true,
+    });
+  });
 });

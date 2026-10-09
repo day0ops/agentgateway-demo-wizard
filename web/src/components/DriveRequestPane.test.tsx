@@ -12,6 +12,8 @@ const preset: RequestPreset = {
   headers: {},
   body: '{"model":"gpt-4o-mini"}',
   stream: false,
+  requiresSessionToken: false,
+  exchangeViaSts: false,
 };
 
 describe("DriveRequestPane", () => {
