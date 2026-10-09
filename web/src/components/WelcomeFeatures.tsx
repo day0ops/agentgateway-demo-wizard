@@ -7,7 +7,7 @@ export function WelcomeFeatures({ pillars }: { pillars: Pillar[] }) {
   if (features.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-3 px-6 pb-6 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 px-6 pb-6 pt-6 sm:grid-cols-2">
       {features.map((pillar, i) => (
         <div
           key={pillar.id}
