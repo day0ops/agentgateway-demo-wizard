@@ -260,7 +260,40 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 : "border-slate-200 dark:border-slate-800"
             }`}
           >
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex gap-2">
+                {canRevert ? (
+                  <button
+                    onClick={() => revert(policy)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm dark:bg-slate-800"
+                  >
+                    <Undo2 size={14} />
+                    Revert
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => apply(policy)}
+                    disabled={st.status === "applying"}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                  >
+                    <Play size={14} />
+                    Apply
+                  </button>
+                )}
+                {st.yaml && (
+                  <button
+                    onClick={() => toggleYaml(policy.id)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900"
+                  >
+                    <span
+                      className={`transition-transform ${st.showYaml ? "rotate-90" : ""}`}
+                    >
+                      ›
+                    </span>
+                    {st.showYaml ? "hide YAML" : "view YAML"}
+                  </button>
+                )}
+              </div>
               <StatusBadge status={st.status} />
             </div>
 
@@ -269,40 +302,6 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 {st.message}
               </p>
             )}
-
-            <div className="mt-3 flex gap-2">
-              {canRevert ? (
-                <button
-                  onClick={() => revert(policy)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm dark:bg-slate-800"
-                >
-                  <Undo2 size={14} />
-                  Revert
-                </button>
-              ) : (
-                <button
-                  onClick={() => apply(policy)}
-                  disabled={st.status === "applying"}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
-                >
-                  <Play size={14} />
-                  Apply
-                </button>
-              )}
-              {st.yaml && (
-                <button
-                  onClick={() => toggleYaml(policy.id)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900"
-                >
-                  <span
-                    className={`transition-transform ${st.showYaml ? "rotate-90" : ""}`}
-                  >
-                    ›
-                  </span>
-                  {st.showYaml ? "hide YAML" : "view YAML"}
-                </button>
-              )}
-            </div>
 
             {st.showYaml && st.yaml && (
               <div className="mt-3">
