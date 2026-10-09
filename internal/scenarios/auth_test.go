@@ -48,7 +48,8 @@ func TestAuthPoliciesRenderValidManifests(t *testing.T) {
 		GatewayName:  "agentgateway-gw",
 		GatewayNS:    "agentgateway-system",
 		KeycloakHost: "keycloak.demo.example.com",
-		STSHost:      "sts.demo.example.com:7777",
+		STSHost:      "sts.demo.example.com",
+		STSPort:      "7777",
 	}
 
 	auth := Registry()[2]
@@ -108,6 +109,9 @@ func TestAuthPoliciesRenderValidManifests(t *testing.T) {
 	stsJoined := strings.Join(toStrings(stsDocs), "\n")
 	if !strings.Contains(stsJoined, params.STSHost) {
 		t.Fatalf("expected the STS-exchange policy to reference the STS host, got: %s", stsJoined)
+	}
+	if !strings.Contains(stsJoined, params.STSPort) {
+		t.Fatalf("expected the STS-exchange policy to reference the STS port, got: %s", stsJoined)
 	}
 }
 

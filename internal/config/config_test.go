@@ -83,11 +83,31 @@ func TestLoadDefaultsSTSHostWhenUnset(t *testing.T) {
 }
 
 func TestLoadRespectsSTSHostOverride(t *testing.T) {
-	t.Setenv("STS_HOST", "sts.other-namespace.svc.cluster.local:7777")
+	t.Setenv("STS_HOST", "sts.other-namespace.svc.cluster.local")
 
 	cfg := Load()
 
-	if cfg.STSHost != "sts.other-namespace.svc.cluster.local:7777" {
+	if cfg.STSHost != "sts.other-namespace.svc.cluster.local" {
 		t.Fatalf("expected the overridden STS host, got %q", cfg.STSHost)
+	}
+}
+
+func TestLoadDefaultsSTSPortWhenUnset(t *testing.T) {
+	t.Setenv("STS_PORT", "")
+
+	cfg := Load()
+
+	if cfg.STSPort != defaultSTSPort {
+		t.Fatalf("expected the default STS port, got %q", cfg.STSPort)
+	}
+}
+
+func TestLoadRespectsSTSPortOverride(t *testing.T) {
+	t.Setenv("STS_PORT", "9999")
+
+	cfg := Load()
+
+	if cfg.STSPort != "9999" {
+		t.Fatalf("expected the overridden STS port, got %q", cfg.STSPort)
 	}
 }

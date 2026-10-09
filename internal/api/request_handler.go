@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/day0ops/agentgateway-demo-wizard/internal/gateway"
@@ -101,7 +102,8 @@ func (s *Server) handleSessionTokenRequest(w http.ResponseWriter, r *http.Reques
 			writeJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
-		exchanged, err := oauthlogin.ExchangeViaSTS(r.Context(), s.oauthHTTPClient, s.cfg.STSHost, bearer, actorToken)
+		stsHost := net.JoinHostPort(s.cfg.STSHost, s.cfg.STSPort)
+		exchanged, err := oauthlogin.ExchangeViaSTS(r.Context(), s.oauthHTTPClient, stsHost, bearer, actorToken)
 		if err != nil {
 			writeJSONError(w, http.StatusBadGateway, err)
 			return

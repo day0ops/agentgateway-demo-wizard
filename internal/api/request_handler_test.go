@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -133,6 +134,10 @@ func TestRequestHandlerExchangesViaSTSWhenRequested(t *testing.T) {
 	}))
 	defer sts.Close()
 	stsHost := strings.TrimPrefix(sts.URL, "http://")
+	host, port, err := net.SplitHostPort(stsHost)
+	if err != nil {
+		t.Fatalf("splitting fake STS host:port: %v", err)
+	}
 
 	var gotAuth string
 	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -150,7 +155,7 @@ func TestRequestHandlerExchangesViaSTSWhenRequested(t *testing.T) {
 	s := NewServer(
 		WithGateway(client),
 		WithOAuthLogin("https://keycloak.demo.example.com", actorTokenPath),
-		WithConfig(&config.Config{STSHost: stsHost}),
+		WithConfig(&config.Config{STSHost: host, STSPort: port}),
 	)
 	s.oauthStore.PutToken("session-1", "team-alpha", oauthlogin.Token{AccessToken: "real-token", ExpiresAt: time.Now().Add(time.Hour)})
 

@@ -8,13 +8,14 @@ import "os"
 const (
 	defaultStockMCPImage    = "australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/stock-server-mcp:0.1.1"
 	defaultCurrencyMCPImage = "australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/currency-server-mcp:0.1.1"
-	// defaultSTSHost is Solo's enterprise-agentgateway Helm chart's own
-	// in-cluster STS service name and port, confirmed against
+	// defaultSTSHost/defaultSTSPort are Solo's enterprise-agentgateway Helm
+	// chart's own in-cluster STS service name and port, confirmed against
 	// agentgateway-field-kit's config/environments/aws-dev.yaml
 	// (spec.internal.stsIssuer) - internal-only, never a public demo
-	// hostname like GatewayHost/KeycloakHost, so it only needs a default,
+	// hostname like GatewayHost/KeycloakHost, so they only need defaults,
 	// never a "missing" check.
-	defaultSTSHost = "enterprise-agentgateway.agentgateway-system.svc.cluster.local:7777"
+	defaultSTSHost = "enterprise-agentgateway.agentgateway-system.svc.cluster.local"
+	defaultSTSPort = "7777"
 )
 
 // Config holds the wizard's runtime configuration.
@@ -27,6 +28,7 @@ type Config struct {
 	OAuthTokenExchangeClientSecret string
 	DemoUserPassword               string
 	STSHost                        string
+	STSPort                        string
 }
 
 // Load reads configuration from environment variables. It never errors:
@@ -44,6 +46,7 @@ func Load() *Config {
 		OAuthTokenExchangeClientSecret: os.Getenv("OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET"),
 		DemoUserPassword:               os.Getenv("DEMO_USER_PASSWORD"),
 		STSHost:                        envOrDefault("STS_HOST", defaultSTSHost),
+		STSPort:                        envOrDefault("STS_PORT", defaultSTSPort),
 	}
 }
 
