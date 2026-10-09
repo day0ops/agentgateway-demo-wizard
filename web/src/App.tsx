@@ -36,7 +36,20 @@ export default function App() {
   useEffect(() => {
     initTheme();
     fetchScenarios()
-      .then(setPillars)
+      .then((loadedPillars) => {
+        setPillars(loadedPillars);
+        // Additive: a login redirect (see LoginPane) sends the browser back
+        // to "/?returnTo=<pillar id>" instead of the default welcome screen.
+        const returnTo = new URLSearchParams(window.location.search).get(
+          "returnTo",
+        );
+        if (!returnTo) return;
+        const index = loadedPillars.findIndex((p) => p.id === returnTo);
+        if (index >= 0) {
+          setActivePillarIndex(index);
+          setActiveStepIndex(0);
+        }
+      })
       .catch((err) =>
         setScenariosError(err instanceof Error ? err.message : String(err)),
       );
@@ -47,23 +60,6 @@ export default function App() {
       })
       .catch((err) => console.error("failed to load config", err));
   }, []);
-
-  // Additive: a login redirect (see LoginPane) sends the browser back to
-  // "/?returnTo=<pillar id>" instead of the default welcome screen - this
-  // only fires once pillars are loaded, since it needs to find the matching
-  // index.
-  useEffect(() => {
-    if (pillars.length === 0) return;
-    const returnTo = new URLSearchParams(window.location.search).get(
-      "returnTo",
-    );
-    if (!returnTo) return;
-    const index = pillars.findIndex((p) => p.id === returnTo);
-    if (index >= 0) {
-      setActivePillarIndex(index);
-      setActiveStepIndex(0);
-    }
-  }, [pillars]);
 
   // Additive: surfaced whenever env vars are missing, loaded or not, since it
   // never blocks the wizard from being usable.

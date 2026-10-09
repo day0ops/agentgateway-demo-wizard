@@ -14,10 +14,7 @@ describe("LoginPane", () => {
 
     expect(
       await screen.findByRole("link", { name: /log in as team-alpha/i }),
-    ).toHaveAttribute(
-      "href",
-      "/auth/login?identity=team-alpha&return_to=auth",
-    );
+    ).toHaveAttribute("href", "/auth/login?identity=team-alpha&return_to=auth");
   });
 
   it("shows a logged-in badge once a real token has been captured", async () => {
