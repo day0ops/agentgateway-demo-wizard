@@ -33,13 +33,21 @@ func ReadActorToken(path string) (string, error) {
 // wizard), for downstream delegation auditing. Contrast with the Standard
 // (Impersonation) exchange, which agentgateway performs itself via
 // backend.auth.oauthTokenExchange and needs no call like this one.
+//
+// Token type and header requirements were confirmed live against a real
+// deployment, not just RFC 8693's text: this STS rejects
+// urn:ietf:params:oauth:token-type:access_token with "unsupported token
+// type" for both subject and actor tokens - only the generic "jwt" token
+// type is accepted - and it also requires the subject token to be repeated
+// as the request's own Authorization header, not just the subject_token
+// form field.
 func ExchangeViaSTS(ctx context.Context, httpClient *http.Client, stsHost, subjectToken, actorToken string) (string, error) {
 	form := url.Values{
 		"grant_type":         {"urn:ietf:params:oauth:grant-type:token-exchange"},
 		"subject_token":      {subjectToken},
-		"subject_token_type": {"urn:ietf:params:oauth:token-type:access_token"},
+		"subject_token_type": {"urn:ietf:params:oauth:token-type:jwt"},
 		"actor_token":        {actorToken},
-		"actor_token_type":   {"urn:ietf:params:oauth:token-type:access_token"},
+		"actor_token_type":   {"urn:ietf:params:oauth:token-type:jwt"},
 		"audience":           {"agentgateway"},
 	}
 
@@ -49,6 +57,7 @@ func ExchangeViaSTS(ctx context.Context, httpClient *http.Client, stsHost, subje
 		return "", fmt.Errorf("building STS exchange request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Bearer "+subjectToken)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

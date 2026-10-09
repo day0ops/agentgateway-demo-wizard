@@ -34,11 +34,12 @@ func TestReadActorTokenMissingFileErrors(t *testing.T) {
 }
 
 func TestExchangeViaSTSPostsExpectedFormAndParsesToken(t *testing.T) {
-	var gotBody string
+	var gotBody, gotAuth string
 	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/oauth2/token" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
+		gotAuth = r.Header.Get("Authorization")
 		body, _ := io.ReadAll(r.Body)
 		gotBody = string(body)
 		w.Header().Set("Content-Type", "application/json")
@@ -54,10 +55,19 @@ func TestExchangeViaSTSPostsExpectedFormAndParsesToken(t *testing.T) {
 	if token != "sts-exchanged-token" {
 		t.Fatalf("expected sts-exchanged-token, got %q", token)
 	}
+	if gotAuth != "Bearer user-subject-token" {
+		t.Fatalf("expected the subject token to also be sent as the Authorization header, got %q", gotAuth)
+	}
 	for _, want := range []string{
 		"grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange",
 		"subject_token=user-subject-token",
+		// The STS rejects urn:ietf:params:oauth:token-type:access_token with
+		// "unsupported token type" - confirmed live against a real deployment -
+		// it only accepts the generic "jwt" token type for both subject and actor.
+		"subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt",
 		"actor_token=wizard-actor-token",
+		"actor_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Ajwt",
+		"audience=agentgateway",
 	} {
 		if !strings.Contains(gotBody, want) {
 			t.Fatalf("expected form body to contain %q, got: %s", want, gotBody)
