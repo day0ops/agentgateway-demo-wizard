@@ -27,6 +27,7 @@ const step: Step = {
   presets: [],
   agentDemo: false,
   virtualKeys: false,
+  loginDemo: false,
 };
 
 describe("ExplanationBand", () => {

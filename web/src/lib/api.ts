@@ -13,6 +13,8 @@ export type RequestPreset = {
   headers: Record<string, string>;
   body: string;
   stream: boolean;
+  requiresSessionToken: boolean;
+  exchangeViaSts: boolean;
 };
 
 export type Step = {
@@ -24,6 +26,7 @@ export type Step = {
   presets: RequestPreset[];
   agentDemo: boolean;
   virtualKeys: boolean;
+  loginDemo: boolean;
 };
 
 export type Pillar = {

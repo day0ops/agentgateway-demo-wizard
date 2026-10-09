@@ -10,6 +10,7 @@ const emptyStep = {
   presets: [],
   agentDemo: false,
   virtualKeys: false,
+  loginDemo: false,
 };
 
 const pillars: Pillar[] = [
