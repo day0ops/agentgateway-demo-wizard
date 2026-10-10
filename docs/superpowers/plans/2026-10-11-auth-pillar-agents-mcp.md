@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Repos & registry:** all five images build from `github.com/day0ops/ops-agents` and push to `australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/<name>:<tag>`, named after their directory (`repo-server`, `repo-agent`, `release-manager-agent`, `deploy-agent`, `github-agent`). Tag `0.1.0` for the first build.
+- **Repos & registry:** all five images build from `github.com/day0ops/ops-agents` and push to `australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/<name>:<tag>`, named after their directory (`repo-server`, `repo-agent`, `release-manager-agent`, `deploy-agent`, `github-agent`). CI/CD (`.github/workflows/ci.yml` + `release.yml`, mirroring `agentgateway-demo-wizard`'s pattern) pushes git-tag-based versions - tags are always `v`-prefixed (e.g. `v0.1.0`), never a bare `0.1.0`.
 - **Exchange mechanisms (locked):** Standard/Impersonation = agentgateway proxy-native `backend.auth.oauthTokenExchange` (no STS). All delegation = Solo's controller-side STS (`issuer = enterprise-agentgateway.agentgateway-system.svc.cluster.local:7777`, `/oauth2/token`). Keycloak-native token exchange is NOT used.
 - **STS exchange request shape (verified live):** POST form to the STS `/oauth2/token` with `grant_type=urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token`, `subject_token_type=urn:ietf:params:oauth:token-type:jwt`, `actor_token`, `actor_token_type=urn:ietf:params:oauth:token-type:jwt`, `audience=agentgateway`, AND an `Authorization: Bearer <subject_token>` header. The STS accepts both Keycloak-issued and its own self-issued tokens as `subject_token` (confirmed by the design spike - this is what makes the two-hop re-exchange work).
 - **ADK API (verified against 2.11.0 docs):** custom LLM via `from google.adk.models.lite_llm import LiteLlm` → `LiteLlm(model="openai/gpt-4o-mini", api_base=<.../openai>)`; MCP via `McpToolset(connection_params=StreamableHTTPConnectionParams(url=...), header_provider=<async(ReadonlyContext)->dict[str,str]>)`; serve via `InMemoryRunner` wrapped in FastAPI, `runner.run_async(...)` returns `AsyncGenerator[Event]` (iterate, pick `event.is_final_response()`); `new_message=types.Content(role="user", parts=[types.Part(text=...)])` from `google.genai`; per-request token placed in session state (`InMemorySessionService.create_session`, async) and read by `header_provider` from `ctx.state`.
@@ -112,9 +112,11 @@ Create `README.md` documenting the layout (the five services, how to build/test 
 The build context is always the monorepo root (`.`), not the service directory - `-f $(SVC)/Dockerfile` just selects which Dockerfile to use. This is required because the four agent images need to `COPY agents/_shared` into the image, and Docker refuses `COPY`/`ADD` of any path outside the build context (live-verified). Every Dockerfile's `COPY` sources are therefore root-relative (e.g. `COPY mcp-servers/repo-server/requirements.txt .`), not relative to the Dockerfile's own location.
 
 ```makefile
-# Usage: make build SVC=mcp-servers/repo-server IMAGE=repo-server TAG=0.1.0
+# Usage: make build SVC=mcp-servers/repo-server IMAGE=repo-server TAG=v0.1.0
+# TAG should match the latest git release tag (see .github/workflows/release.yml,
+# Task A8) - CI always pushes v-prefixed tags, so a manual build should match them.
 REGISTRY ?= australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt
-TAG ?= 0.1.0
+TAG ?= v0.1.0
 
 .PHONY: test lint build push
 test:
@@ -1070,25 +1072,80 @@ git commit -m "feat(github-agent): elicitation agent for the real GitHub MCP"
 
 ---
 
-### Task A8: Build and push all five images
+### Task A8: CI/CD pipeline - build and push all five images on every change, cut tagged releases
 
-**Files:** none (build/push only)
+Rather than a one-off manual build, this repo gets the same tag-based release pipeline as `agentgateway-demo-wizard`: `ci.yml` builds and pushes every image on every push to `main` (tagged `sha-<short>`) or version tag (tagged with the version), and a manually-triggered `release.yml` computes the next semver tag, pushes it, creates a GitHub Release, and builds+pushes all five images against it. Both use GCP Workload Identity Federation - requires `WIF_PROVIDER`/`WIF_SERVICE_ACCOUNT` repo secrets (same values as `agentgateway-demo-wizard`'s, since they authenticate to the same GCP project/registry).
 
-- [ ] **Step 1: Build and push each image**
+**Files:**
+- Modify: `.github/workflows/ci.yml` (add `build-push` matrix job + `create-release` job)
+- Create: `.github/workflows/release.yml`
 
-```bash
-for svc in mcp-servers/repo-server agents/repo-agent agents/release-manager-agent agents/deploy-agent agents/github-agent; do
-  name=$(basename "$svc")
-  make build SVC="$svc" IMAGE="$name" TAG=0.1.0
-  make push IMAGE="$name" TAG=0.1.0
-done
+- [ ] **Step 1: Extend `ci.yml`**
+
+Add `tags: ["v*"]` to the `push` trigger. Add a `build-push` job (`needs: [lint-test]`, skipped on `pull_request`) using a matrix over the five services:
+
+```yaml
+  build-push:
+    name: Build and push (${{ matrix.image }})
+    needs: [lint-test]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dir: mcp-servers/repo-server
+            image: repo-server
+          - dir: agents/repo-agent
+            image: repo-agent
+          - dir: agents/release-manager-agent
+            image: release-manager-agent
+          - dir: agents/deploy-agent
+            image: deploy-agent
+          - dir: agents/github-agent
+            image: github-agent
+    permissions:
+      contents: read
+      id-token: write # required for GCP Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+      - name: Compute tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          IMAGE="${REGISTRY}/${REPO_PATH}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}"
+          docker build -f "${{ matrix.dir }}/Dockerfile" -t "$IMAGE" .
+          docker push "$IMAGE"
 ```
 
-Expected: five images at `australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/{repo-server,repo-agent,release-manager-agent,deploy-agent,github-agent}:0.1.0`.
+with `env: { REGISTRY: australia-southeast1-docker.pkg.dev, REPO_PATH: field-engineering-apac/kasunt }` at the workflow level. Add a `create-release` job (`needs: [build-push]`, only on `v*` tag push, `permissions: { contents: write }`) that lists all five image references in the GitHub Release notes - see the sibling `create-release` job in `agentgateway-demo-wizard/.github/workflows/ci.yml` for the exact append-vs-create pattern (a release may already exist from `release.yml`, so append image notes rather than clobbering).
 
-- [ ] **Step 2: Record the image tags**
+- [ ] **Step 2: Write `release.yml`**
 
-Note the five image references for Phase B (Task B3/B4/B5 reference them by name:tag).
+Mirror `agentgateway-demo-wizard/.github/workflows/release.yml` exactly: `workflow_dispatch` with a `bump_type` (patch/minor/major) choice input, a `validate` job (ruff + pytest), a `tag-and-release` job that computes the next semver tag from the latest `git describe --tags`, pushes it, and creates the GitHub Release. Unlike the wizard's single-image repo, this one's `build-push` job (`needs: [tag-and-release]`) uses the same five-way matrix as `ci.yml`'s, and a final `create-release` job (`needs: [tag-and-release, build-push]`) appends all five image locations to the release notes.
+
+**Important:** a tag pushed with the default `GITHUB_TOKEN` (as `tag-and-release`'s "Push tag" step does) does NOT trigger other workflow runs - this is why `release.yml` needs its own `build-push`/`create-release` jobs rather than relying on `ci.yml`'s `tags: ["v*"]` trigger to fire. `ci.yml`'s tag trigger still matters for the case where someone pushes a `v*` tag manually (not through `release.yml`), using their own credentials.
+
+- [ ] **Step 3: Verify live**
+
+Push to `main` and confirm `ci.yml` runs lint-test then builds+pushes all five images tagged `sha-<short>`. Then run `gh workflow run release.yml -f bump_type=minor` (minor, not patch, so the first tag lands on `v0.1.0` from a `v0.0.0` baseline, matching the `v0.1.0` image references Task B6 hardcodes) and confirm: the tag is pushed, a GitHub Release is created, all five images are pushed tagged `v0.1.0`, and the release notes list all five image locations. Verify the images actually exist in the registry (e.g. `gcloud artifacts docker images list ... --include-tags`).
+
+- [ ] **Step 4: Record the image tags**
+
+The five image references for Phase B (Task B3/B4/B5/B6) are `australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/{repo-server,repo-agent,release-manager-agent,deploy-agent,github-agent}:v0.1.0`.
 
 ---
 
@@ -1544,11 +1601,11 @@ In `config/environments/aws-dev.yaml`, under `spec.images`, add (matching the ex
 
 ```yaml
     opsAgents:
-      repo-server-mcp: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/repo-server:0.1.0
-      repo-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/repo-agent:0.1.0
-      release-manager-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/release-manager-agent:0.1.0
-      deploy-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/deploy-agent:0.1.0
-      github-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/github-agent:0.1.0
+      repo-server-mcp: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/repo-server:v0.1.0
+      repo-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/repo-agent:v0.1.0
+      release-manager-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/release-manager-agent:v0.1.0
+      deploy-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/deploy-agent:v0.1.0
+      github-agent: australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/github-agent:v0.1.0
 ```
 
 - [ ] **Step 2: Commit**
