@@ -6,7 +6,7 @@
 
 **Architecture:** Five new container images live in a new monorepo `github.com/day0ops/ops-agents` (one MCP server + four ADK agents, Python). `agentgateway-field-kit` stands up the STS/Postgres infra, the gateway routes/policies, the agent + MCP deployments, and the Keycloak clients. This repo (`agentgateway-demo-wizard`) adds the new registry steps and the UI to trigger agents; its Go backend proxies each agent run, forwarding the user's captured session token (reusing the existing `oauthlogin.Store` + session-token request plumbing) to the agent's `POST /run`.
 
-**Tech Stack:** Python 3.10+ (Google ADK `google-adk` 2.11.0, official `mcp` SDK 2.3.x, FastAPI, uvicorn), Docker, `agentgateway-field-kit` (Node/Helm/YAML usecase features), Go (stdlib `net/http`), React/TypeScript/Vitest.
+**Tech Stack:** Python 3.10+ (Google ADK `google-adk` 2.11.0, official `mcp` SDK 1.30.0 (NOT 2.x - FastMCP lives in the 1.x line; 2.x renamed it to MCPServer and changed the API shape entirely, live-verified), FastAPI, uvicorn), Docker, `agentgateway-field-kit` (Node/Helm/YAML usecase features), Go (stdlib `net/http`), React/TypeScript/Vitest.
 
 ## Global Constraints
 
@@ -14,7 +14,7 @@
 - **Exchange mechanisms (locked):** Standard/Impersonation = agentgateway proxy-native `backend.auth.oauthTokenExchange` (no STS). All delegation = Solo's controller-side STS (`issuer = enterprise-agentgateway.agentgateway-system.svc.cluster.local:7777`, `/oauth2/token`). Keycloak-native token exchange is NOT used.
 - **STS exchange request shape (verified live):** POST form to the STS `/oauth2/token` with `grant_type=urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token`, `subject_token_type=urn:ietf:params:oauth:token-type:jwt`, `actor_token`, `actor_token_type=urn:ietf:params:oauth:token-type:jwt`, `audience=agentgateway`, AND an `Authorization: Bearer <subject_token>` header. The STS accepts both Keycloak-issued and its own self-issued tokens as `subject_token` (confirmed by the design spike - this is what makes the two-hop re-exchange work).
 - **ADK API (verified against 2.11.0 docs):** custom LLM via `from google.adk.models.lite_llm import LiteLlm` → `LiteLlm(model="openai/gpt-4o-mini", api_base=<.../openai>)`; MCP via `MCPToolset(connection_params=StreamableHTTPConnectionParams(url=...), header_provider=<async(ReadonlyContext)->dict[str,str]>)`; serve via `InMemoryRunner` wrapped in FastAPI, `runner.run_async(...)` returns `AsyncGenerator[Event]` (iterate, pick `event.is_final_response()`); `new_message=types.Content(role="user", parts=[types.Part(text=...)])` from `google.genai`; per-request token placed in session state (`InMemorySessionService.create_session`, async) and read by `header_provider` from `ctx.state`.
-- **MCP server API:** official `mcp` SDK `from mcp.server import FastMCP`; `@mcp.tool()` (schema inferred from type hints + docstring); `mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)` (default path `/mcp`).
+- **MCP server API:** official `mcp` SDK `from mcp.server import FastMCP`; `@mcp.tool()` (schema inferred from type hints + docstring); `FastMCP(name=..., host="0.0.0.0", port=8000)` (host/port are constructor-only kwargs in 1.30.0, not run() kwargs), then `mcp.run(transport="streamable-http")` (default path `/mcp`).
 - **Agent deployment contract (from field-kit):** each agent container exposes `POST /run` (`{"query": "...", ...}`) and `GET /health`; routed through agentgateway at `POST /<agent>/run`. LLM reached at the `/openai` route, MCP at the configured MCP route.
 - **No AI attribution in commits/PRs.** Conventional Commits. Draft PRs assigned to `day0ops`. Every task's code must be complete, not placeholder.
 - **GitHub OAuth app is a trailing placeholder:** Elicitation code/config is wired to `GITHUB_ISSUER_CLIENT_ID`/`GITHUB_ISSUER_CLIENT_SECRET` env with no fallback; real registration happens outside this plan before the Elicitation flow is demoed live.
@@ -179,7 +179,7 @@ auth-pillar demo. Auth is handled by agentgateway in front of this server;
 this process has no auth logic of its own."""
 from mcp.server import FastMCP
 
-mcp = FastMCP(name="repo-server")
+mcp = FastMCP(name="repo-server", host="0.0.0.0", port=8000)
 
 _REPOS = [
     {"name": "payments-service", "default_branch": "main", "open_prs": 3},
@@ -224,13 +224,13 @@ def trigger_deploy(repo: str, environment: str) -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
+    mcp.run(transport="streamable-http")
 ```
 
 Create `mcp-servers/repo-server/requirements.txt`:
 
 ```
-mcp==2.3.2
+mcp==1.30.0
 ```
 
 Create `mcp-servers/repo-server/requirements-dev.txt`:
@@ -395,7 +395,7 @@ Create `agents/_shared/requirements.txt`:
 
 ```
 google-adk==2.11.0
-mcp==2.3.2
+mcp==1.30.0
 fastapi==0.115.6
 uvicorn==0.34.0
 requests==2.32.3
