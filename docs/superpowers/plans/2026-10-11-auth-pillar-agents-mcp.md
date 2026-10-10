@@ -101,6 +101,8 @@ Create `README.md` documenting the layout (the five services, how to build/test 
 
 - [ ] **Step 2: Write the Makefile**
 
+The build context is always the monorepo root (`.`), not the service directory - `-f $(SVC)/Dockerfile` just selects which Dockerfile to use. This is required because the four agent images need to `COPY agents/_shared` into the image, and Docker refuses `COPY`/`ADD` of any path outside the build context (live-verified). Every Dockerfile's `COPY` sources are therefore root-relative (e.g. `COPY mcp-servers/repo-server/requirements.txt .`), not relative to the Dockerfile's own location.
+
 ```makefile
 # Usage: make build SVC=mcp-servers/repo-server IMAGE=repo-server TAG=0.1.0
 REGISTRY ?= australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt
@@ -112,7 +114,7 @@ test:
 lint:
 	ruff check .
 build:
-	docker build -t $(REGISTRY)/$(IMAGE):$(TAG) $(SVC)
+	docker build -t $(REGISTRY)/$(IMAGE):$(TAG) -f $(SVC)/Dockerfile .
 push:
 	docker push $(REGISTRY)/$(IMAGE):$(TAG)
 ```
@@ -258,9 +260,9 @@ Create `mcp-servers/repo-server/Dockerfile`:
 ```dockerfile
 FROM python:3.12-slim
 WORKDIR /app
-COPY requirements.txt .
+COPY mcp-servers/repo-server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY repo_server ./repo_server
+COPY mcp-servers/repo-server/repo_server ./repo_server
 EXPOSE 8000
 CMD ["python", "-m", "repo_server.server"]
 ```
@@ -647,15 +649,14 @@ Create `agents/repo-agent/Dockerfile`:
 ```dockerfile
 FROM python:3.12-slim
 WORKDIR /app
-COPY ../_shared /app/_shared
-COPY requirements.txt .
-RUN pip install --no-cache-dir -e /app/_shared && pip install --no-cache-dir -r requirements.txt
-COPY repo_agent ./repo_agent
+COPY agents/_shared /app/_shared
+RUN pip install --no-cache-dir -e /app/_shared -r /app/_shared/requirements.txt
+COPY agents/repo-agent/repo_agent ./repo_agent
 EXPOSE 8080
 CMD ["uvicorn", "repo_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]
 ```
 
-> Note: `_shared` is installed as an editable local package so `repo_agent.main`'s `from ops_agent import ...` resolves in the container. Add a minimal `agents/_shared/setup.py` or `pyproject.toml` `[build-system]` section if `pip install -e` needs one - confirm during Step 4's local install, since that already exercises the same import path.
+> Notes: (1) `_shared` is installed as an editable local package so `repo_agent.main`'s `from ops_agent import ...` resolves in the container - needs a minimal `agents/_shared/pyproject.toml` `[build-system]` section for `pip install -e` to work (confirm during Step 4's local install, since that already exercises the same import path). (2) This agent's own `requirements.txt` (`-r ../_shared/requirements.txt`) is intentionally NOT copied into the image - that relative path means something different inside the container (where `_shared` is a subdirectory of `/app`, not a sibling of the agent's own directory) than it does for local dev, so the Dockerfile installs `_shared`'s requirements.txt directly by its known in-container path instead of relying on that file. The local `requirements.txt` file still exists and is still correct for local dev (`cd agents/repo-agent && pip install -r requirements.txt`) - it's just not part of the image build. Build context is the monorepo root, not this directory - see Task A1's Makefile note.
 
 - [ ] **Step 7: Commit**
 
@@ -788,7 +789,17 @@ Expected: PASS (2 tests).
 
 - [ ] **Step 5: Write the Dockerfile**
 
-Same shape as Task A4's (adjust module name): `CMD ["uvicorn", "release_manager_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]`.
+Create `agents/release-manager-agent/Dockerfile` (same pattern as Task A4's `agents/repo-agent/Dockerfile` - build context is the monorepo root, `_shared`'s requirements installed directly by their in-container path, not via this agent's own `requirements.txt`):
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY agents/_shared /app/_shared
+RUN pip install --no-cache-dir -e /app/_shared -r /app/_shared/requirements.txt
+COPY agents/release-manager-agent/release_manager_agent ./release_manager_agent
+EXPOSE 8080
+CMD ["uvicorn", "release_manager_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]
+```
 
 - [ ] **Step 6: Commit**
 
@@ -916,7 +927,17 @@ Expected: PASS (1 test).
 
 - [ ] **Step 5: Write the Dockerfile**
 
-Same shape as Task A4's: `CMD ["uvicorn", "deploy_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]`.
+Create `agents/deploy-agent/Dockerfile` (same pattern as Task A4's):
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY agents/_shared /app/_shared
+RUN pip install --no-cache-dir -e /app/_shared -r /app/_shared/requirements.txt
+COPY agents/deploy-agent/deploy_agent ./deploy_agent
+EXPOSE 8080
+CMD ["uvicorn", "deploy_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]
+```
 
 - [ ] **Step 6: Commit**
 
@@ -1020,7 +1041,17 @@ Once the real `entElicitation` policy is deployed (Task B5), drive this agent li
 
 - [ ] **Step 6: Write the Dockerfile**
 
-Same shape as Task A4's: `CMD ["uvicorn", "github_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]`.
+Create `agents/github-agent/Dockerfile` (same pattern as Task A4's):
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY agents/_shared /app/_shared
+RUN pip install --no-cache-dir -e /app/_shared -r /app/_shared/requirements.txt
+COPY agents/github-agent/github_agent ./github_agent
+EXPOSE 8080
+CMD ["uvicorn", "github_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]
+```
 
 - [ ] **Step 7: Commit**
 
