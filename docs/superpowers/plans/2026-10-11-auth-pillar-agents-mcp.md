@@ -34,12 +34,14 @@ Three phases, one per repo, each independently testable in its own toolchain. Wi
 - A8 Build + push all five images
 
 **Phase B - `agentgateway-field-kit` (Node/Helm/YAML), testable by deploying + hitting endpoints:**
-- B1 Enable STS + Postgres for the demo-wizard usecase
-- B2 Keycloak clients + ServiceAccounts for the four agents
+- B1 Fix a missing `preserveToken: true` bug in the shared `oauth-token-exchange` feature (B3 depends on it)
+- B2 Enable the STS (Postgres + token-exchange) for the ops-agents usecase
 - B3 Internal repo MCP server deployment + two gateway routes (standard / delegation) + policies
-- B4 Agent deployments (four agents) via the agent/workload-agent features
+- B4 Agent deployments (four agents) via the `workload-agent` feature
 - B5 GitHub remote-MCP backend + `entElicitation` policy (+ OAuth env placeholders)
 - B6 Image references in `config/environments/aws-dev.yaml`
+
+No separate "Keycloak clients" task: these agents authenticate as their own Kubernetes ServiceAccount (validated via the STS's `k8s` actorValidator, not a Keycloak client_credentials grant), and `workload-agent` already creates the ServiceAccount for each agent as part of B4.
 
 **Phase C - `agentgateway-demo-wizard` (Go/React, this repo), Go + vitest tests + live:**
 - C1 Config: agent endpoint URLs
