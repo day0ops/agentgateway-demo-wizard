@@ -357,14 +357,15 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-exchange-sts",
 				Title: "STS token exchange (Delegation)",
-				Explanation: "The second pattern is Solo's legacy, controller-side Security Token " +
-					"Service - still supported, not recommended for new work, but the only one of the " +
-					"two that produces an act claim: a token carrying both sub (the real user from the " +
-					"login step) and act (the wizard itself, as the delegating agent). That's the " +
-					"tradeoff - a separate STS component to run, in exchange for an audit trail that " +
-					"shows who asked and which agent acted on their behalf. The wizard's own backend " +
-					"calls the STS directly, using its own Kubernetes ServiceAccount token as the " +
-					"actor_token.",
+				Explanation: "The second pattern uses Solo's controller-side Security Token Service - " +
+					"Enterprise-only, with no open-source equivalent. Contrast with the proxy-native " +
+					"exchange above: that capability exists in open-source agentgateway too (via its own " +
+					"backendAuth.oauthTokenExchange field), just through a different CRD than this " +
+					"Enterprise demo uses. Delegation - a token carrying both sub (the real user from the " +
+					"login step) and act (the wizard itself, as the delegating agent) - has no " +
+					"open-source path at all, so the STS is the only tool for this job, not a fallback. " +
+					"The wizard's own backend calls the STS directly, using its own Kubernetes " +
+					"ServiceAccount token as the actor_token.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant Wizard\n" +
