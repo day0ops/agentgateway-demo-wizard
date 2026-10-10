@@ -10,8 +10,8 @@ Separately, the pillar has no demonstration of Elicitation (STS-managed third-pa
 
 Add three new agent-driven demo moments to the auth pillar, each backed by real, deployed agent containers and MCP servers rather than raw HTTP presets:
 
-1. **`user -> agent -> mcp`** (single hop): one agent, two modes - Standard/Impersonation and STS/Delegation - against an internal MCP server.
-2. **`user -> agent -> agent -> mcp`** (two-hop chain): a genuine multi-hop Delegation chain with audience-restricted, per-hop token exchange.
+1. **`user -> agent -> mcp`** (single hop): one agent, two modes - Standard/Impersonation (proxy-native) and Delegation (Solo STS) - against an internal MCP server.
+2. **`user -> agent -> agent -> mcp`** (two-hop chain): a realistic multi-agent Delegation chain where each hop performs its own STS re-exchange, producing a nested `act` chain that records the full chain of custody (user -> front-line agent -> specialist agent) in a single token.
 3. **Elicitation**: a dedicated agent connecting to a real third-party service (GitHub) via live, presenter-driven OAuth consent.
 
 **Out of scope:** replacing the existing `DriveRequestPane`-driven standard-exchange and STS-exchange presets entirely - those stay as-is for presenters who want the fast, raw-request version; the agent-driven demos are new steps alongside them, not replacements. Also out of scope: building a production-grade agent framework - these are the minimum real agent containers needed to make the token exchange mechanics visible end to end.
@@ -22,21 +22,25 @@ Only **four** distinct mechanisms exist, not five - "Impersonation" and "Delegat
 
 | Mechanism | Status in this pillar | What it does |
 |---|---|---|
-| Standard exchange (proxy-native) | Already built (`auth-exchange-standard`) | Impersonation semantics, no STS, no `act` claim |
-| STS exchange - Delegation mode | Already built (`auth-exchange-sts`) | `act` claim identifying the delegating agent |
+| Standard exchange (proxy-native) | Already built (`auth-exchange-standard`) | Impersonation semantics, no STS, no `act` claim. agentgateway itself exchanges the token at Keycloak via `backend.auth.oauthTokenExchange`. |
+| STS exchange - Delegation mode | Already built (`auth-exchange-sts`) | `act` claim identifying the delegating agent. Solo's controller-side STS (issuer = `<STS host>:7777`). |
 | STS exchange - Impersonation mode | Not built, not planned | Same outcome as Standard via a heavier mechanism - redundant teaching point, deliberately skipped |
 | Elicitation (STS-managed 3rd-party OAuth) | New in this spec | User interactively consents to a *real* third-party service; STS stores/injects that token afterward |
 
-A hard constraint that shapes the whole design: **Standard and Delegation exchanges only ever produce Keycloak-issued tokens, valid against backends that trust our own Keycloak realm.** They cannot produce a credential GitHub (or any other real third party) would accept. Only Elicitation can reach a real external service, because it's the one mechanism that performs an actual OAuth dance against that service's own authorization server.
+Two design decisions set during review, which this spec is built around:
+- **Impersonation always uses agentgateway's proxy-native standard exchange** (`backend.auth.oauthTokenExchange`), never the STS's own impersonation mode.
+- **All delegation uses Solo's controller-side STS**, never Keycloak's own native token-exchange grant. (Keycloak-native exchange, with its `may_act`/audience-narrowing/per-client-scope model, is explicitly *not* used here - that model was researched and set aside.)
+
+A hard constraint that shapes the whole design: **Standard and Delegation exchanges only ever produce tokens valid against backends that trust our own Keycloak realm or our own STS.** They cannot produce a credential GitHub (or any other real third party) would accept. Only Elicitation can reach a real external service, because it's the one mechanism that performs an actual OAuth dance against that service's own authorization server.
 
 ## Architecture
 
 ### New MCP server: internal "repo" server
 
-A new, self-built MCP server (same shape as the existing stock/currency servers: simple, JWT-protected against our own Keycloak realm), exposing fake-but-relatable internal repo/deployment data:
+A new, self-built MCP server (same shape as the existing stock/currency servers: simple, JWT-protected by agentgateway in front of it, with no auth logic of its own), exposing fake-but-relatable internal repo/deployment data:
 - `list_repos` - read-only
 - `get_pull_request_status` - read-only
-- `trigger_deploy` - write; gated separately in RBAC from the two read-only tools
+- `trigger_deploy` - write; gated separately from the two read-only tools by a CEL authorization rule on the gateway route (see Flow 2)
 
 This server is the backend for both the single-hop and two-hop demos. It is explicitly **not** connected to real GitHub - it's our own internal stand-in, themed to match the Elicitation step's real-GitHub moment later in the same pillar.
 
@@ -45,15 +49,23 @@ This server is the backend for both the single-hop and two-hop demos. It is expl
 | Agent | Pattern | Backend | Narrative |
 |---|---|---|---|
 | **Repo Agent** | `user -> agent -> mcp`, 2 modes (`standard` / `sts-delegation`) | internal repo MCP server | "What's the status of our repos?" - same agent, mode switch changes which exchange mechanism it uses |
-| **Release Manager Agent** (front-line) | `user -> agent -> agent -> mcp`, hop 1 | - | Can only ever get a token scoped to read-only operations |
-| **Deploy Agent** (specialist) | `user -> agent -> agent -> mcp`, hop 2 | internal repo MCP server | Only this agent's own exchange can produce a token scoped for `trigger_deploy` |
+| **Release Manager Agent** (front-line) | `user -> agent -> agent -> mcp`, hop 1 | - | Exchanges the user's token at the STS (`act=release-manager`), passes the delegated token to Deploy Agent. |
+| **Deploy Agent** (specialist) | `user -> agent -> agent -> mcp`, hop 2 | internal repo MCP server | Re-exchanges the token it received at the STS, producing a nested `act` chain (`act=deploy-agent`, `act.act=release-manager`), then calls the MCP tool. The MCP route surfaces the full chain of custody. |
 | **GitHub Agent** | Elicitation only | real GitHub MCP (`api.githubcopilot.com/mcp`, field-kit's existing `remote-mcp-over-https` pattern) | "Now let's connect to *your actual* GitHub" - real consent flow |
 
-All four reuse field-kit's existing `workload-agent`/`agent` feature pattern (real ADK-based containers, own image, own ServiceAccount, call an LLM via agentgateway's `/agent-chat` route, call MCP tools) - the same mechanism already proven by `fd-loan-rbac-jwt-propagation`, `workload-identity-chain`, and `agent-workload-identity`, not a new agent framework.
+All four are real ADK-based containers following field-kit's existing `workload-agent`/`agent` feature pattern (own image, own ServiceAccount, call an LLM via agentgateway's `/openai` route, call MCP tools over StreamableHTTP) - the same mechanism already proven by `fd-loan-rbac-jwt-propagation`, `workload-identity-chain`, and `agent-workload-identity`, not a new agent framework. Each exposes `POST /run` (`{"query": "...", ...}`) and `GET /health`, matching field-kit's deployment contract (`POST /<agent>/run` through the gateway, `GET /health` for probes).
+
+### Implementation stack (verified against current docs)
+
+- **Agents: Google ADK (`google-adk` 2.11.0, Python 3.10+).** Confirmed API surface:
+  - Custom OpenAI-compatible LLM endpoint: `from google.adk.models.lite_llm import LiteLlm` → `LiteLlm(model="openai/gpt-4o-mini", api_base=<agentgateway /openai route>)`.
+  - MCP tools over HTTP with a **per-request** bearer token: `MCPToolset(connection_params=StreamableHTTPConnectionParams(url=...), header_provider=<callback>)`, where the callback is `async def(ctx: ReadonlyContext) -> dict[str,str]` reading the token from `ctx.state` and returning `{"Authorization": f"Bearer {token}"}`. This is a documented 2.11.0 feature - it is how the per-user token threads into each MCP call.
+  - Serving: wrap `InMemoryRunner` in a FastAPI app. `runner.run_async(user_id=..., session_id=..., new_message=types.Content(...))` returns an `AsyncGenerator[Event]`; iterate and pick `event.is_final_response()` for the answer (it is NOT a single return value). Per-request token is placed in session state (`InMemorySessionService.create_session(...)`, async) before the run so `header_provider` can read it.
+- **MCP server: official `mcp` SDK (2.3.x), `FastMCP`.** Tools declared with `@mcp.tool()` (schema inferred from type hints + docstring); served via `mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)` (default path `/mcp`). Behind agentgateway, configure allowed hosts / disable strict host-origin protection as needed.
 
 ### Repository layout
 
-All five new containers (four agents, one MCP server) are co-located in a single new monorepo, `github.com/day0ops/ops-agents`, rather than five separate repos:
+All five new containers (four agents, one MCP server) are co-located in a single new monorepo, `github.com/day0ops/ops-agents` (already created), rather than five separate repos:
 
 ```
 ops-agents/
@@ -73,11 +85,16 @@ Each subdirectory gets its own Dockerfile and is built/pushed as its own image (
 
 This finally requires standing up pieces that have been deferred throughout this pillar's earlier work:
 
-- **STS + Postgres + Helm `tokenExchange.*` toggle** in `agentgateway-field-kit` - needed for the Delegation chain and for Elicitation.
-- **A GitHub OAuth app registration** (client ID/secret) for Elicitation, following field-kit's existing `elicitation-oauth-flow.yaml` pattern exactly (same env vars: `GITHUB_ISSUER_CLIENT_ID`/`GITHUB_ISSUER_CLIENT_SECRET`). The implementation wires these as required environment variables with no hardcoded fallback, same as field-kit's own reference usecase - a real GitHub app is registered and the env vars populated later, outside this plan, before the Elicitation flow can be exercised live.
-- **Keycloak client configuration for the two-hop chain**: each agent's own client needs a pre-configured, static set of allowed audiences (see "Audience-restricted delegation is not a dynamic policy" below) - this is realm configuration in field-kit, not application code.
+- **STS + Postgres + Helm `tokenExchange.*` toggle** in `agentgateway-field-kit` - needed for the Delegation single-hop, the Delegation chain, and Elicitation. The STS's `subjectValidator` trusts our Keycloak realm's JWKS (so the subject of every exchange is a Keycloak-issued token).
+- **A GitHub OAuth app registration** (client ID/secret) for Elicitation, following field-kit's existing `elicitation-oauth-flow.yaml` pattern exactly (same env vars: `GITHUB_ISSUER_CLIENT_ID`/`GITHUB_ISSUER_CLIENT_SECRET`). The implementation wires these as required environment variables with no hardcoded fallback - a real GitHub app is registered and the env vars populated later, outside this plan, before the Elicitation flow can be exercised live.
+- **MCP-route JWT validation + chain surfacing.** The internal repo MCP server itself has no auth logic; the gateway route validates the exchanged token (issuer = STS, for the delegation flows) per RFC 8693, authorizing on the top-level actor. For the chain-of-custody demo, the route forwards the token's claims (or the token itself, via `preserveToken`) to the repo server so a tool's response can surface the full `sub` + nested `act` chain - this reuses the claim-forwarding the existing MCP templates already do (e.g. the `x-gw-*` headers).
 
 ## Flow 1: `user -> agent -> mcp` (Standard vs. Delegation)
+
+The Repo Agent runs in one of two modes. The two modes need **two different gateway routes to the same MCP server**, because the gateway does different work in each:
+
+- **`standard` mode (Impersonation, proxy-native):** the agent presents the user's own Keycloak token; the gateway route carries `backend.auth.oauthTokenExchange` and performs the exchange itself at Keycloak before forwarding.
+- **`sts-delegation` mode (Delegation):** the agent performs the STS exchange itself, then presents the already-exchanged token; the gateway route only validates it (issuer = STS) and forwards as-is.
 
 ```mermaid
 sequenceDiagram
@@ -91,85 +108,90 @@ sequenceDiagram
 
     User->>Wizard: already logged in (real OAuth token captured)
     User->>Wizard: "run the agent" (mode: standard | sts-delegation)
-    Wizard->>Agent: POST /run (prompt, user's captured token, mode)
-    Agent->>AGW: POST /agent-chat (LLM call)
+    Wizard->>Agent: POST /run (query, user's captured token, mode)
+    Agent->>AGW: POST /openai (LLM call)
     AGW-->>Agent: tool_call: use the MCP tool
 
-    alt mode = standard (Impersonation)
-        Agent->>AGW: call MCP tool (Bearer: user's token)
+    alt mode = standard (Impersonation, proxy-native)
+        Agent->>AGW: call MCP tool on the standard route (Bearer: user's token)
         AGW->>AGW: validate JWT (issuer=Keycloak)
-        Note over AGW,KC: agentgateway itself performs the exchange -<br/>the agent never calls Keycloak directly
+        Note over AGW,KC: agentgateway itself performs the exchange -<br/>the agent never calls Keycloak or the STS
         AGW->>KC: backend.auth.oauthTokenExchange (RFC 8693)
         KC-->>AGW: re-signed token (same identity, no act claim)
         AGW->>MCP: forward with exchanged token
     else mode = sts-delegation (Delegation)
         Note over Agent,STS: the agent itself calls the STS,<br/>before ever reaching agentgateway
         Agent->>STS: authenticate as itself (own workload identity)
-        Agent->>STS: POST /token (subject_token=user's token,<br/>actor_token=agent's own SA token, audience=MCP)
-        STS->>STS: validate may_act claim (agent permitted to act for user)
-        STS-->>Agent: token (sub=user, act=agent)
-        Agent->>AGW: call MCP tool (Bearer: delegated token)
+        Agent->>STS: POST /oauth2/token (subject_token=user's Keycloak token,<br/>actor_token=agent's own SA token)
+        STS->>STS: validate subject (Keycloak JWKS) + actor + may_act
+        STS-->>Agent: token (sub=user, act=agent, issuer=STS)
+        Agent->>AGW: call MCP tool on the delegation route (Bearer: delegated token)
         AGW->>AGW: validate JWT (issuer=STS)
         AGW->>MCP: forward as-is, no further exchange
     end
 
     MCP-->>AGW: tool result
     AGW-->>Agent: tool result
-    Agent->>AGW: POST /agent-chat (feed result back to LLM)
+    Agent->>AGW: POST /openai (feed result back to LLM)
     AGW-->>Agent: final answer
     Agent-->>Wizard: final answer
     Wizard-->>User: render result
 ```
 
-The contrast this makes visible: in Standard/Impersonation, agentgateway performs the exchange transparently - the agent never knows it happened. In STS/Delegation, the agent itself explicitly calls the STS before ever reaching agentgateway, which is the architectural reason Delegation can prove "which agent acted" and Impersonation can't.
+The contrast this makes visible: in Standard/Impersonation, agentgateway performs the exchange transparently - the agent never knows it happened, and the exchanged token carries no `act` claim. In Delegation, the agent itself explicitly calls the STS before ever reaching agentgateway, and the result carries `act=agent`, which is the architectural reason Delegation can prove "which agent acted" and Impersonation can't.
 
-## Flow 2: `user -> agent -> agent -> mcp` (two-hop Delegation chain)
+## Flow 2: `user -> agent -> agent -> mcp` (two-hop Delegation chain, re-exchange)
+
+Each hop performs its own STS exchange. The front-line agent exchanges the user's Keycloak token; the specialist agent re-exchanges the token it received. The result is a single token carrying a nested `act` chain - the full `user -> release-manager -> deploy-agent` chain of custody. This was confirmed to work on Solo's STS as-is (see the spike finding below).
 
 ```mermaid
 sequenceDiagram
     participant User as Engineer (browser)
     participant Wizard
     participant AgentA as Release Manager Agent
+    participant STS
     participant AgentB as Deploy Agent
-    participant KC as Keycloak / STS
+    participant AGW as agentgateway
     participant MCP as internal repo MCP server
 
     User->>Wizard: already logged in (real OAuth token captured)
     User->>Wizard: "run the delegation chain" demo
-    Wizard->>AgentA: POST /run (prompt, user's captured token)
+    Wizard->>AgentA: POST /run (query, user's captured token)
+    AgentA->>AGW: POST /openai (LLM call: decides to delegate to Deploy Agent)
 
-    Note over AgentA,KC: Hop 1 - Release Manager exchanges for Deploy Agent's audience
-    AgentA->>KC: authenticate as itself (own workload identity)
-    AgentA->>KC: POST /token (grant_type=token-exchange,<br/>subject_token=user token, audience=Deploy Agent, scope=read-only)
-    KC->>KC: validate subject token (user)<br/>validate may_act claim (Release Manager permitted to act)<br/>check Release Manager's own client is scoped for audience=Deploy Agent
-    KC-->>AgentA: new token (sub=user, act=Release Manager, aud=Deploy Agent)
+    Note over AgentA,STS: Hop 1 exchange - at the front-line agent
+    AgentA->>STS: POST /oauth2/token (subject_token=user's Keycloak token,<br/>actor_token=Release Manager's own SA token)
+    STS->>STS: validate subject (Keycloak) + actor (k8s SA)
+    STS-->>AgentA: T1 (sub=user, act=release-manager, issuer=STS)
 
-    AgentA->>AgentB: call with token audienced for Deploy Agent
+    AgentA->>AgentB: POST /deploy-agent/run (query, Bearer: T1)
+    AgentB->>AGW: POST /openai (LLM call: decides to call the MCP tool)
 
-    Note over AgentB,KC: Hop 2 - Deploy Agent exchanges again for the MCP audience
-    AgentB->>KC: authenticate as itself (own workload identity)
-    AgentB->>KC: POST /token (grant_type=token-exchange,<br/>subject_token=token from Release Manager, audience=MCP, scope=read-only)
-    KC->>KC: validate subject token (now carries sub=user, act=Release Manager)<br/>validate may_act claim (Deploy Agent permitted to act)<br/>check Deploy Agent's own client is scoped for audience=MCP
-    KC-->>AgentB: new token (sub=user, act=Deploy Agent, aud=MCP, scope=read-only)
+    Note over AgentB,STS: Hop 2 re-exchange - at the specialist agent
+    AgentB->>STS: POST /oauth2/token (subject_token=T1 [STS-issued],<br/>actor_token=Deploy Agent's own SA token)
+    STS->>STS: validate subject (self-issued) + actor (k8s SA)
+    STS-->>AgentB: T2 (sub=user, act=deploy-agent,<br/>act.act=release-manager, issuer=STS)
 
-    AgentB->>MCP: call get_pull_request_status with token audienced for MCP
-    MCP->>MCP: validate JWT (issuer, aud=MCP, act claim)
-    MCP-->>AgentB: result (read-only tools only - trigger_deploy rejected on this path)
+    AgentB->>AGW: call MCP tool (Bearer: T2)
+    AGW->>AGW: validate JWT (issuer=STS); authorize on top-level actor (deploy-agent)
+    AGW->>MCP: forward T2 / its claims
+    MCP->>MCP: surface the chain: user -> release-manager -> deploy-agent
+    MCP-->>AGW: result (incl. the delegation chain that authorized it)
+    AGW-->>AgentB: result
     AgentB-->>AgentA: result
     AgentA-->>Wizard: final answer
     Wizard-->>User: render result
 ```
 
-### Audience-restricted delegation is not a dynamic policy (important, confirmed during design)
+**The chain-of-custody lesson:** the single token that finally reaches the MCP server carries the entire delegation history - `sub=user` (preserved end to end), `act=deploy-agent` (the current actor), and `act.act=release-manager` (the prior actor). The repo MCP server surfaces that chain in its response, so the audience sees that the action was performed by Deploy Agent, on behalf of Release Manager, on behalf of the real logged-in user - a complete, cryptographically-signed audit trail in one token, not scattered across logs. Per RFC 8693, agentgateway authorizes on the top-level actor (Deploy Agent); the nested prior actors are the audit record.
 
-Research into Solo's STS and Keycloak found **no dynamic, per-request "Agent A may only request audience=Agent B" policy enforcement** - `apiValidator` protects the Solo UI's own elicitation endpoints, not audience ACLs, and there's an open Keycloak GitHub issue (#53040) specifically about multi-hop delegation, meaning this is genuinely unsettled territory in the underlying product. What *is* real and enforced:
+### Spike finding: re-exchange works on Solo's STS as-is (confirmed live)
 
-- **`may_act` claim validation** - Keycloak checks the actor identified in `may_act` matches the actor token's `sub`, rejecting the exchange otherwise. This validates that a given agent's identity is permitted to act at all.
-- **Audience narrowing** - Keycloak's `audience` request parameter narrows a token to a specific target and rejects the request if the client isn't authorized for that audience.
+Prior documentation research predicted this would NOT work - the STS's `subjectValidator` points only at Keycloak's JWKS, so an STS-issued token (different issuer) was expected to fail subject validation. A live spike against the running STS **disproved that**: a second exchange with an STS-issued token as `subject_token` returned 200, and the STS correctly produced an RFC 8693 nested `act` claim (`act = {sub: <hop-2 actor>, act: {sub: <hop-1 actor>}}`). So no STS reconfiguration is needed; the STS accepts its own self-issued tokens as exchange subjects in addition to Keycloak-issued ones.
 
-So "the delegation policy" in this design is **static, pre-configured Keycloak client scope** - Release Manager Agent's client is only ever granted the ability to request `audience=Deploy Agent`, configured ahead of time in the realm, not a dynamic runtime decision. The design is built honestly around what's real: each hop performs its own separate RFC 8693 exchange (not a propagated token), and the resulting read/write RBAC split at the MCP server comes from checking whichever token actually arrives, same mechanism field-kit's own `fd-loan-rbac-jwt-propagation` already proves works.
-
-This was also where the design process ruled out an alternative: having Deploy Agent *propagate* Release Manager's token unchanged (field-kit's proven `MCP_AUTH_MODE=propagate` pattern) instead of re-exchanging. Propagation is the more defensible pattern per RFC 8693 itself for *this specific property* (nested `act` claims are explicitly "informational only" per RFC 8693 §4.1 and must not drive access-control decisions - only the top-level actor may). The two-hop re-exchange design here intentionally still performs real, separate exchanges per hop (matching the user's explicit requirement to demonstrate genuine multi-hop exchange, not just propagation) while keeping the RBAC-relevant decision at each hop's own top-level actor, consistent with the RFC's guidance.
+Two honest caveats this design accepts:
+- **Authorization is on the top-level actor, not the whole chain.** Per RFC 8693 §4.1, nested prior `act` claims are informational (audit), not an access-control input. So this flow's value is the *audit trail*, not a privilege cap - which is exactly the lesson chosen for it. (An enforced cap across the chain would require a custom CEL rule walking `act.act`; deliberately out of scope here.)
+- **The STS does not enforce monotonic scope/audience narrowing** (confirmed by earlier research: it issues what's requested once subject + actor validate). So the chain's security value is the signed custody record, not scope attenuation.
 
 ## Flow 3: Elicitation (real GitHub)
 
@@ -180,35 +202,35 @@ sequenceDiagram
     participant Agent as GitHub Agent
     participant AGW as agentgateway
     participant STS
-    participant Consent as Solo consent screen
+    participant SoloUI as Solo UI (consent)
     participant GH as GitHub (OAuth + MCP)
 
     User->>Wizard: already logged in (real Keycloak token captured)
     User->>Wizard: "run the agent" ("list my GitHub repos")
-    Wizard->>Agent: POST /run (prompt, user's captured token)
-    Agent->>AGW: POST /agent-chat (LLM call)
+    Wizard->>Agent: POST /run (query, user's captured token)
+    Agent->>AGW: POST /openai (LLM call)
     AGW-->>Agent: tool_call: list_my_repos
 
     Note over Agent,AGW: First attempt - no GitHub token stored yet
     Agent->>AGW: call GitHub MCP tool (Bearer: user's Keycloak token)
-    AGW->>STS: backend.auth.entElicitation - do we have a stored GitHub token?
+    AGW->>STS: backend.auth.entElicitation - stored GitHub token for this user?
     STS-->>AGW: none found
-    AGW-->>Agent: 202 pending + elicitation_url
+    AGW-->>Agent: pending + elicitation_url
     Agent-->>Wizard: "authorization required" + elicitation_url
     Wizard-->>User: show "Connect your GitHub account" link
 
-    Note over User,GH: Live, presenter-driven consent (cannot be scripted)
-    User->>Consent: open elicitation_url
-    Consent->>Consent: confirm Keycloak identity (already logged in)
-    Consent-->>User: show consent screen (requested scopes)
+    Note over User,GH: Live, presenter-driven consent (cannot be scripted).<br/>Consent completes in the Solo UI, NOT the wizard.
+    User->>SoloUI: open elicitation_url (Solo UI elicitations page)
+    SoloUI->>SoloUI: confirm Keycloak identity (already logged in)
+    SoloUI-->>User: show consent screen (requested scopes)
     User->>GH: accept - redirect to GitHub's real OAuth page
     GH-->>User: approve access
-    GH->>Consent: redirect back with authorization code
-    Consent->>STS: exchange code for a real GitHub access token
+    GH->>SoloUI: redirect back with authorization code
+    SoloUI->>STS: exchange code for a real GitHub access token
     STS->>STS: store token, mark elicitation COMPLETED
 
     User->>Wizard: retry
-    Wizard->>Agent: POST /run (same prompt)
+    Wizard->>Agent: POST /run (same query)
     Agent->>AGW: call GitHub MCP tool again (Bearer: user's Keycloak token)
     AGW->>STS: check stored GitHub token
     STS-->>AGW: found - inject as Bearer
@@ -219,7 +241,9 @@ sequenceDiagram
     Wizard-->>User: render result
 ```
 
-Nothing from the consent screen onward can be scripted or automated - this matches field-kit's own `elicitation-oauth-flow.yaml`, which only tests the "pending" state automatically and marks the actual consent completion `manual: true`. This is by design the strongest "wow" moment of the three flows, precisely because the GitHub login happening on screen is real, not simulated.
+Two things to call out:
+- **Consent completes in the Solo UI, not the wizard.** The elicitation URL points at the Solo UI's own elicitations page (this matches field-kit's `elicitation-oauth-flow.yaml`). So mid-demo the presenter leaves the wizard, completes the GitHub consent in the Solo UI, and returns to the wizard to retry. This is a real UX seam worth scripting into the demo narration.
+- **Nothing from the consent screen onward can be scripted or automated** - field-kit's own reference usecase only tests the "pending" state automatically and marks the consent completion `manual: true`. This is by design the strongest "wow" moment of the three flows, precisely because the GitHub login happening on screen is real.
 
 ## Transition to "What gets through" (guardrails pillar)
 
@@ -227,12 +251,13 @@ Narrative hook for the pillar boundary: "No matter how sophisticated the identit
 
 ## Testing
 
-Consistent with how this pillar has treated STS and Elicitation throughout: Go-level tests cover what's mechanical and scriptable (preset wiring, manifest rendering, token-exchange request construction) with the same conventions as the rest of this repo. The actual multi-hop exchange chain and the Elicitation consent flow are live/manual verification against a real deployment - not mockable, same as the STS exchange step already is.
+Consistent with how this pillar has treated STS and Elicitation throughout: Go-level tests cover what's mechanical and scriptable in this repo (preset wiring, manifest rendering, the registry's new steps) with the same conventions as the rest of the repo. The agent/MCP container code in `ops-agents` gets its own unit tests (tool handlers, the STS-exchange request construction, the FastAPI `/run` and `/health` handlers). The end-to-end flows - an agent actually driving an LLM and MCP tool call, the two-hop re-exchange chain, and especially the Elicitation consent flow - are live/manual verification against a real deployment, not mockable, same as the STS exchange step already is. (The two-hop re-exchange and its nested `act` output have already been proven once via the design spike.)
 
 ## Risks / open items
 
-- **This is a three-repo effort of real size.** `ops-agents` (new, source for all five containers), `agentgateway-field-kit` (STS/Postgres infra, Keycloak realm config, deployment manifests referencing the built images), and `agentgateway-demo-wizard` (this repo - new registry steps, new agent-triggering UI). Coordinating image builds/tags across the new monorepo and field-kit's deployment config is a real sequencing dependency for implementation planning.
-- **STS + Postgres has been deferred through this entire pillar's development and must finally be stood up** for this feature to work at all (Delegation chain and Elicitation both need it).
-- **The GitHub OAuth app is a placeholder until implementation is complete** - the code/config is built against the env var contract, but registration and populating real values happens afterward, before any live demo of the Elicitation flow specifically (the other two flows don't depend on it).
-- **Keycloak client scope configuration for the two-hop chain is static, not dynamic** - this needs to be set up correctly per-agent-client ahead of time in field-kit's realm config, and is worth being explicit about in the demo narration so the audience doesn't walk away believing the STS enforces a general-purpose delegation graph it doesn't actually enforce.
+- **This is a three-repo effort of real size.** `ops-agents` (new, source for all five containers), `agentgateway-field-kit` (STS/Postgres infra, deployment manifests referencing the built images, MCP-route policies), and `agentgateway-demo-wizard` (this repo - new registry steps, new agent-triggering UI). Coordinating image builds/tags across the new monorepo and field-kit's deployment config is a real sequencing dependency for implementation planning.
+- **STS + Postgres has been deferred through this entire pillar's development and must finally be stood up** for this feature to work at all (Delegation single-hop, Delegation chain, and Elicitation all need it).
+- **The GitHub OAuth app is a placeholder until implementation is complete** - the code/config is built against the env var contract, but registration and populating real values happens afterward, before any live demo of the Elicitation flow specifically (the other flows don't depend on it).
+- **ADK per-request MCP headers have a known memory-pressure caveat** (`adk-python` #5959: high-cardinality per-user tokens pool MCP sessions). Negligible at demo scale (two demo users), but worth noting so nobody is surprised.
 - **The internal repo MCP server's data is entirely fake** - this needs to be clearly presented as "our own internal system," not conflated with the real GitHub data the Elicitation step surfaces later, since both are repo-themed.
+- **Elicitation consent happens in the Solo UI, not the wizard** - the only one of the three flows where the presenter leaves the wizard mid-demo; must be scripted into the narration.
