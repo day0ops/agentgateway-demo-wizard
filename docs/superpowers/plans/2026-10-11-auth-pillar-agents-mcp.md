@@ -496,15 +496,9 @@ def test_health():
     app = build_app(lambda token, mode: (None, token, {}))
     client = TestClient(app)
     assert client.get("/health").json() == {"status": "ok"}
-
-def test_run_merges_extra_fields_requires_real_agent():
-    # Documents the /run response contract (answer + **extra); exercising it
-    # end to end requires a real LlmAgent and is covered live in Task A4,
-    # the first agent built on this harness.
-    pass
 ```
 
-> Note for the implementer: the `/run` path exercises real ADK classes (`InMemoryRunner`, `types.Content`, `run_async`). A unit test can't fully drive it without an LLM, so `/run` is validated in Task A4's live smoke test (the first agent that actually runs). If any ADK signature in `harness.py` differs from the documented API when A4 runs it live, fix it here in A3 and re-run - this harness is the single shared point for ADK-API corrections.
+> Note for the implementer: `test_harness.py` only covers `/health` here - the `/run` path exercises real ADK classes (`InMemoryRunner`, `types.Content`, `run_async`) and can't be driven by a unit test without a real LLM. It's validated live in Task A4's smoke test (the first agent built on this harness). If any ADK signature in `harness.py` differs from the documented API when A4 runs it live, fix it here in A3 and re-run - this harness is the single shared point for ADK-API corrections. Do not add a placeholder `/run` test that asserts nothing; the live smoke test is the real coverage for that path.
 
 - [ ] **Step 6: Run harness test**
 
