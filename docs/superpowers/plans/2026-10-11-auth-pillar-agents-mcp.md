@@ -13,7 +13,7 @@
 - **Repos & registry:** all five images build from `github.com/day0ops/ops-agents` and push to `australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/<name>:<tag>`, named after their directory (`repo-server`, `repo-agent`, `release-manager-agent`, `deploy-agent`, `github-agent`). Tag `0.1.0` for the first build.
 - **Exchange mechanisms (locked):** Standard/Impersonation = agentgateway proxy-native `backend.auth.oauthTokenExchange` (no STS). All delegation = Solo's controller-side STS (`issuer = enterprise-agentgateway.agentgateway-system.svc.cluster.local:7777`, `/oauth2/token`). Keycloak-native token exchange is NOT used.
 - **STS exchange request shape (verified live):** POST form to the STS `/oauth2/token` with `grant_type=urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token`, `subject_token_type=urn:ietf:params:oauth:token-type:jwt`, `actor_token`, `actor_token_type=urn:ietf:params:oauth:token-type:jwt`, `audience=agentgateway`, AND an `Authorization: Bearer <subject_token>` header. The STS accepts both Keycloak-issued and its own self-issued tokens as `subject_token` (confirmed by the design spike - this is what makes the two-hop re-exchange work).
-- **ADK API (verified against 2.11.0 docs):** custom LLM via `from google.adk.models.lite_llm import LiteLlm` → `LiteLlm(model="openai/gpt-4o-mini", api_base=<.../openai>)`; MCP via `MCPToolset(connection_params=StreamableHTTPConnectionParams(url=...), header_provider=<async(ReadonlyContext)->dict[str,str]>)`; serve via `InMemoryRunner` wrapped in FastAPI, `runner.run_async(...)` returns `AsyncGenerator[Event]` (iterate, pick `event.is_final_response()`); `new_message=types.Content(role="user", parts=[types.Part(text=...)])` from `google.genai`; per-request token placed in session state (`InMemorySessionService.create_session`, async) and read by `header_provider` from `ctx.state`.
+- **ADK API (verified against 2.11.0 docs):** custom LLM via `from google.adk.models.lite_llm import LiteLlm` → `LiteLlm(model="openai/gpt-4o-mini", api_base=<.../openai>)`; MCP via `McpToolset(connection_params=StreamableHTTPConnectionParams(url=...), header_provider=<async(ReadonlyContext)->dict[str,str]>)`; serve via `InMemoryRunner` wrapped in FastAPI, `runner.run_async(...)` returns `AsyncGenerator[Event]` (iterate, pick `event.is_final_response()`); `new_message=types.Content(role="user", parts=[types.Part(text=...)])` from `google.genai`; per-request token placed in session state (`InMemorySessionService.create_session`, async) and read by `header_provider` from `ctx.state`.
 - **MCP server API:** official `mcp` SDK `from mcp.server import FastMCP`; `@mcp.tool()` (schema inferred from type hints + docstring); `FastMCP(name=..., host="0.0.0.0", port=8000)` (host/port are constructor-only kwargs in 1.30.0, not run() kwargs), then `mcp.run(transport="streamable-http")` (default path `/mcp`).
 - **Agent deployment contract (from field-kit):** each agent container exposes `POST /run` (`{"query": "...", ...}`) and `GET /health`; routed through agentgateway at `POST /<agent>/run`. LLM reached at the `/openai` route, MCP at the configured MCP route.
 - **No AI attribution in commits/PRs.** Conventional Commits. Draft PRs assigned to `day0ops`. Every task's code must be complete, not placeholder.
@@ -285,7 +285,7 @@ git commit -m "feat(repo-server): MCP server with list_repos, pr-status, trigger
   - `ops_agent.sts.read_sa_token(path="/var/run/secrets/tokens/sa-token") -> str` - reads the agent's own projected ServiceAccount token.
   - `ops_agent.sts.decode_claims(jwt) -> dict` - decodes a JWT payload (no signature check; for surfacing the `act` chain).
   - `ops_agent.harness.build_app(agent_factory) -> FastAPI` - a FastAPI app exposing `POST /run` and `GET /health`, where `agent_factory(token: str, mode: str) -> (LlmAgent, bearer: str, extra: dict)` builds the per-request agent; `bearer` (which may differ from `token` - e.g. an STS-exchanged token) is threaded into session state for the MCP `header_provider`, and `extra` is merged into the JSON response.
-  - `ops_agent.harness.bearer_header_provider(ctx) -> dict` - reads `bearer_token` from ADK session state and returns the `Authorization` header dict, for use as an `MCPToolset`'s `header_provider`.
+  - `ops_agent.harness.bearer_header_provider(ctx) -> dict` - reads `bearer_token` from ADK session state and returns the `Authorization` header dict, for use as an `McpToolset`'s `header_provider`.
 - Consumes: `google-adk` 2.11.0, `mcp` SDK, FastAPI/uvicorn, `google-genai` (for `types.Content`).
 
 - [ ] **Step 1: Write failing tests for the STS helper**
@@ -394,7 +394,7 @@ def decode_claims(token: str) -> dict:
 Create `agents/_shared/requirements.txt`:
 
 ```
-google-adk==2.11.0
+google-adk[extensions]==2.11.0
 mcp==1.30.0
 fastapi==0.115.6
 uvicorn==0.34.0
@@ -422,7 +422,7 @@ Create `agents/_shared/ops_agent/harness.py`:
 
 ```python
 """FastAPI harness serving an ADK agent as POST /run + GET /health, threading
-a per-request bearer token into session state so an MCPToolset header_provider
+a per-request bearer token into session state so an McpToolset header_provider
 can attach it to each MCP call. ADK 2.11.0 API per the official docs.
 
 agent_factory(token, mode) returns a 3-tuple:
@@ -451,7 +451,7 @@ class RunRequest(BaseModel):
 
 
 async def bearer_header_provider(ctx) -> dict:
-    """Reusable MCPToolset header_provider: attaches the bearer token placed
+    """Reusable McpToolset header_provider: attaches the bearer token placed
     in session state by build_app (see agent_factory contract above) as the
     Authorization header on every MCP tool call for this session."""
     token = ctx.state.get("bearer_token", "")
@@ -582,7 +582,7 @@ import os
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
+from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 
 from ops_agent import sts
 from ops_agent.harness import bearer_header_provider, build_app
@@ -607,7 +607,7 @@ def build_agent(token: str, mode: str):
     else:
         bearer = token
 
-    toolset = MCPToolset(
+    toolset = McpToolset(
         connection_params=StreamableHTTPConnectionParams(url=_mcp_url_for_mode(mode)),
         header_provider=bearer_header_provider,
     )
@@ -676,7 +676,7 @@ git commit -m "feat(repo-agent): single-hop agent, standard vs sts-delegation mo
 - Consumes: `ops_agent.sts.exchange`, `ops_agent.sts.read_sa_token`, `ops_agent.harness.build_app`.
 - Env: `LLM_BASE_URL`, `STS_URL`, `SA_TOKEN_PATH`, `DEPLOY_AGENT_URL`.
 
-This agent does NOT call the MCP server itself - its one tool is "ask the Deploy Agent," implemented as a plain Python function tool (an ADK `FunctionTool`, inferred automatically from a plain function passed in `tools=[...]`), not an `MCPToolset`.
+This agent does NOT call the MCP server itself - its one tool is "ask the Deploy Agent," implemented as a plain Python function tool (an ADK `FunctionTool`, inferred automatically from a plain function passed in `tools=[...]`), not an `McpToolset`.
 
 - [ ] **Step 1: Write failing tests**
 
@@ -863,7 +863,7 @@ import os
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
+from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 
 from ops_agent import sts
 from ops_agent.harness import bearer_header_provider, build_app
@@ -887,7 +887,7 @@ def build_agent(token: str, mode: str):
         "act_act": act.get("act", {}).get("sub"),
     }
 
-    toolset = MCPToolset(
+    toolset = McpToolset(
         connection_params=StreamableHTTPConnectionParams(url=os.environ["MCP_URL"]),
         header_provider=bearer_header_provider,
     )
@@ -979,7 +979,7 @@ import os
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
+from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 
 from ops_agent.harness import bearer_header_provider, build_app
 
@@ -993,7 +993,7 @@ INSTRUCTION = (
 
 
 def build_agent(token: str, mode: str):
-    toolset = MCPToolset(
+    toolset = McpToolset(
         connection_params=StreamableHTTPConnectionParams(url=os.environ["MCP_GITHUB_URL"]),
         header_provider=bearer_header_provider,
     )
