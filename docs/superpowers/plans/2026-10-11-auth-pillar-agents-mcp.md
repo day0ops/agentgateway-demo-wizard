@@ -43,6 +43,8 @@ Three phases, one per repo, each independently testable in its own toolchain. Wi
 
 No separate "Keycloak clients" task: these agents authenticate as their own Kubernetes ServiceAccount (validated via the STS's `k8s` actorValidator, not a Keycloak client_credentials grant), and `workload-agent` already creates the ServiceAccount for each agent as part of B4.
 
+**Execution order note:** B3 and B4 both reference `{{env.images.opsAgents.*}}` template variables that only exist once B6 adds them to `config/environments/aws-dev.yaml` - run B6 right after B2, before B3, even though it's numbered last (discovered live: B3's own dry-run fails outright on an unresolved template variable otherwise). B5 doesn't need a new image var but its dry-run renders the whole file, so it also needs B6 landed first by then.
+
 **Phase C - `agentgateway-demo-wizard` (Go/React, this repo), Go + vitest tests + live:**
 - C1 Config: agent endpoint URLs
 - C2 Backend: agent-run proxy handler (forwards captured session token to agent `/run`)
@@ -1414,8 +1416,10 @@ Append to `config/usecases/enterprise/security/ops-agents.yaml`'s `spec.steps`:
 
 - [ ] **Step 2: Dry-run to verify it renders**
 
+Requires Task B6's image reference to already be in `config/environments/aws-dev.yaml`, or the dry-run fails outright on an unresolved `{{env.images.opsAgents.repo-server-mcp}}` template variable - do B6 first if it hasn't landed yet.
+
 Run: `node src/cli.js usecase dryrun --name ops-agents --environment aws-dev --no-prompt`
-Expected: both `EnterpriseAgentgatewayPolicy/repo-mcp-standard-exchange` (with `preserveToken: true`, confirming Task B1's fix took effect) and `EnterpriseAgentgatewayPolicy/repo-mcp-delegation-jwt-policy` appear in the output.
+Expected: two `EnterpriseAgentgatewayPolicy` resources with `preserveToken: true` on the standard one and `issuer`/`audiences`/`jwksPath` matching the STS on the delegation one - field-kit's `oauth-token-exchange`/`obo-token-exchange` features auto-generate their own `metadata.name` (observed as `oauth-token-exchange-repo-mcp-standard` / `obo-token-exchange-repo-mcp-delegation` rather than the literal `name`/`policyName` config values given below), so check content, not the exact resource name.
 
 - [ ] **Step 3: Commit**
 
@@ -1509,6 +1513,8 @@ Append to `config/usecases/enterprise/security/ops-agents.yaml`'s `spec.steps`:
 ```
 
 - [ ] **Step 2: Dry-run to verify it renders**
+
+Requires Task B6's image references to already be in `config/environments/aws-dev.yaml` - do B6 first if it hasn't landed yet.
 
 Run: `node src/cli.js usecase dryrun --name ops-agents --environment aws-dev --no-prompt`
 Expected: four `Deployment`/`Service`/`ServiceAccount`/`HTTPRoute` sets, one per agent, each with the right `additionalEnv` entries.
