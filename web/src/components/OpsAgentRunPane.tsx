@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { extractErrorMessage } from "../lib/json";
 
 type OpsAgentChain = {
   sub?: string;
@@ -63,7 +64,7 @@ export function OpsAgentRunPane({
         body: JSON.stringify({ identity, agent, mode, query }),
       });
       if (!res.ok) {
-        setError(await res.text());
+        setError(await extractErrorMessage(res));
         return;
       }
       setResult((await res.json()) as OpsAgentResult);
