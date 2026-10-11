@@ -1,4 +1,6 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type OpsAgentChain = {
   sub?: string;
@@ -11,24 +13,27 @@ type OpsAgentResult = {
   extra?: { chain?: OpsAgentChain } & Record<string, unknown>;
 };
 
-function linkify(text: string) {
-  const parts = text.split(/(https?:\/\/[^\s]+)/g);
-  return parts.map((part, i) =>
-    /^https?:\/\//.test(part) ? (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noreferrer"
-        className="text-indigo-600 underline dark:text-indigo-400"
-      >
-        {part}
-      </a>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
-}
+const markdownComponents = {
+  a: ({ ...props }) => (
+    <a
+      {...props}
+      target="_blank"
+      rel="noreferrer"
+      className="text-indigo-600 underline dark:text-indigo-400"
+    />
+  ),
+  ul: ({ ...props }) => <ul {...props} className="list-disc space-y-1 pl-5" />,
+  ol: ({ ...props }) => (
+    <ol {...props} className="list-decimal space-y-1 pl-5" />
+  ),
+  p: ({ ...props }) => <p {...props} className="[&:not(:first-child)]:mt-2" />,
+  code: ({ ...props }) => (
+    <code
+      {...props}
+      className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800"
+    />
+  ),
+};
 
 export function OpsAgentRunPane({
   identity,
@@ -100,7 +105,14 @@ export function OpsAgentRunPane({
 
       {result && (
         <div className="space-y-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800">
-          <div>{linkify(result.answer)}</div>
+          <div>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {result.answer}
+            </ReactMarkdown>
+          </div>
           {chain && (
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span className="rounded bg-slate-100 px-2 py-1 dark:bg-slate-800">

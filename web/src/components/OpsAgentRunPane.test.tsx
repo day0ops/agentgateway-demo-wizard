@@ -31,6 +31,35 @@ describe("OpsAgentRunPane", () => {
     );
   });
 
+  it("renders markdown formatting (lists, bold, links) in the answer", async () => {
+    globalThis.fetch = mockJsonFetch({
+      answer:
+        "1. **payments-service** - [repo](https://github.com/day0ops/payments-service)\n2. **checkout-web**",
+    });
+
+    render(
+      <OpsAgentRunPane
+        identity="team-alpha"
+        agent="repo"
+        mode="standard"
+        defaultPrompt="List our repos"
+      />,
+    );
+    fireEvent.click(screen.getByText("Run agent"));
+
+    await waitFor(() =>
+      expect(screen.getByText("payments-service")).toBeInTheDocument(),
+    );
+    expect(screen.getByText("payments-service").tagName).toBe("STRONG");
+    const link = screen.getByRole("link", { name: "repo" });
+    expect(link).toHaveAttribute(
+      "href",
+      "https://github.com/day0ops/payments-service",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
   it("renders the decoded delegation chain when present", async () => {
     globalThis.fetch = mockJsonFetch({
       answer: "Deployed payments-service.",
