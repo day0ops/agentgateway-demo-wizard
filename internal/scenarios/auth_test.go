@@ -15,11 +15,14 @@ func TestRegistryIncludesPillar2Auth(t *testing.T) {
 	if auth.ID != "auth" {
 		t.Fatalf("expected pillar[2].ID 'auth', got %q", auth.ID)
 	}
-	if len(auth.Steps) != 4 {
-		t.Fatalf("expected 4 auth steps, got %d", len(auth.Steps))
+	if len(auth.Steps) != 8 {
+		t.Fatalf("expected 8 auth steps, got %d", len(auth.Steps))
 	}
 
-	wantStepIDs := []string{"auth-login", "auth-rbac", "auth-exchange-standard", "auth-exchange-sts"}
+	wantStepIDs := []string{
+		"auth-login", "auth-rbac", "auth-exchange-standard", "auth-exchange-sts",
+		"auth-agent-impersonation", "auth-agent-delegation", "auth-agent-chain", "auth-agent-elicitation",
+	}
 	for i, want := range wantStepIDs {
 		if auth.Steps[i].ID != want {
 			t.Fatalf("expected step[%d].ID %q, got %q", i, want, auth.Steps[i].ID)
@@ -55,8 +58,8 @@ func TestAuthPoliciesRenderValidManifests(t *testing.T) {
 	auth := Registry()[2]
 
 	for _, step := range auth.Steps {
-		if step.LoginDemo {
-			continue // no policies to render - see TestAuthLoginStepHasNoPoliciesOrPresets
+		if step.LoginDemo || step.OpsAgent != nil {
+			continue // no templated manifest to render - see TestAuthOpsAgentStepsAreReadOnlyAndNeverApply
 		}
 		if len(step.Policies) == 0 {
 			t.Fatalf("step %q has no policies", step.ID)
@@ -112,6 +115,75 @@ func TestAuthPoliciesRenderValidManifests(t *testing.T) {
 	}
 	if !strings.Contains(stsJoined, params.STSPort) {
 		t.Fatalf("expected the STS-exchange policy to reference the STS port, got: %s", stsJoined)
+	}
+}
+
+func TestAuthOpsAgentStepsAreReadOnlyAndNeverApply(t *testing.T) {
+	auth := Registry()[2]
+
+	wantViewRefNames := map[string][]string{
+		"auth-agent-impersonation": {"repo-agent", "repo-mcp-standard"},
+		"auth-agent-delegation":    {"repo-agent", "repo-mcp-delegation"},
+		"auth-agent-chain":         {"release-manager-agent", "deploy-agent", "repo-mcp-delegation"},
+		"auth-agent-elicitation":   {"github-agent", "mcp-github"},
+	}
+	wantAgent := map[string]string{
+		"auth-agent-impersonation": "repo",
+		"auth-agent-delegation":    "repo",
+		"auth-agent-chain":         "release-manager",
+		"auth-agent-elicitation":   "github",
+	}
+	wantMode := map[string]string{
+		"auth-agent-impersonation": "standard",
+		"auth-agent-delegation":    "sts-delegation",
+		"auth-agent-chain":         "",
+		"auth-agent-elicitation":   "",
+	}
+
+	for _, step := range auth.Steps {
+		want, hasPolicy := wantViewRefNames[step.ID]
+		if !hasPolicy {
+			continue
+		}
+		if step.OpsAgent == nil {
+			t.Fatalf("step %q: expected OpsAgent to be set", step.ID)
+		}
+		if step.OpsAgent.Agent != wantAgent[step.ID] {
+			t.Fatalf("step %q: OpsAgent.Agent = %q, want %q", step.ID, step.OpsAgent.Agent, wantAgent[step.ID])
+		}
+		if step.OpsAgent.Mode != wantMode[step.ID] {
+			t.Fatalf("step %q: OpsAgent.Mode = %q, want %q", step.ID, step.OpsAgent.Mode, wantMode[step.ID])
+		}
+		if step.OpsAgent.DefaultPrompt == "" {
+			t.Fatalf("step %q: expected a non-empty DefaultPrompt", step.ID)
+		}
+
+		if len(step.Policies) != 1 {
+			t.Fatalf("step %q: expected exactly 1 policy, got %d", step.ID, len(step.Policies))
+		}
+		p := step.Policies[0]
+		if !p.ReadOnly {
+			t.Fatalf("step %q: expected policy to be ReadOnly", step.ID)
+		}
+		if len(p.ViewRefs) != len(want) {
+			t.Fatalf("step %q: expected %d ViewRefs, got %d", step.ID, len(want), len(p.ViewRefs))
+		}
+		for i, name := range want {
+			if p.ViewRefs[i].Name != name {
+				t.Fatalf("step %q: ViewRefs[%d].Name = %q, want %q", step.ID, i, p.ViewRefs[i].Name, name)
+			}
+			if p.ViewRefs[i].GVR.Resource != "httproutes" {
+				t.Fatalf("step %q: ViewRefs[%d].GVR.Resource = %q, want httproutes", step.ID, i, p.ViewRefs[i].GVR.Resource)
+			}
+		}
+
+		docs, err := p.Render(ManifestParams{Namespace: "agentgateway-system"})
+		if err != nil {
+			t.Fatalf("step %q: Render errored: %v", step.ID, err)
+		}
+		if docs != nil {
+			t.Fatalf("step %q: expected a read-only policy to render nothing, got %v", step.ID, docs)
+		}
 	}
 }
 

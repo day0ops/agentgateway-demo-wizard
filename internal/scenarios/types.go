@@ -35,6 +35,24 @@ type Step struct {
 	// there's no policy to apply and no request to drive, just a real
 	// Authorization Code redirect.
 	LoginDemo bool `json:"loginDemo"`
+	// OpsAgent marks a step that drives one of the ops-agents usecase's real
+	// external agent containers (see internal/api/ops_agent_handler.go)
+	// instead of a Configure+DriveRequest pane pair or this repo's own
+	// built-in agent loop (AgentDemo).
+	OpsAgent *OpsAgentDemo `json:"opsAgent,omitempty"`
+}
+
+// OpsAgentDemo configures the pane for a step that calls a real external
+// agent container through POST /api/ops-agent/run.
+type OpsAgentDemo struct {
+	// Agent selects which container's /run endpoint this step calls - must
+	// match one of the cases in Server.opsAgentURL: "repo",
+	// "release-manager", or "github".
+	Agent string `json:"agent"`
+	// Mode is forwarded to the agent as-is; empty for agents that don't
+	// branch on mode (release-manager, github).
+	Mode          string `json:"mode"`
+	DefaultPrompt string `json:"defaultPrompt"`
 }
 
 // Policy is one clickops Configure-pane card: a named group of manifests the

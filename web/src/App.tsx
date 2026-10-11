@@ -10,6 +10,7 @@ import { CostTicker } from "./components/CostTicker";
 import { ConfigurePane } from "./components/ConfigurePane";
 import { DriveRequestPane } from "./components/DriveRequestPane";
 import { AgentRunPane } from "./components/AgentRunPane";
+import { OpsAgentRunPane } from "./components/OpsAgentRunPane";
 import { VirtualKeyPane } from "./components/VirtualKeyPane";
 import { WelcomeFeatures } from "./components/WelcomeFeatures";
 import { LoginPane } from "./components/LoginPane";
@@ -89,6 +90,7 @@ export default function App() {
   const hasDemo =
     activeStep.agentDemo ||
     activeStep.loginDemo ||
+    !!activeStep.opsAgent ||
     activeStep.policies.length > 0 ||
     activeStep.presets.length > 0;
 
@@ -157,7 +159,15 @@ export default function App() {
               key={`${activeStep.id}-configure`}
               policies={activeStep.policies}
             />
-            {activeStep.agentDemo ? (
+            {activeStep.opsAgent ? (
+              <OpsAgentRunPane
+                key={`${activeStep.id}-ops-agent`}
+                identity="team-alpha"
+                agent={activeStep.opsAgent.agent}
+                mode={activeStep.opsAgent.mode}
+                defaultPrompt={activeStep.opsAgent.defaultPrompt}
+              />
+            ) : activeStep.agentDemo ? (
               <AgentRunPane
                 key={`${activeStep.id}-agent`}
                 identity="team-alpha"

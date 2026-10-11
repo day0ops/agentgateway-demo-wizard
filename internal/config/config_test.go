@@ -111,3 +111,31 @@ func TestLoadRespectsSTSPortOverride(t *testing.T) {
 		t.Fatalf("expected the overridden STS port, got %q", cfg.STSPort)
 	}
 }
+
+func TestLoadDefaultsOpsAgentURLsWhenUnset(t *testing.T) {
+	t.Setenv("REPO_AGENT_URL", "")
+	t.Setenv("RELEASE_MANAGER_AGENT_URL", "")
+	t.Setenv("GITHUB_AGENT_URL", "")
+
+	cfg := Load()
+
+	if cfg.RepoAgentURL != defaultAgentGatewayInternalURL+"/repo-agent/run" {
+		t.Fatalf("unexpected default RepoAgentURL: %q", cfg.RepoAgentURL)
+	}
+	if cfg.ReleaseManagerAgentURL != defaultAgentGatewayInternalURL+"/release-manager-agent/run" {
+		t.Fatalf("unexpected default ReleaseManagerAgentURL: %q", cfg.ReleaseManagerAgentURL)
+	}
+	if cfg.GitHubAgentURL != defaultAgentGatewayInternalURL+"/github-agent/run" {
+		t.Fatalf("unexpected default GitHubAgentURL: %q", cfg.GitHubAgentURL)
+	}
+}
+
+func TestLoadRespectsOpsAgentURLOverrides(t *testing.T) {
+	t.Setenv("REPO_AGENT_URL", "http://repo-agent.other-namespace.svc.cluster.local:8080/run")
+
+	cfg := Load()
+
+	if cfg.RepoAgentURL != "http://repo-agent.other-namespace.svc.cluster.local:8080/run" {
+		t.Fatalf("expected the overridden RepoAgentURL, got %q", cfg.RepoAgentURL)
+	}
+}
