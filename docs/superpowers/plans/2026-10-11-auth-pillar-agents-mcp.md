@@ -1300,7 +1300,7 @@ spec:
 
 - [ ] **Step 2: Dry-run to verify it renders**
 
-Run: `node bin/agentgateway-demo.js usecase deploy ops-agents --dry-run` (adjust to this repo's actual CLI entrypoint if different - check `package.json`'s `bin` field)
+Run: `node src/cli.js usecase dryrun --name ops-agents --environment aws-dev --no-prompt`
 Expected: YAML output includes a `tokenExchange.enabled: true` Helm values comment and a Postgres Secret/Service/PVC/Deployment, no errors.
 
 - [ ] **Step 3: Commit**
@@ -1414,7 +1414,7 @@ Append to `config/usecases/enterprise/security/ops-agents.yaml`'s `spec.steps`:
 
 - [ ] **Step 2: Dry-run to verify it renders**
 
-Run: `node bin/agentgateway-demo.js usecase deploy ops-agents --dry-run`
+Run: `node src/cli.js usecase dryrun --name ops-agents --environment aws-dev --no-prompt`
 Expected: both `EnterpriseAgentgatewayPolicy/repo-mcp-standard-exchange` (with `preserveToken: true`, confirming Task B1's fix took effect) and `EnterpriseAgentgatewayPolicy/repo-mcp-delegation-jwt-policy` appear in the output.
 
 - [ ] **Step 3: Commit**
@@ -1510,7 +1510,7 @@ Append to `config/usecases/enterprise/security/ops-agents.yaml`'s `spec.steps`:
 
 - [ ] **Step 2: Dry-run to verify it renders**
 
-Run: `node bin/agentgateway-demo.js usecase deploy ops-agents --dry-run`
+Run: `node src/cli.js usecase dryrun --name ops-agents --environment aws-dev --no-prompt`
 Expected: four `Deployment`/`Service`/`ServiceAccount`/`HTTPRoute` sets, one per agent, each with the right `additionalEnv` entries.
 
 - [ ] **Step 3: Commit**
@@ -1575,7 +1575,7 @@ Append to `config/usecases/enterprise/security/ops-agents.yaml`'s `spec.steps`:
 
 - [ ] **Step 2: Dry-run to verify it renders**
 
-Run: `GITHUB_CLIENT_ID=placeholder GITHUB_CLIENT_SECRET=placeholder node bin/agentgateway-demo.js usecase deploy ops-agents --dry-run`
+Run: `GITHUB_CLIENT_ID=placeholder GITHUB_CLIENT_SECRET=placeholder node src/cli.js usecase dryrun --name ops-agents --environment aws-dev --no-prompt`
 Expected: `Secret/ops-agents-github-oauth`, `EnterpriseAgentgatewayBackend/github-mcp-backend`, `EnterpriseAgentgatewayPolicy/github-mcp-elicitation` (containing `entElicitation` and `tokenExchange.mode: ElicitationOnly`), `HTTPRoute/mcp-github`.
 
 - [ ] **Step 3: Commit**
@@ -2631,7 +2631,7 @@ Expected: all tests pass, production build succeeds.
 
 - [ ] **Step 3: field-kit dry-run**
 
-In the `agentgateway-field-kit` repo: `node bin/agentgateway-demo.js usecase deploy ops-agents --dry-run` (confirm the actual CLI entrypoint name from `package.json`'s `bin` field if different).
+In the `agentgateway-field-kit` repo: `node src/cli.js usecase dryrun --name ops-agents --environment aws-dev --no-prompt`.
 Expected: full YAML output, no errors, `preserveToken: true` present on the standard-exchange policy (confirms Task B1's fix is live).
 
 - [ ] **Step 4: Build and push all five images (if not already done in Task A8)**
@@ -2644,7 +2644,7 @@ This step mutates the live cluster - confirm with the user before running. In th
 
 ```bash
 GITHUB_CLIENT_ID=<real or placeholder> GITHUB_CLIENT_SECRET=<real or placeholder> \
-  node bin/agentgateway-demo.js usecase deploy ops-agents
+  node src/cli.js usecase deploy --name ops-agents --environment aws-dev --yes
 ```
 
 Then, against the live wizard UI (or directly via curl, logged in as `team-alpha`):
