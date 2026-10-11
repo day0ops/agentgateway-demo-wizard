@@ -17,6 +17,12 @@ export type RequestPreset = {
   exchangeViaSts: boolean;
 };
 
+export type OpsAgentDemo = {
+  agent: string;
+  mode: string;
+  defaultPrompt: string;
+};
+
 export type Step = {
   id: string;
   title: string;
@@ -27,6 +33,7 @@ export type Step = {
   agentDemo: boolean;
   virtualKeys: boolean;
   loginDemo: boolean;
+  opsAgent?: OpsAgentDemo;
 };
 
 export type Pillar = {
