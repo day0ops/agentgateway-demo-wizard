@@ -16,6 +16,12 @@ const (
 	// never a "missing" check.
 	defaultSTSHost = "enterprise-agentgateway.agentgateway-system.svc.cluster.local"
 	defaultSTSPort = "7777"
+	// defaultAgentGatewayInternalURL is agentgateway's own in-cluster Service
+	// DNS name, matching field-kit's config/environments/aws-dev.yaml
+	// (spec.internal.agentgateway) - the wizard pod runs in the same
+	// cluster/namespace, so it reaches the ops-agents containers through the
+	// same gateway a browser would use externally.
+	defaultAgentGatewayInternalURL = "http://agentgateway-gw.agentgateway-system.svc.cluster.local:8080"
 )
 
 // Config holds the wizard's runtime configuration.
@@ -29,6 +35,9 @@ type Config struct {
 	DemoUserPassword               string
 	STSHost                        string
 	STSPort                        string
+	RepoAgentURL                   string
+	ReleaseManagerAgentURL         string
+	GitHubAgentURL                 string
 }
 
 // Load reads configuration from environment variables. It never errors:
@@ -47,6 +56,9 @@ func Load() *Config {
 		DemoUserPassword:               os.Getenv("DEMO_USER_PASSWORD"),
 		STSHost:                        envOrDefault("STS_HOST", defaultSTSHost),
 		STSPort:                        envOrDefault("STS_PORT", defaultSTSPort),
+		RepoAgentURL:                   envOrDefault("REPO_AGENT_URL", defaultAgentGatewayInternalURL+"/repo-agent/run"),
+		ReleaseManagerAgentURL:         envOrDefault("RELEASE_MANAGER_AGENT_URL", defaultAgentGatewayInternalURL+"/release-manager-agent/run"),
+		GitHubAgentURL:                 envOrDefault("GITHUB_AGENT_URL", defaultAgentGatewayInternalURL+"/github-agent/run"),
 	}
 }
 
