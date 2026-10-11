@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
+import { extractErrorMessage } from "../lib/json";
 
 type CreatedKey = {
   name: string;
@@ -9,19 +10,6 @@ type CreatedKey = {
 
 type FormState = { name: string; userId: string; tokenBudget: string };
 const emptyForm: FormState = { name: "", userId: "", tokenBudget: "5000" };
-
-// The backend returns plain text for request-validation errors (400) and a
-// {"error": "..."} JSON body for downstream failures (500) - parse the
-// latter so the UI shows a clean sentence instead of a raw JSON blob.
-async function extractErrorMessage(res: Response): Promise<string> {
-  const text = await res.text();
-  try {
-    const parsed = JSON.parse(text) as { error?: string };
-    return parsed.error ?? text;
-  } catch {
-    return text;
-  }
-}
 
 export function VirtualKeyPane() {
   const [form, setForm] = useState<FormState>(emptyForm);

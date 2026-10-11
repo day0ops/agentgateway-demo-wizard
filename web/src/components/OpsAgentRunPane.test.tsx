@@ -114,4 +114,32 @@ describe("OpsAgentRunPane", () => {
       ).toBeInTheDocument(),
     );
   });
+
+  it("shows a clean message instead of a raw JSON blob when the backend returns a JSON error", async () => {
+    globalThis.fetch = (() =>
+      Promise.resolve({
+        ok: false,
+        status: 401,
+        text: async () =>
+          '{"error":"log in as \\"team-alpha\\" first - see the login step above"}',
+      } as unknown as Response)) as unknown as typeof fetch;
+
+    render(
+      <OpsAgentRunPane
+        identity="team-alpha"
+        agent="repo"
+        mode="standard"
+        defaultPrompt="List our repos"
+      />,
+    );
+    fireEvent.click(screen.getByText("Run agent"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'log in as "team-alpha" first - see the login step above',
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
 });
