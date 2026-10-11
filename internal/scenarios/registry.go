@@ -13,6 +13,16 @@ var routingBackendGVR = schema.GroupVersionResource{
 	Resource: "enterpriseagentgatewaybackends",
 }
 
+// opsAgentHTTPRouteGVR identifies the HTTPRoutes the ops-agents usecase
+// creates for the four agent containers and the two repo-MCP routes. These
+// objects are pre-provisioned by the agentgateway-field-kit ops-agents
+// usecase, not by this repo.
+var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
+	Group:    "gateway.networking.k8s.io",
+	Version:  "v1",
+	Resource: "httproutes",
+}
+
 // Registry returns the wizard's full demo script, in presentation order.
 func Registry() []Pillar {
 	pillars := []Pillar{
@@ -393,6 +403,186 @@ func authPillar() Pillar {
 						RequiresSessionToken: true,
 						ExchangeViaSTS:       true,
 					},
+				},
+			},
+			{
+				ID:    "auth-agent-impersonation",
+				Title: "Agent → MCP (Impersonation)",
+				Explanation: "The same Standard/Impersonation exchange from the previous step, but now " +
+					"the caller is a real agent instead of a browser hitting a demo echo endpoint. The " +
+					"Repo Agent takes your real session token as-is and presents it straight to the repo " +
+					"MCP server's gateway route; agentgateway performs the Impersonation exchange itself " +
+					"before forwarding - the agent never talks to the STS.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant You\n" +
+					"  participant Wizard\n" +
+					"  participant Repo as Repo Agent\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant KC as Keycloak\n" +
+					"  participant MCP as Repo MCP server\n" +
+					"  You->>Wizard: \"list our repos\"\n" +
+					"  Wizard->>Repo: POST /repo-agent/run (token, mode=standard)\n" +
+					"  Repo->>AGW: MCP call (Bearer: your token, unchanged)\n" +
+					"  AGW->>KC: token-exchange (Impersonation)\n" +
+					"  AGW->>MCP: forward with exchanged token\n" +
+					"  MCP-->>Repo: tool result\n" +
+					"  Repo-->>Wizard: answer\n" +
+					"  Wizard-->>You: answer",
+				Policies: []Policy{
+					{
+						ID:       "auth-agent-impersonation",
+						Title:    "Repo Agent + Standard exchange route",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: opsAgentHTTPRouteGVR, Name: "repo-agent"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "repo-mcp-standard"},
+						},
+					},
+				},
+				OpsAgent: &OpsAgentDemo{
+					Agent:         "repo",
+					Mode:          "standard",
+					DefaultPrompt: "List our repositories and summarize their status.",
+				},
+			},
+			{
+				ID:    "auth-agent-delegation",
+				Title: "Agent → MCP (Delegation)",
+				Explanation: "Same agent, same MCP server, different mode: this time the Repo Agent " +
+					"exchanges your token at the STS itself before calling the gateway, presenting its " +
+					"own Kubernetes ServiceAccount token as the actor. The resulting token carries both " +
+					"sub (you) and act (the Repo Agent) - the gateway route behind this mode only ever " +
+					"sees STS-issued tokens.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant You\n" +
+					"  participant Wizard\n" +
+					"  participant Repo as Repo Agent\n" +
+					"  participant STS\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant MCP as Repo MCP server\n" +
+					"  You->>Wizard: \"list our repos\"\n" +
+					"  Wizard->>Repo: POST /repo-agent/run (token, mode=sts-delegation)\n" +
+					"  Repo->>STS: POST /oauth2/token (subject=your token, actor=Repo Agent's SA token)\n" +
+					"  STS-->>Repo: token (sub=you, act=repo-agent)\n" +
+					"  Repo->>AGW: MCP call (Bearer: delegated token)\n" +
+					"  AGW->>STS: validate JWT\n" +
+					"  AGW->>MCP: forward\n" +
+					"  MCP-->>Repo: tool result\n" +
+					"  Repo-->>Wizard: answer\n" +
+					"  Wizard-->>You: answer",
+				Policies: []Policy{
+					{
+						ID:       "auth-agent-delegation",
+						Title:    "Repo Agent + STS delegation route",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: opsAgentHTTPRouteGVR, Name: "repo-agent"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "repo-mcp-delegation"},
+						},
+					},
+				},
+				OpsAgent: &OpsAgentDemo{
+					Agent:         "repo",
+					Mode:          "sts-delegation",
+					DefaultPrompt: "List our repositories and summarize their status.",
+				},
+			},
+			{
+				ID:    "auth-agent-chain",
+				Title: "Agent → agent → MCP (chain of custody)",
+				Explanation: "A two-hop chain: the Release Manager Agent exchanges your token at the " +
+					"STS, then calls the Deploy Agent - passing it the already-exchanged token, not your " +
+					"raw one. The Deploy Agent exchanges it again before calling MCP, presenting its own " +
+					"SA token as actor. The result is a token with a nested act claim: act.sub is the " +
+					"Deploy Agent, act.act.sub is the Release Manager Agent - a cryptographic record of " +
+					"every hop a request passed through, signed by the STS at each step. Per RFC 8693, " +
+					"this nested chain is informational only - only the outermost actor governs access " +
+					"control - but it gives a real audit trail of custody a single flat token can't.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant You\n" +
+					"  participant Wizard\n" +
+					"  participant RM as Release Manager Agent\n" +
+					"  participant STS\n" +
+					"  participant DA as Deploy Agent\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant MCP as Repo MCP server\n" +
+					"  You->>Wizard: \"deploy payments-service to staging\"\n" +
+					"  Wizard->>RM: POST /release-manager-agent/run (token)\n" +
+					"  RM->>STS: exchange (subject=your token, actor=RM's SA token)\n" +
+					"  STS-->>RM: T1 (sub=you, act=release-manager-agent)\n" +
+					"  RM->>DA: POST /deploy-agent/run (T1)\n" +
+					"  DA->>STS: exchange (subject=T1, actor=DA's SA token)\n" +
+					"  STS-->>DA: T2 (sub=you, act=deploy-agent, act.act=release-manager-agent)\n" +
+					"  DA->>AGW: MCP call (Bearer: T2)\n" +
+					"  AGW->>MCP: forward\n" +
+					"  MCP-->>DA: tool result\n" +
+					"  DA-->>RM: answer + decoded chain\n" +
+					"  RM-->>Wizard: answer + chain\n" +
+					"  Wizard-->>You: answer + chain",
+				Policies: []Policy{
+					{
+						ID:       "auth-agent-chain",
+						Title:    "Release Manager + Deploy Agent chain",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: opsAgentHTTPRouteGVR, Name: "release-manager-agent"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "deploy-agent"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "repo-mcp-delegation"},
+						},
+					},
+				},
+				OpsAgent: &OpsAgentDemo{
+					Agent:         "release-manager",
+					DefaultPrompt: "Deploy the payments-service to staging and confirm the PR is merged first.",
+				},
+			},
+			{
+				ID:    "auth-agent-elicitation",
+				Title: "Agent → external API (Elicitation)",
+				Explanation: "Not every credential an agent needs lives in Keycloak. The GitHub Agent " +
+					"calls GitHub's own real remote MCP server on your behalf - but the gateway has no " +
+					"GitHub token for you yet. Instead of failing, the STS returns a one-time consent " +
+					"URL; after you approve it in the Solo UI, the STS stores a real GitHub OAuth token " +
+					"and injects it into every later call automatically. The agent never sees or stores " +
+					"that token itself.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant You\n" +
+					"  participant Wizard\n" +
+					"  participant GHA as GitHub Agent\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant STS\n" +
+					"  participant UI as Solo UI\n" +
+					"  participant GitHub\n" +
+					"  You->>Wizard: \"what are my GitHub repos?\"\n" +
+					"  Wizard->>GHA: POST /github-agent/run (token)\n" +
+					"  GHA->>AGW: MCP call (Bearer: your token)\n" +
+					"  AGW->>STS: check for a stored GitHub token\n" +
+					"  STS-->>AGW: none yet - elicitation required\n" +
+					"  AGW-->>GHA: pending + consent URL\n" +
+					"  GHA-->>Wizard: \"open this link to connect GitHub\"\n" +
+					"  You->>UI: open the link, approve\n" +
+					"  UI->>GitHub: OAuth consent\n" +
+					"  GitHub-->>STS: GitHub access token (stored)\n" +
+					"  You->>Wizard: retry\n" +
+					"  Wizard->>GHA: POST /github-agent/run (token)\n" +
+					"  GHA->>AGW: MCP call (Bearer: your token)\n" +
+					"  AGW->>STS: check for a stored GitHub token\n" +
+					"  STS-->>AGW: found - inject it\n" +
+					"  AGW-->>GHA: real GitHub data",
+				Policies: []Policy{
+					{
+						ID:       "auth-agent-elicitation",
+						Title:    "GitHub Agent + Elicitation route",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: opsAgentHTTPRouteGVR, Name: "github-agent"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-github"},
+						},
+					},
+				},
+				OpsAgent: &OpsAgentDemo{
+					Agent:         "github",
+					DefaultPrompt: "What are my most recently updated GitHub repositories?",
 				},
 			},
 		},
