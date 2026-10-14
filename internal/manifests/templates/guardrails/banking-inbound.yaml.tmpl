@@ -1,0 +1,27 @@
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: guardrails-banking-inbound
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: guardrails-openai
+  backend:
+    ai:
+      promptGuard:
+        request:
+          - regex:
+              action: Reject
+              matches:
+                - 'another customer''s account'
+                - 'someone else''s account number'
+                - 'full card number'
+                - 'routing number and account number for'
+              builtins:
+                - CreditCard
+            response:
+              message: 'Request rejected: bank policy prohibits requests for another customer''s account data'

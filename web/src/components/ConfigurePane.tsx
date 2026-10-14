@@ -188,9 +188,27 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
           return (
             <div
               key={policy.id}
-              className="rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800"
+              className="rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800"
             >
-              <div className="flex items-center justify-end">
+              <div className="flex items-center justify-between gap-2">
+                {vst.status === "shown" ? (
+                  <button
+                    onClick={() => hideConfig(policy.id)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
+                  >
+                    <EyeOff size={14} />
+                    Hide config
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => viewConfig(policy)}
+                    disabled={vst.status === "loading"}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
+                  >
+                    <Eye size={14} />
+                    View config
+                  </button>
+                )}
                 <span className="text-xs text-slate-500">pre-provisioned</span>
               </div>
 
@@ -206,36 +224,15 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 </p>
               )}
 
-              <div className="mt-3 flex gap-2">
-                {vst.status === "shown" ? (
-                  <button
-                    onClick={() => hideConfig(policy.id)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm dark:bg-slate-800"
-                  >
-                    <EyeOff size={14} />
-                    Hide config
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => viewConfig(policy)}
-                    disabled={vst.status === "loading"}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
-                  >
-                    <Eye size={14} />
-                    View config
-                  </button>
-                )}
-              </div>
-
               {vst.status === "shown" &&
                 vst.refs
                   ?.filter((r) => r.found)
                   .map((r) => (
                     <div
                       key={r.name}
-                      className="mt-3 overflow-hidden rounded border border-slate-200 dark:border-slate-800"
+                      className="mt-3 overflow-hidden rounded border border-slate-200 dark:border-zinc-800"
                     >
-                      <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                      <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
                         {r.name}
                       </div>
                       <CodeBlock code={r.yaml ?? ""} />
@@ -257,7 +254,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
             className={`rounded-xl border p-4 shadow-sm ${
               st.status === "error"
                 ? "border-red-500 bg-red-50 dark:bg-red-950"
-                : "border-slate-200 dark:border-slate-800"
+                : "border-slate-200 dark:border-zinc-800"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
@@ -265,7 +262,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 {canRevert ? (
                   <button
                     onClick={() => revert(policy)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm dark:bg-slate-800"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
                   >
                     <Undo2 size={14} />
                     Revert
@@ -274,7 +271,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                   <button
                     onClick={() => apply(policy)}
                     disabled={st.status === "applying"}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
                   >
                     <Play size={14} />
                     Apply
@@ -283,7 +280,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 {st.yaml && (
                   <button
                     onClick={() => toggleYaml(policy.id)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 transition-colors active:scale-[0.97] hover:bg-brand-100 dark:border-brand-900 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900"
                   >
                     <span
                       className={`transition-transform ${st.showYaml ? "rotate-90" : ""}`}

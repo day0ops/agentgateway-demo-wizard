@@ -24,12 +24,12 @@ var opsAgentHTTPClient = &http.Client{Timeout: 45 * time.Second}
 
 func (s *Server) opsAgentURL(name string) (string, error) {
 	switch name {
-	case "repo":
-		return s.cfg.RepoAgentURL, nil
-	case "release-manager":
-		return s.cfg.ReleaseManagerAgentURL, nil
-	case "github":
-		return s.cfg.GitHubAgentURL, nil
+	case "accounts":
+		return s.cfg.AccountsAgentURL, nil
+	case "transfer-orchestrator":
+		return s.cfg.TransferOrchestratorAgentURL, nil
+	case "statements":
+		return s.cfg.StatementsAgentURL, nil
 	default:
 		return "", fmt.Errorf("unknown agent %q", name)
 	}

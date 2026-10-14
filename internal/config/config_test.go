@@ -113,29 +113,29 @@ func TestLoadRespectsSTSPortOverride(t *testing.T) {
 }
 
 func TestLoadDefaultsOpsAgentURLsWhenUnset(t *testing.T) {
-	t.Setenv("REPO_AGENT_URL", "")
-	t.Setenv("RELEASE_MANAGER_AGENT_URL", "")
-	t.Setenv("GITHUB_AGENT_URL", "")
+	t.Setenv("ACCOUNTS_AGENT_URL", "")
+	t.Setenv("TRANSFER_ORCHESTRATOR_AGENT_URL", "")
+	t.Setenv("STATEMENTS_AGENT_URL", "")
 
 	cfg := Load()
 
-	if cfg.RepoAgentURL != defaultAgentGatewayInternalURL+"/repo-agent/run" {
-		t.Fatalf("unexpected default RepoAgentURL: %q", cfg.RepoAgentURL)
+	if cfg.AccountsAgentURL != defaultAgentGatewayInternalURL+"/accounts-agent/run" {
+		t.Fatalf("unexpected default AccountsAgentURL: %q", cfg.AccountsAgentURL)
 	}
-	if cfg.ReleaseManagerAgentURL != defaultAgentGatewayInternalURL+"/release-manager-agent/run" {
-		t.Fatalf("unexpected default ReleaseManagerAgentURL: %q", cfg.ReleaseManagerAgentURL)
+	if cfg.TransferOrchestratorAgentURL != defaultAgentGatewayInternalURL+"/transfer-orchestrator-agent/run" {
+		t.Fatalf("unexpected default TransferOrchestratorAgentURL: %q", cfg.TransferOrchestratorAgentURL)
 	}
-	if cfg.GitHubAgentURL != defaultAgentGatewayInternalURL+"/github-agent/run" {
-		t.Fatalf("unexpected default GitHubAgentURL: %q", cfg.GitHubAgentURL)
+	if cfg.StatementsAgentURL != defaultAgentGatewayInternalURL+"/statements-agent/run" {
+		t.Fatalf("unexpected default StatementsAgentURL: %q", cfg.StatementsAgentURL)
 	}
 }
 
 func TestLoadRespectsOpsAgentURLOverrides(t *testing.T) {
-	t.Setenv("REPO_AGENT_URL", "http://repo-agent.other-namespace.svc.cluster.local:8080/run")
+	t.Setenv("ACCOUNTS_AGENT_URL", "http://accounts-agent.other-namespace.svc.cluster.local:8080/run")
 
 	cfg := Load()
 
-	if cfg.RepoAgentURL != "http://repo-agent.other-namespace.svc.cluster.local:8080/run" {
-		t.Fatalf("expected the overridden RepoAgentURL, got %q", cfg.RepoAgentURL)
+	if cfg.AccountsAgentURL != "http://accounts-agent.other-namespace.svc.cluster.local:8080/run" {
+		t.Fatalf("expected the overridden AccountsAgentURL, got %q", cfg.AccountsAgentURL)
 	}
 }

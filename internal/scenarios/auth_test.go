@@ -5,34 +5,57 @@ import (
 	"testing"
 )
 
-func TestRegistryIncludesPillar2Auth(t *testing.T) {
-	reg := Registry()
-	if len(reg) != 7 {
-		t.Fatalf("expected 7 pillars (intro, routing, auth, guardrails, cost, agent, wrap), got %d", len(reg))
-	}
+var wantAuthStepIDs = []string{
+	"auth-questions",
+	"auth-login",
+	"auth-accounts-impersonation",
+	"auth-accounts-rbac",
+	"auth-transfer-chain",
+	"auth-settlement-rbac",
+	"auth-statements-interactive",
+	"auth-statements-brokered",
+}
 
-	auth := reg[2]
+func TestAuthPillarStepIDsInOrder(t *testing.T) {
+	auth := authPillar()
 	if auth.ID != "auth" {
-		t.Fatalf("expected pillar[2].ID 'auth', got %q", auth.ID)
+		t.Fatalf("expected pillar ID 'auth', got %q", auth.ID)
 	}
-	if len(auth.Steps) != 8 {
-		t.Fatalf("expected 8 auth steps, got %d", len(auth.Steps))
+	if auth.Title != "Who's allowed to do what" {
+		t.Fatalf("expected pillar Title to stay \"Who's allowed to do what\", got %q", auth.Title)
 	}
-
-	wantStepIDs := []string{
-		"auth-login", "auth-rbac", "auth-exchange-standard", "auth-exchange-sts",
-		"auth-agent-impersonation", "auth-agent-delegation", "auth-agent-chain", "auth-agent-elicitation",
+	if len(auth.Steps) != len(wantAuthStepIDs) {
+		t.Fatalf("expected %d auth steps, got %d", len(wantAuthStepIDs), len(auth.Steps))
 	}
-	for i, want := range wantStepIDs {
+	for i, want := range wantAuthStepIDs {
 		if auth.Steps[i].ID != want {
 			t.Fatalf("expected step[%d].ID %q, got %q", i, want, auth.Steps[i].ID)
 		}
 	}
 }
 
-func TestAuthLoginStepHasNoPoliciesOrPresets(t *testing.T) {
-	auth := Registry()[2]
-	login := auth.Steps[0]
+func TestAuthQuestionsIntroStepHasNoRequestOrAgent(t *testing.T) {
+	intro := findStep(authPillar().Steps, "auth-questions")
+
+	if len(intro.Presets) != 0 {
+		t.Fatalf("expected the intro step to have no presets, got %d", len(intro.Presets))
+	}
+	if len(intro.Policies) != 0 {
+		t.Fatalf("expected the intro step to have no policies, got %d", len(intro.Policies))
+	}
+	if intro.OpsAgent != nil {
+		t.Fatalf("expected the intro step to have no OpsAgent")
+	}
+	if intro.LoginDemo {
+		t.Fatalf("expected the intro step to not be the login demo")
+	}
+	if intro.Explanation == "" || intro.Diagram == "" {
+		t.Fatalf("expected the intro step to carry an Explanation and a Diagram")
+	}
+}
+
+func TestAuthLoginStepKeepsLoginDemo(t *testing.T) {
+	login := findStep(authPillar().Steps, "auth-login")
 
 	if !login.LoginDemo {
 		t.Fatalf("expected the login step to set LoginDemo")
@@ -43,146 +66,122 @@ func TestAuthLoginStepHasNoPoliciesOrPresets(t *testing.T) {
 	if len(login.Presets) != 0 {
 		t.Fatalf("expected the login step to have no presets, got %d", len(login.Presets))
 	}
-}
-
-func TestAuthPoliciesRenderValidManifests(t *testing.T) {
-	params := ManifestParams{
-		Namespace:    "agentgateway-system",
-		GatewayName:  "agentgateway-gw",
-		GatewayNS:    "agentgateway-system",
-		KeycloakHost: "keycloak.demo.example.com",
-		STSHost:      "sts.demo.example.com",
-		STSPort:      "7777",
+	if login.OpsAgent != nil {
+		t.Fatalf("expected the login step to have no OpsAgent")
 	}
-
-	auth := Registry()[2]
-
-	for _, step := range auth.Steps {
-		if step.LoginDemo || step.OpsAgent != nil {
-			continue // no templated manifest to render - see TestAuthOpsAgentStepsAreReadOnlyAndNeverApply
-		}
-		if len(step.Policies) == 0 {
-			t.Fatalf("step %q has no policies", step.ID)
-		}
-		for _, policy := range step.Policies {
-			docs, err := policy.Render(params)
-			if err != nil {
-				t.Fatalf("rendering policy %q: %v", policy.ID, err)
-			}
-			if len(docs) == 0 {
-				t.Fatalf("policy %q rendered no documents", policy.ID)
-			}
-			joined := strings.Join(toStrings(docs), "\n---\n")
-			if !strings.Contains(joined, "jwtAuthentication") {
-				t.Fatalf("policy %q: expected jwtAuthentication, got: %s", policy.ID, joined)
-			}
-			if strings.Contains(joined, "{{") {
-				t.Fatalf("policy %q: unresolved template variable in output: %s", policy.ID, joined)
-			}
-		}
-	}
-
-	rbac := findStep(auth.Steps, "auth-rbac")
-	rbacDocs, err := rbac.Policies[0].Render(params)
-	if err != nil {
-		t.Fatalf("rendering auth-rbac: %v", err)
-	}
-	if !strings.Contains(strings.Join(toStrings(rbacDocs), "\n"), "authorization") {
-		t.Fatalf("expected the auth-rbac policy to contain an authorization block")
-	}
-
-	standard := findStep(auth.Steps, "auth-exchange-standard")
-	standardDocs, err := standard.Policies[0].Render(params)
-	if err != nil {
-		t.Fatalf("rendering auth-exchange-standard: %v", err)
-	}
-	standardJoined := strings.Join(toStrings(standardDocs), "\n")
-	if !strings.Contains(standardJoined, "oauthTokenExchange") {
-		t.Fatalf("expected the standard-exchange policy to contain oauthTokenExchange")
-	}
-	if !strings.Contains(standardJoined, params.KeycloakHost) {
-		t.Fatalf("expected the standard-exchange policy to reference the Keycloak host")
-	}
-
-	sts := findStep(auth.Steps, "auth-exchange-sts")
-	stsDocs, err := sts.Policies[0].Render(params)
-	if err != nil {
-		t.Fatalf("rendering auth-exchange-sts: %v", err)
-	}
-	stsJoined := strings.Join(toStrings(stsDocs), "\n")
-	if !strings.Contains(stsJoined, params.STSHost) {
-		t.Fatalf("expected the STS-exchange policy to reference the STS host, got: %s", stsJoined)
-	}
-	if !strings.Contains(stsJoined, params.STSPort) {
-		t.Fatalf("expected the STS-exchange policy to reference the STS port, got: %s", stsJoined)
+	if login.Diagram == "" {
+		t.Fatalf("expected the login step to keep its PKCE sequence diagram")
 	}
 }
 
-func TestAuthOpsAgentStepsAreReadOnlyAndNeverApply(t *testing.T) {
-	auth := Registry()[2]
-
-	wantViewRefNames := map[string][]string{
-		"auth-agent-impersonation": {"repo-agent", "repo-mcp-standard"},
-		"auth-agent-delegation":    {"repo-agent", "repo-mcp-delegation"},
-		"auth-agent-chain":         {"release-manager-agent", "deploy-agent", "repo-mcp-delegation"},
-		"auth-agent-elicitation":   {"github-agent", "mcp-github"},
-	}
+func TestAuthAgentStepsDriveTheRightOpsAgent(t *testing.T) {
 	wantAgent := map[string]string{
-		"auth-agent-impersonation": "repo",
-		"auth-agent-delegation":    "repo",
-		"auth-agent-chain":         "release-manager",
-		"auth-agent-elicitation":   "github",
-	}
-	wantMode := map[string]string{
-		"auth-agent-impersonation": "standard",
-		"auth-agent-delegation":    "sts-delegation",
-		"auth-agent-chain":         "",
-		"auth-agent-elicitation":   "",
+		"auth-accounts-impersonation": "accounts",
+		"auth-accounts-rbac":          "accounts",
+		"auth-transfer-chain":         "transfer-orchestrator",
+		"auth-settlement-rbac":        "transfer-orchestrator",
+		"auth-statements-interactive": "statements",
+		"auth-statements-brokered":    "statements",
 	}
 
-	for _, step := range auth.Steps {
-		want, hasPolicy := wantViewRefNames[step.ID]
-		if !hasPolicy {
-			continue
-		}
+	auth := authPillar()
+	for id, want := range wantAgent {
+		step := findStep(auth.Steps, id)
 		if step.OpsAgent == nil {
-			t.Fatalf("step %q: expected OpsAgent to be set", step.ID)
+			t.Fatalf("step %q: expected OpsAgent to be set", id)
 		}
-		if step.OpsAgent.Agent != wantAgent[step.ID] {
-			t.Fatalf("step %q: OpsAgent.Agent = %q, want %q", step.ID, step.OpsAgent.Agent, wantAgent[step.ID])
+		if step.OpsAgent.Agent != want {
+			t.Fatalf("step %q: OpsAgent.Agent = %q, want %q", id, step.OpsAgent.Agent, want)
 		}
-		if step.OpsAgent.Mode != wantMode[step.ID] {
-			t.Fatalf("step %q: OpsAgent.Mode = %q, want %q", step.ID, step.OpsAgent.Mode, wantMode[step.ID])
+		if step.OpsAgent.Agent != "accounts" && step.OpsAgent.Agent != "transfer-orchestrator" && step.OpsAgent.Agent != "statements" {
+			t.Fatalf("step %q: OpsAgent.Agent %q is not one of the valid opsAgentURL cases", id, step.OpsAgent.Agent)
 		}
 		if step.OpsAgent.DefaultPrompt == "" {
-			t.Fatalf("step %q: expected a non-empty DefaultPrompt", step.ID)
+			t.Fatalf("step %q: expected a non-empty DefaultPrompt", id)
 		}
+	}
+}
 
+// wantViewRefNames is the expected, ordered set of ViewRef names per
+// read-only agent step - see the field-kit integration contract referenced
+// from the GVR const docs in registry.go.
+var wantViewRefNames = map[string][]string{
+	"auth-accounts-impersonation": {"core-banking-standard"},
+	"auth-accounts-rbac":          {"core-banking-standard", "core-banking-standard-rbac"},
+	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation"},
+	"auth-settlement-rbac":        {"core-banking-delegation", "core-banking-delegation-rbac"},
+	"auth-statements-interactive": {"mcp-stripe", "stripe-mcp-elicitation"},
+	"auth-statements-brokered":    {"mcp-stripe-brokered", "stripe-mcp-brokered"},
+}
+
+// policyViewRefNames are the ViewRef names that point at an
+// EnterpriseAgentgatewayPolicy rather than an HTTPRoute.
+var policyViewRefNames = map[string]bool{
+	"core-banking-standard-rbac":   true,
+	"core-banking-delegation-rbac": true,
+	"stripe-mcp-elicitation":       true,
+	"stripe-mcp-brokered":          true,
+}
+
+func TestAuthAgentStepsAreReadOnlyAndNeverApply(t *testing.T) {
+	auth := authPillar()
+	for id, want := range wantViewRefNames {
+		step := findStep(auth.Steps, id)
 		if len(step.Policies) != 1 {
-			t.Fatalf("step %q: expected exactly 1 policy, got %d", step.ID, len(step.Policies))
+			t.Fatalf("step %q: expected exactly 1 policy, got %d", id, len(step.Policies))
 		}
 		p := step.Policies[0]
 		if !p.ReadOnly {
-			t.Fatalf("step %q: expected policy to be ReadOnly", step.ID)
+			t.Fatalf("step %q: expected policy to be ReadOnly", id)
 		}
 		if len(p.ViewRefs) != len(want) {
-			t.Fatalf("step %q: expected %d ViewRefs, got %d", step.ID, len(want), len(p.ViewRefs))
+			t.Fatalf("step %q: expected %d ViewRefs, got %d", id, len(want), len(p.ViewRefs))
 		}
 		for i, name := range want {
 			if p.ViewRefs[i].Name != name {
-				t.Fatalf("step %q: ViewRefs[%d].Name = %q, want %q", step.ID, i, p.ViewRefs[i].Name, name)
+				t.Fatalf("step %q: ViewRefs[%d].Name = %q, want %q", id, i, p.ViewRefs[i].Name, name)
 			}
-			if p.ViewRefs[i].GVR.Resource != "httproutes" {
-				t.Fatalf("step %q: ViewRefs[%d].GVR.Resource = %q, want httproutes", step.ID, i, p.ViewRefs[i].GVR.Resource)
+			wantResource := "httproutes"
+			if policyViewRefNames[name] {
+				wantResource = "enterpriseagentgatewaypolicies"
+			}
+			if p.ViewRefs[i].GVR.Resource != wantResource {
+				t.Fatalf("step %q: ViewRefs[%d] (%s).GVR.Resource = %q, want %q", id, i, name, p.ViewRefs[i].GVR.Resource, wantResource)
 			}
 		}
 
 		docs, err := p.Render(ManifestParams{Namespace: "agentgateway-system"})
 		if err != nil {
-			t.Fatalf("step %q: Render errored: %v", step.ID, err)
+			t.Fatalf("step %q: Render errored: %v", id, err)
 		}
 		if docs != nil {
-			t.Fatalf("step %q: expected a read-only policy to render nothing, got %v", step.ID, docs)
+			t.Fatalf("step %q: expected a read-only policy to render nothing, got %v", id, docs)
+		}
+	}
+}
+
+// TestAuthExplanationsNameTheQuestionsTheyAnswer enforces the pillar's
+// organizing principle: every step's Explanation must explicitly name which
+// of the four framing questions (set up in auth-questions) it answers.
+func TestAuthExplanationsNameTheQuestionsTheyAnswer(t *testing.T) {
+	wantQuestions := map[string][]string{
+		"auth-questions":              {"Question 1", "Question 2", "Question 3", "Question 4"},
+		"auth-login":                  {"Question 1"},
+		"auth-accounts-impersonation": {"Question 1", "Question 2", "Question 3"},
+		"auth-accounts-rbac":          {"Question 4"},
+		"auth-transfer-chain":         {"Question 1", "Question 2", "Question 3"},
+		"auth-settlement-rbac":        {"Question 4"},
+		"auth-statements-interactive": {"Question 4"},
+		"auth-statements-brokered":    {"Question 4"},
+	}
+
+	auth := authPillar()
+	for id, questions := range wantQuestions {
+		step := findStep(auth.Steps, id)
+		for _, q := range questions {
+			if !strings.Contains(step.Explanation, q) {
+				t.Fatalf("step %q: expected Explanation to name %q, got: %s", id, q, step.Explanation)
+			}
 		}
 	}
 }

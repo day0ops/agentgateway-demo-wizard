@@ -13,14 +13,27 @@ var routingBackendGVR = schema.GroupVersionResource{
 	Resource: "enterpriseagentgatewaybackends",
 }
 
-// opsAgentHTTPRouteGVR identifies the HTTPRoutes the ops-agents usecase
-// creates for the four agent containers and the two repo-MCP routes. These
-// objects are pre-provisioned by the agentgateway-field-kit ops-agents
-// usecase, not by this repo.
+// opsAgentHTTPRouteGVR identifies the HTTPRoutes the banking usecase creates
+// for the agent containers (accounts-agent, transfer-orchestrator-agent,
+// settlement-agent, statements-agent) and the Core Banking / Stripe MCP routes
+// (core-banking-standard, core-banking-delegation, mcp-stripe,
+// mcp-stripe-brokered). These objects are pre-provisioned by the
+// agentgateway-field-kit usecase, not by this repo.
 var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
 	Group:    "gateway.networking.k8s.io",
 	Version:  "v1",
 	Resource: "httproutes",
+}
+
+// opsAgentPolicyGVR identifies the enterpriseagentgateway.solo.io Policy CRD
+// the auth pillar's read-only steps display alongside their HTTPRoute - MCP
+// tool-level RBAC policies and Stripe elicitation policies. These objects
+// are pre-provisioned by the agentgateway-field-kit ops-agents usecase, not
+// by this repo.
+var opsAgentPolicyGVR = schema.GroupVersionResource{
+	Group:    "enterpriseagentgateway.solo.io",
+	Version:  "v1alpha1",
+	Resource: "enterpriseagentgatewaypolicies",
 }
 
 // Registry returns the wizard's full demo script, in presentation order.
@@ -253,10 +266,40 @@ func routingPillar() Pillar {
 
 func authPillar() Pillar {
 	return Pillar{
-		ID:     "auth",
-		Title:  "Who's allowed to do what",
-		Teaser: "Identity-aware access control - every call is authenticated and authorized.",
+		ID:    "auth",
+		Title: "Who's allowed to do what",
+		Teaser: "Four questions every call must answer - enforced live on real banking agents " +
+			"and tools.",
 		Steps: []Step{
+			{
+				ID:    "auth-questions",
+				Title: "Four questions every call must answer",
+				Explanation: "Everything else in this pillar is a real agent calling a real banking " +
+					"tool, and every one of those calls has to answer the same four questions before " +
+					"agentgateway lets it through. Question 1: who is this being acted on behalf of - " +
+					"carried in the token's sub claim, and it should be the real customer, not a " +
+					"stand-in. Question 2: who is actually performing the action - carried in act, and " +
+					"in a nested act.act once more than one agent is in the chain. Question 3: is this " +
+					"token intended for this specific service - carried in aud, scoped down every time " +
+					"the gateway exchanges a token, so a token minted for one backend can't be replayed " +
+					"against another. Question 4: does this agent have the right to this exact task right " +
+					"now - decided per MCP tool call, as the intersection of what the agent is capable of " +
+					"and what the user actually delegated to it. Authentication only ever answers the " +
+					"first two; the gateway enforces all four, on every call, not just at login.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant You\n" +
+					"  participant Agent\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant MCP as Core Banking MCP\n" +
+					"  You->>Agent: \"Move $500 from savings to checking.\"\n" +
+					"  Agent->>AGW: MCP tool call (Bearer JWT)\n" +
+					"  Note over AGW: Question 1 (sub) - who is this on behalf of?\n" +
+					"  Note over AGW: Question 2 (act / act.act) - who is actually acting?\n" +
+					"  Note over AGW: Question 3 (aud) - is this token meant for this service?\n" +
+					"  Note over AGW: Question 4 (per-tool authz) - capability ∩ delegated consent?\n" +
+					"  AGW->>MCP: forward, only if all four pass\n" +
+					"  MCP-->>You: result",
+			},
 			{
 				ID:        "auth-login",
 				Title:     "Real login",
@@ -264,12 +307,13 @@ func authPillar() Pillar {
 				Explanation: "Every other step in this pillar - and every other pillar in this wizard - " +
 					"uses a quick password grant: the wizard itself asks Keycloak for a token using a " +
 					"fixed demo username and password. That's fine for driving routing or cost demos, but " +
-					"it's the wrong way to authenticate a real user, since it means handing a password " +
-					"straight to a client. This step replaces it with a real Authorization Code + PKCE " +
-					"login: the wizard redirects your browser to Keycloak's own hosted login page, " +
-					"Keycloak redirects back with an authorization code, and the wizard exchanges that " +
-					"code for a real access token server-side. Every step after this one uses that real " +
-					"token, not a password grant.",
+					"it's the wrong way to establish Question 1 (who this is being acted on behalf of) for " +
+					"a real customer, since it means handing a password straight to a client. This step " +
+					"replaces it with a real Authorization Code + PKCE login: the wizard redirects your " +
+					"browser to Keycloak's own hosted login page, Keycloak redirects back with an " +
+					"authorization code, and the wizard exchanges that code for a real access token " +
+					"server-side. Every step after this one carries that real sub, not a password-grant " +
+					"placeholder.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Browser\n" +
 					"  participant Wizard\n" +
@@ -285,305 +329,279 @@ func authPillar() Pillar {
 					"  Wizard-->>Browser: session cookie + redirect back into the wizard",
 			},
 			{
-				ID:    "auth-rbac",
-				Title: "Team / role authZ",
-				Explanation: "Authentication answers \"who are you\"; authorization answers \"what are " +
-					"you allowed to do.\" Both teams present a perfectly valid JWT here - team-alpha is " +
-					"explicitly allowed, team-beta is not, and is denied by default rather than by an " +
-					"explicit rule naming them.",
-				Diagram: "sequenceDiagram\n" +
-					"  participant Alpha as team-alpha\n" +
-					"  participant Beta as team-beta\n" +
-					"  participant AGW as agentgateway\n" +
-					"  Alpha->>AGW: GET /secure/rbac (Bearer JWT, team=team-alpha)\n" +
-					"  AGW->>AGW: CEL: jwt.team == 'team-alpha' -> Allow\n" +
-					"  AGW-->>Alpha: 200\n" +
-					"  Beta->>AGW: GET /secure/rbac (Bearer JWT, team=team-beta)\n" +
-					"  AGW->>AGW: CEL: no matching Allow rule\n" +
-					"  AGW-->>Beta: 403",
-				Policies: []Policy{
-					{ID: "auth-rbac", Title: "Team RBAC", ManifestPath: "auth/rbac.yaml.tmpl"},
-				},
-				Presets: []RequestPreset{
-					{
-						ID:                   "team-alpha-allowed",
-						Title:                "team-alpha (allowed)",
-						Identity:             "team-alpha",
-						Method:               "GET",
-						Path:                 "/secure/rbac",
-						Headers:              map[string]string{},
-						Body:                 "",
-						RequiresSessionToken: true,
-					},
-					{
-						ID:                   "team-beta-denied",
-						Title:                "team-beta (denied)",
-						Identity:             "team-beta",
-						Method:               "GET",
-						Path:                 "/secure/rbac",
-						Headers:              map[string]string{},
-						Body:                 "",
-						RequiresSessionToken: true,
-					},
-				},
-			},
-			{
-				ID:    "auth-exchange-standard",
-				Title: "Standard token exchange (Impersonation)",
-				Explanation: "agentgateway supports two real token-exchange patterns; this is the one " +
-					"agentgateway recommends for new work. The gateway itself performs an RFC 8693 token " +
-					"exchange against Keycloak's own token endpoint - no extra infrastructure, reusing " +
-					"the same agw-token-exchange client already provisioned for the agent pillar's " +
-					"On-Behalf-Of step. The caller's real token (from the login step) is exchanged for a " +
-					"new one scoped to this backend before the request is forwarded - the same identity, " +
-					"re-signed (Impersonation), with no act claim.",
-				Diagram: "sequenceDiagram\n" +
-					"  participant Client\n" +
-					"  participant AGW as agentgateway\n" +
-					"  participant KC as Keycloak\n" +
-					"  participant Echo as Echo backend\n" +
-					"  Client->>AGW: GET /secure/exchange-standard (Bearer real token)\n" +
-					"  AGW->>KC: validate JWT (JWKS)\n" +
-					"  AGW->>KC: POST /token (grant_type=token-exchange)\n" +
-					"  KC-->>AGW: backend-scoped token\n" +
-					"  AGW->>Echo: forward with exchanged token\n" +
-					"  Echo-->>Client: 200",
-				Policies: []Policy{
-					{ID: "auth-exchange-standard", Title: "Standard token exchange (Impersonation)", ManifestPath: "auth/token-exchange-standard.yaml.tmpl"},
-				},
-				Presets: []RequestPreset{
-					{
-						ID:                   "exchange-standard",
-						Title:                "Call through the exchange",
-						Identity:             "team-alpha",
-						Method:               "GET",
-						Path:                 "/secure/exchange-standard",
-						Headers:              map[string]string{},
-						Body:                 "",
-						RequiresSessionToken: true,
-					},
-				},
-			},
-			{
-				ID:    "auth-exchange-sts",
-				Title: "STS token exchange (Delegation)",
-				Explanation: "The second pattern uses Solo's controller-side Security Token Service - " +
-					"Enterprise-only, with no open-source equivalent. Contrast with the proxy-native " +
-					"exchange above: that capability exists in open-source agentgateway too (via its own " +
-					"backendAuth.oauthTokenExchange field), just through a different CRD than this " +
-					"Enterprise demo uses. Delegation - a token carrying both sub (the real user from the " +
-					"login step) and act (the wizard itself, as the delegating agent) - has no " +
-					"open-source path at all, so the STS is the only tool for this job, not a fallback. " +
-					"The wizard's own backend calls the STS directly, using its own Kubernetes " +
-					"ServiceAccount token as the actor_token.",
-				Diagram: "sequenceDiagram\n" +
-					"  participant Client\n" +
-					"  participant Wizard\n" +
-					"  participant STS\n" +
-					"  participant AGW as agentgateway\n" +
-					"  participant Echo as Echo backend\n" +
-					"  Client->>Wizard: drive request (real session token)\n" +
-					"  Wizard->>STS: POST /oauth2/token (subject_token=user, actor_token=wizard SA)\n" +
-					"  STS-->>Wizard: token (sub=user, act=wizard)\n" +
-					"  Wizard->>AGW: GET /secure/exchange-sts (Bearer delegated token)\n" +
-					"  AGW->>STS: validate JWT (JWKS)\n" +
-					"  AGW->>Echo: forward\n" +
-					"  Echo-->>Client: 200",
-				Policies: []Policy{
-					{ID: "auth-exchange-sts", Title: "STS token exchange (Delegation)", ManifestPath: "auth/token-exchange-sts.yaml.tmpl"},
-				},
-				Presets: []RequestPreset{
-					{
-						ID:                   "exchange-sts",
-						Title:                "Call through the STS exchange",
-						Identity:             "team-alpha",
-						Method:               "GET",
-						Path:                 "/secure/exchange-sts",
-						Headers:              map[string]string{},
-						Body:                 "",
-						RequiresSessionToken: true,
-						ExchangeViaSTS:       true,
-					},
-				},
-			},
-			{
-				ID:    "auth-agent-impersonation",
-				Title: "Agent → MCP (Impersonation)",
-				Explanation: "The same Standard/Impersonation exchange from the previous step, but now " +
-					"the caller is a real agent instead of a browser hitting a demo echo endpoint. The " +
-					"Repo Agent takes your real session token as-is and presents it straight to the repo " +
-					"MCP server's gateway route; agentgateway performs the Impersonation exchange itself " +
-					"before forwarding - the agent never talks to the STS.",
+				ID:    "auth-accounts-impersonation",
+				Title: "Accounts Agent → Core Banking (Impersonation)",
+				Explanation: "The Accounts Agent takes your real session token as-is and presents it " +
+					"straight to the Core Banking MCP server's gateway route; agentgateway performs a " +
+					"Standard/Impersonation token exchange itself before forwarding - the same identity, " +
+					"re-signed for this backend, with no act claim. That answers Question 1 (sub is still " +
+					"you) and Question 2 (the only actor here is the gateway itself, impersonating - " +
+					"nothing was delegated). It also answers Question 3: the exchanged token's aud is " +
+					"scoped to the core banking backend, so even if it leaked, it couldn't be replayed " +
+					"against any other service - a token minted for the ledger only works on the ledger.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
-					"  participant Repo as Repo Agent\n" +
+					"  participant Accounts as Accounts Agent\n" +
 					"  participant AGW as agentgateway\n" +
-					"  participant KC as Keycloak\n" +
-					"  participant MCP as Repo MCP server\n" +
-					"  You->>Wizard: \"list our repos\"\n" +
-					"  Wizard->>Repo: POST /repo-agent/run (token, mode=standard)\n" +
-					"  Repo->>AGW: MCP call (Bearer: your token, unchanged)\n" +
-					"  AGW->>KC: token-exchange (Impersonation)\n" +
-					"  AGW->>MCP: forward with exchanged token\n" +
-					"  MCP-->>Repo: tool result\n" +
-					"  Repo-->>Wizard: answer\n" +
+					"  participant Bank as Core Banking MCP\n" +
+					"  You->>Wizard: \"What's my balance and recent activity?\"\n" +
+					"  Wizard->>Accounts: POST /accounts-agent/run (token)\n" +
+					"  Accounts->>AGW: MCP call (Bearer: your token, unchanged)\n" +
+					"  AGW->>AGW: token exchange (Impersonation, aud=core-banking)\n" +
+					"  AGW->>Bank: forward with exchanged token\n" +
+					"  Bank-->>Accounts: balances + recent activity\n" +
+					"  Accounts-->>Wizard: answer\n" +
 					"  Wizard-->>You: answer",
 				Policies: []Policy{
 					{
-						ID:       "auth-agent-impersonation",
-						Title:    "Repo Agent + Standard exchange route",
+						ID:       "auth-accounts-impersonation",
+						Title:    "Accounts Agent + Core Banking (standard route)",
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "repo-agent"},
-							{GVR: opsAgentHTTPRouteGVR, Name: "repo-mcp-standard"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-standard"},
 						},
 					},
 				},
 				OpsAgent: &OpsAgentDemo{
-					Agent:         "repo",
-					Mode:          "standard",
-					DefaultPrompt: "List our repositories and summarize their status.",
+					Agent:         "accounts",
+					DefaultPrompt: "What's my balance and recent activity?",
 				},
 			},
 			{
-				ID:    "auth-agent-delegation",
-				Title: "Agent → MCP (Delegation)",
-				Explanation: "Same agent, same MCP server, different mode: this time the Repo Agent " +
-					"exchanges your token at the STS itself before calling the gateway, presenting its " +
-					"own Kubernetes ServiceAccount token as the actor. The resulting token carries both " +
-					"sub (you) and act (the Repo Agent) - the gateway route behind this mode only ever " +
-					"sees STS-issued tokens.",
+				ID:    "auth-accounts-rbac",
+				Title: "Accounts Agent → Core Banking (MCP tool RBAC)",
+				Explanation: "Same agent, same MCP server, a different question: does this token carry " +
+					"the right to call this exact tool right now? list_accounts and get_transactions are " +
+					"open to any authenticated customer, but get_account_detail - which returns full " +
+					"account and routing numbers - is gated by a CEL rule on the MCP backend requiring an " +
+					"is_org_admin claim. Your session token doesn't carry it, so that one tool call is " +
+					"denied even though the Impersonation exchange above succeeds cleanly every time. This " +
+					"is Question 4: capability-at-the-tool, evaluated at the moment of the call, not once " +
+					"at login. Ask the agent to list your accounts, then edit the prompt above and ask for " +
+					"your full account number to see the same identity denied one tool over.",
 				Diagram: "sequenceDiagram\n" +
-					"  participant You\n" +
-					"  participant Wizard\n" +
-					"  participant Repo as Repo Agent\n" +
-					"  participant STS\n" +
+					"  participant Accounts as Accounts Agent\n" +
 					"  participant AGW as agentgateway\n" +
-					"  participant MCP as Repo MCP server\n" +
-					"  You->>Wizard: \"list our repos\"\n" +
-					"  Wizard->>Repo: POST /repo-agent/run (token, mode=sts-delegation)\n" +
-					"  Repo->>STS: POST /oauth2/token (subject=your token, actor=Repo Agent's SA token)\n" +
-					"  STS-->>Repo: token (sub=you, act=repo-agent)\n" +
-					"  Repo->>AGW: MCP call (Bearer: delegated token)\n" +
-					"  AGW->>STS: validate JWT\n" +
-					"  AGW->>MCP: forward\n" +
-					"  MCP-->>Repo: tool result\n" +
-					"  Repo-->>Wizard: answer\n" +
-					"  Wizard-->>You: answer",
+					"  participant Bank as Core Banking MCP\n" +
+					"  Accounts->>AGW: tools/call list_accounts (Bearer exchanged token)\n" +
+					"  AGW->>Bank: forward\n" +
+					"  Bank-->>Accounts: accounts + balances\n" +
+					"  Accounts->>AGW: tools/call get_account_detail (same token)\n" +
+					"  AGW->>AGW: CEL: jwt.is_org_admin == true -> required\n" +
+					"  AGW-->>Accounts: 403 denied - tool-level RBAC",
 				Policies: []Policy{
 					{
-						ID:       "auth-agent-delegation",
-						Title:    "Repo Agent + STS delegation route",
+						ID:       "auth-accounts-rbac",
+						Title:    "Core Banking standard route + tool RBAC",
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "repo-agent"},
-							{GVR: opsAgentHTTPRouteGVR, Name: "repo-mcp-delegation"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-standard"},
+							{GVR: opsAgentPolicyGVR, Name: "core-banking-standard-rbac"},
 						},
 					},
 				},
 				OpsAgent: &OpsAgentDemo{
-					Agent:         "repo",
-					Mode:          "sts-delegation",
-					DefaultPrompt: "List our repositories and summarize their status.",
+					Agent:         "accounts",
+					DefaultPrompt: "List my accounts and recent transactions.",
 				},
 			},
 			{
-				ID:    "auth-agent-chain",
-				Title: "Agent → agent → MCP (chain of custody)",
-				Explanation: "A two-hop chain: the Release Manager Agent exchanges your token at the " +
-					"STS, then calls the Deploy Agent - passing it the already-exchanged token, not your " +
-					"raw one. The Deploy Agent exchanges it again before calling MCP, presenting its own " +
-					"SA token as actor. The result is a token with a nested act claim: act.sub is the " +
-					"Deploy Agent, act.act.sub is the Release Manager Agent - a cryptographic record of " +
-					"every hop a request passed through, signed by the STS at each step. Per RFC 8693, " +
-					"this nested chain is informational only - only the outermost actor governs access " +
-					"control - but it gives a real audit trail of custody a single flat token can't.",
+				ID:    "auth-transfer-chain",
+				Title: "Transfer Orchestrator → Settlement → Core Banking (Delegation)",
+				Explanation: "Moving money needs more than your own identity re-signed - it needs a " +
+					"verified record of which agents acted along the way. The Transfer Orchestrator " +
+					"exchanges your token at the STS, presenting its own Kubernetes ServiceAccount as " +
+					"actor; the resulting token carries act=transfer-orchestrator-agent. It calls the " +
+					"Settlement Agent with that token, not your raw one; Settlement exchanges it again, " +
+					"presenting its own SA as actor. The token that finally calls Core Banking's transfer " +
+					"tool carries a nested act: act.sub is Settlement, act.act.sub is the Orchestrator - a " +
+					"signed chain of custody for every hop. That answers Question 1 (sub is still you " +
+					"throughout) and Question 2 (act / act.act name exactly which agents acted, in order), " +
+					"and Question 3: each exchange is scoped to the next hop's audience, so neither " +
+					"intermediate token works anywhere but its intended destination.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
-					"  participant RM as Release Manager Agent\n" +
+					"  participant Orch as Transfer Orchestrator\n" +
 					"  participant STS\n" +
-					"  participant DA as Deploy Agent\n" +
+					"  participant Settle as Settlement Agent\n" +
 					"  participant AGW as agentgateway\n" +
-					"  participant MCP as Repo MCP server\n" +
-					"  You->>Wizard: \"deploy payments-service to staging\"\n" +
-					"  Wizard->>RM: POST /release-manager-agent/run (token)\n" +
-					"  RM->>STS: exchange (subject=your token, actor=RM's SA token)\n" +
-					"  STS-->>RM: T1 (sub=you, act=release-manager-agent)\n" +
-					"  RM->>DA: POST /deploy-agent/run (T1)\n" +
-					"  DA->>STS: exchange (subject=T1, actor=DA's SA token)\n" +
-					"  STS-->>DA: T2 (sub=you, act=deploy-agent, act.act=release-manager-agent)\n" +
-					"  DA->>AGW: MCP call (Bearer: T2)\n" +
-					"  AGW->>MCP: forward\n" +
-					"  MCP-->>DA: tool result\n" +
-					"  DA-->>RM: answer + decoded chain\n" +
-					"  RM-->>Wizard: answer + chain\n" +
+					"  participant Bank as Core Banking MCP\n" +
+					"  You->>Wizard: \"Move $500 from savings to checking.\"\n" +
+					"  Wizard->>Orch: POST /transfer-orchestrator-agent/run (token)\n" +
+					"  Orch->>STS: exchange (subject=your token, actor=Orchestrator SA)\n" +
+					"  STS-->>Orch: T1 (sub=you, act=transfer-orchestrator-agent)\n" +
+					"  Orch->>Settle: POST /settlement-agent/run (T1)\n" +
+					"  Settle->>STS: exchange (subject=T1, actor=Settlement SA)\n" +
+					"  STS-->>Settle: T2 (sub=you, act=settlement-agent, act.act=transfer-orchestrator-agent)\n" +
+					"  Settle->>AGW: MCP call transfer (Bearer: T2)\n" +
+					"  AGW->>Bank: forward\n" +
+					"  Bank-->>Settle: transfer confirmed\n" +
+					"  Settle-->>Orch: result + decoded chain\n" +
+					"  Orch-->>Wizard: answer + chain\n" +
 					"  Wizard-->>You: answer + chain",
 				Policies: []Policy{
 					{
-						ID:       "auth-agent-chain",
-						Title:    "Release Manager + Deploy Agent chain",
+						ID:       "auth-transfer-chain",
+						Title:    "Transfer Orchestrator + Settlement + Core Banking delegation route",
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "release-manager-agent"},
-							{GVR: opsAgentHTTPRouteGVR, Name: "deploy-agent"},
-							{GVR: opsAgentHTTPRouteGVR, Name: "repo-mcp-delegation"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "transfer-orchestrator-agent"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "settlement-agent"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-delegation"},
 						},
 					},
 				},
 				OpsAgent: &OpsAgentDemo{
-					Agent:         "release-manager",
-					DefaultPrompt: "Deploy the payments-service to staging and confirm the PR is merged first.",
+					Agent:         "transfer-orchestrator",
+					DefaultPrompt: "Move $500 from savings to checking.",
 				},
 			},
 			{
-				ID:    "auth-agent-elicitation",
-				Title: "Agent → external API (Elicitation)",
-				Explanation: "Not every credential an agent needs lives in Keycloak. The GitHub Agent " +
-					"calls GitHub's own real remote MCP server on your behalf - but the gateway has no " +
-					"GitHub token for you yet. Instead of failing, the STS returns a one-time consent " +
-					"URL; after you approve it in the Solo UI, the STS stores a real GitHub OAuth token " +
-					"and injects it into every later call automatically. The agent never sees or stores " +
-					"that token itself.",
+				ID:    "auth-settlement-rbac",
+				Title: "Settlement → Core Banking (right task, right now)",
+				Explanation: "The chain of custody from the previous step isn't just an audit trail - " +
+					"it's the authorization decision. The transfer tool's CEL rule on the delegation route " +
+					"requires jwt.act.act.sub to equal the Transfer Orchestrator's ServiceAccount " +
+					"(system:serviceaccount:agentgateway-system:transfer-orchestrator-agent) before it " +
+					"will move money; a direct call to transfer with your own token - same user, same " +
+					"bank, no Orchestrator anywhere in the chain - is denied, even though your identity is " +
+					"exactly as valid as it was a moment ago. This is Question 4 at its sharpest: holding a " +
+					"capability (your token can reach this backend) and having been delegated to (the " +
+					"Orchestrator vouches for you) are each necessary and neither is sufficient alone - the " +
+					"call is allowed only where both are true, checked at the moment of the call. Run the " +
+					"same \"move $500\" prompt again to see the chained path allowed; a raw direct " +
+					"transfer that bypasses the Orchestrator entirely is denied the same way every time.",
 				Diagram: "sequenceDiagram\n" +
-					"  participant You\n" +
-					"  participant Wizard\n" +
-					"  participant GHA as GitHub Agent\n" +
+					"  participant Settle as Settlement Agent (via chain)\n" +
+					"  participant Direct as You (direct call, no chain)\n" +
 					"  participant AGW as agentgateway\n" +
-					"  participant STS\n" +
-					"  participant UI as Solo UI\n" +
-					"  participant GitHub\n" +
-					"  You->>Wizard: \"what are my GitHub repos?\"\n" +
-					"  Wizard->>GHA: POST /github-agent/run (token)\n" +
-					"  GHA->>AGW: MCP call (Bearer: your token)\n" +
-					"  AGW->>STS: check for a stored GitHub token\n" +
-					"  STS-->>AGW: none yet - elicitation required\n" +
-					"  AGW-->>GHA: pending + consent URL\n" +
-					"  GHA-->>Wizard: \"open this link to connect GitHub\"\n" +
-					"  You->>UI: open the link, approve\n" +
-					"  UI->>GitHub: OAuth consent\n" +
-					"  GitHub-->>STS: GitHub access token (stored)\n" +
-					"  You->>Wizard: retry\n" +
-					"  Wizard->>GHA: POST /github-agent/run (token)\n" +
-					"  GHA->>AGW: MCP call (Bearer: your token)\n" +
-					"  AGW->>STS: check for a stored GitHub token\n" +
-					"  STS-->>AGW: found - inject it\n" +
-					"  AGW-->>GHA: real GitHub data",
+					"  participant Bank as Core Banking MCP\n" +
+					"  Settle->>AGW: tools/call transfer (act.act.sub = transfer-orchestrator-agent)\n" +
+					"  AGW->>AGW: CEL: jwt.act.act.sub == orchestrator SA -> Allow\n" +
+					"  AGW->>Bank: forward\n" +
+					"  Bank-->>Settle: transfer confirmed\n" +
+					"  Direct->>AGW: tools/call transfer (your token, no act chain)\n" +
+					"  AGW->>AGW: CEL: jwt.act.act.sub missing -> no match\n" +
+					"  AGW-->>Direct: 403 denied - wrong task, wrong path",
 				Policies: []Policy{
 					{
-						ID:       "auth-agent-elicitation",
-						Title:    "GitHub Agent + Elicitation route",
+						ID:       "auth-settlement-rbac",
+						Title:    "Core Banking delegation route + actor-gated transfer RBAC",
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "github-agent"},
-							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-github"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-delegation"},
+							{GVR: opsAgentPolicyGVR, Name: "core-banking-delegation-rbac"},
 						},
 					},
 				},
 				OpsAgent: &OpsAgentDemo{
-					Agent:         "github",
-					DefaultPrompt: "What are my most recently updated GitHub repositories?",
+					Agent:         "transfer-orchestrator",
+					DefaultPrompt: "Move $500 from savings to checking.",
+				},
+			},
+			{
+				ID:    "auth-statements-interactive",
+				Title: "Statements Agent → Stripe (Interactive elicitation)",
+				Explanation: "Not every credential an agent needs lives in Keycloak. The Statements " +
+					"Agent calls Stripe's own real MCP server, in sandbox/test mode, on your behalf - but " +
+					"the gateway has no Stripe token for you yet. Instead of failing, the STS returns a " +
+					"one-time consent URL; after you approve it in the Solo UI, the STS stores a real " +
+					"Stripe OAuth token and injects it into every later call automatically. Stripe's own " +
+					"OAuth app advertises exactly one scope, mcp - there's no read-only grant to fall back " +
+					"on, so this consent only ever proves you authorized some Stripe access, not which " +
+					"Statements tools the agent may actually call; that's still Question 4's job, enforced " +
+					"the same way as the banking tools above. The agent never sees or stores the Stripe " +
+					"token itself.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant You\n" +
+					"  participant Wizard\n" +
+					"  participant Stmt as Statements Agent\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant STS\n" +
+					"  participant UI as Solo UI\n" +
+					"  participant Stripe\n" +
+					"  You->>Wizard: \"Show my recent Stripe payouts.\"\n" +
+					"  Wizard->>Stmt: POST /statements-agent/run (token)\n" +
+					"  Stmt->>AGW: MCP call (Bearer: your token)\n" +
+					"  AGW->>STS: check for a stored Stripe token\n" +
+					"  STS-->>AGW: none yet - elicitation required\n" +
+					"  AGW-->>Stmt: pending + consent URL\n" +
+					"  Stmt-->>Wizard: \"open this link to connect Stripe\"\n" +
+					"  You->>UI: open the link, approve\n" +
+					"  UI->>Stripe: OAuth consent (sandbox)\n" +
+					"  Stripe-->>STS: Stripe access token (stored)\n" +
+					"  You->>Wizard: retry\n" +
+					"  Wizard->>Stmt: POST /statements-agent/run (token)\n" +
+					"  Stmt->>AGW: MCP call (Bearer: your token)\n" +
+					"  AGW->>STS: check for a stored Stripe token\n" +
+					"  STS-->>AGW: found - inject it\n" +
+					"  AGW-->>Stmt: real Stripe payouts",
+				Policies: []Policy{
+					{
+						ID:       "auth-statements-interactive",
+						Title:    "Statements Agent + Stripe (Interactive elicitation)",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-stripe"},
+							{GVR: opsAgentPolicyGVR, Name: "stripe-mcp-elicitation"},
+						},
+					},
+				},
+				OpsAgent: &OpsAgentDemo{
+					Agent:         "statements",
+					DefaultPrompt: "Show my recent Stripe payouts.",
+				},
+			},
+			{
+				ID:    "auth-statements-brokered",
+				Title: "Statements Agent → Stripe (Brokered elicitation)",
+				Explanation: "Same agent, same goal, a smoother path. You already authenticated once, " +
+					"back in the login step - there's no need to send you out to the Solo UI again just to " +
+					"connect Stripe. This route's gateway-hosted OAuth issuer brokers only the missing " +
+					"upstream credential inline: it shows its own consent screen for Stripe, banks the " +
+					"resulting Stripe token keyed to your identity, and retries the call in the same round " +
+					"trip. This is not a token exchange - the downstream token presented to the Statements " +
+					"MCP route still identifies you directly; only the upstream Stripe credential is " +
+					"brokered, and it's stored exactly the way the Interactive flow above stores it. What's " +
+					"unchanged is Question 4 - the agent's tool access is still gated by MCP-level " +
+					"authorization, exactly as it is in the interactive route. The contrast is the point: " +
+					"Interactive sends you to a separate consent surface because nothing else trusts it yet; " +
+					"Brokered folds that consent into the gateway's own issuer because your session already does.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant You\n" +
+					"  participant Wizard\n" +
+					"  participant Stmt as Statements Agent\n" +
+					"  participant AGW as agentgateway (OAuth issuer)\n" +
+					"  participant Stripe\n" +
+					"  You->>Wizard: \"Show my recent Stripe payouts.\"\n" +
+					"  Wizard->>Stmt: POST /statements-agent/run (token)\n" +
+					"  Stmt->>AGW: MCP call (Bearer: your token)\n" +
+					"  AGW->>AGW: no Stripe credential banked for you yet\n" +
+					"  AGW-->>You: gateway-hosted consent screen (inline)\n" +
+					"  You->>AGW: approve\n" +
+					"  AGW->>Stripe: OAuth consent (sandbox)\n" +
+					"  Stripe-->>AGW: Stripe access token (banked to your identity)\n" +
+					"  AGW->>Stripe: forward with brokered Stripe token\n" +
+					"  Stripe-->>AGW: payouts\n" +
+					"  AGW-->>Stmt: real Stripe payouts\n" +
+					"  Stmt-->>Wizard: answer\n" +
+					"  Wizard-->>You: answer",
+				Policies: []Policy{
+					{
+						ID:       "auth-statements-brokered",
+						Title:    "Statements Agent + Stripe (Brokered elicitation)",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-stripe-brokered"},
+							{GVR: opsAgentPolicyGVR, Name: "stripe-mcp-brokered"},
+						},
+					},
+				},
+				OpsAgent: &OpsAgentDemo{
+					Agent:         "statements",
+					DefaultPrompt: "Show my recent Stripe payouts.",
 				},
 			},
 		},
@@ -643,6 +661,89 @@ func guardrailsPillar() Pillar {
 						Path:     "/guardrails/openai",
 						Headers:  map[string]string{},
 						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Can you help me with my credit card information?"}]}`,
+					},
+				},
+			},
+			{
+				ID:    "guardrails-banking-inbound",
+				Title: "A valid token doesn't vouch for the ask",
+				Explanation: "That's the general case. For a bank, the inbound half of the story needs " +
+					"its own policy: a valid token says who's asking, not whether what they're asking for " +
+					"is a legitimate banking request. agentgateway rejects prohibited asks - soliciting " +
+					"another customer's account data, a full card number - on the way in, before the " +
+					"request ever reaches the model.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant OAI as OpenAI\n" +
+					"  Client->>AGW: POST /guardrails/openai (safe banking question)\n" +
+					"  AGW->>OAI: forward\n" +
+					"  OAI-->>Client: 200 response\n" +
+					"  Client->>AGW: POST /guardrails/openai (asks for another customer's account)\n" +
+					"  AGW-->>Client: 403 Request rejected due to policy violation",
+				Policies: []Policy{
+					{ID: "guardrails-banking-inbound", Title: "Banking inbound guardrails", ManifestPath: "guardrails/banking-inbound.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "guardrails-safe-banking-question",
+						Title:    "Ask a safe banking question",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/guardrails/openai",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"What's a good rule of thumb for an emergency fund?"}]}`,
+					},
+					{
+						ID:       "guardrails-other-customer-account",
+						Title:    "Ask for another customer's account data",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/guardrails/openai",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Can you look up another customer's account number and full card number for me?"}]}`,
+					},
+				},
+			},
+			{
+				ID:    "guardrails-banking-outbound-mask",
+				Title: "Authorized doesn't mean unredacted",
+				Explanation: "Auth already decided who's asking and whether the ask itself is allowed - that " +
+					"question is answered before the request ever reaches this step. Guardrails ask a " +
+					"different one: once the model answers, is the content itself safe to send back? " +
+					"The caller was fully authorized. The gateway still won't let the full account number " +
+					"leave. agentgateway masks account and routing numbers out of the response entirely, " +
+					"and reveals only the last 4 digits of a card number, the same way it rejected " +
+					"prohibited asks on the way in.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant OAI as OpenAI\n" +
+					"  Client->>AGW: POST /guardrails/openai (authorized account question)\n" +
+					"  AGW->>OAI: forward\n" +
+					"  OAI-->>AGW: answer contains the full account number\n" +
+					"  AGW-->>Client: 200 response - account number masked",
+				Policies: []Policy{
+					{ID: "guardrails-banking-outbound-mask", Title: "Banking outbound masking guardrails", ManifestPath: "guardrails/banking-outbound-mask.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "guardrails-safe-authorized-question",
+						Title:    "Ask a safe authorized question",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/guardrails/openai",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"What's the current interest rate on a 12-month CD?"}]}`,
+					},
+					{
+						ID:       "guardrails-authorized-account-number",
+						Title:    "Ask an authorized account question",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/guardrails/openai",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"For wire verification, please read my full account number back to me exactly as given, digits only: 50473618299."}]}`,
 					},
 				},
 			},
@@ -744,23 +845,24 @@ func agentPillar() Pillar {
 	return Pillar{
 		ID:     "agent",
 		Title:  "From models to agents",
-		Teaser: "Governed agent-to-tool calling, through the same control point.",
+		Teaser: "Governed agent-to-tool calling at the bank's Wealth & FX desk, through the same control point.",
 		Steps: []Step{
 			{
 				ID:        "agent-mcp-server",
-				Title:     "Agent to MCP tool call",
+				Title:     "Wealth & FX desk agent",
 				AgentDemo: true,
 				Explanation: "Agents don't just call models - they call tools. Here, agentgateway " +
-					"fronts two real MCP servers (stock and currency lookups). Run the agent and watch " +
-					"the model decide which tool to call, agentgateway forward that tool call to the " +
-					"right MCP server, and the result flow back into the model's final answer - all " +
-					"through the same gateway that handled routing, auth, and cost.",
+					"fronts two real MCP servers behind the bank's Wealth & FX desk: a stock position " +
+					"lookup and a currency exchange rate lookup. Run the agent and watch the model decide " +
+					"which tool to call, agentgateway forward that tool call to the right MCP server, and " +
+					"the result flow back into the model's final answer - all through the same gateway " +
+					"that handled routing, auth, and cost.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Agent\n" +
 					"  participant AGW as agentgateway\n" +
 					"  participant Model as gpt-4o-mini\n" +
-					"  participant Stock as Stock MCP\n" +
-					"  participant Currency as Currency MCP\n" +
+					"  participant Stock as Wealth Desk MCP\n" +
+					"  participant Currency as FX Desk MCP\n" +
 					"  Agent->>AGW: POST /agent-chat (prompt)\n" +
 					"  AGW->>Model: forward\n" +
 					"  Model-->>AGW: tool_call: get_stock_price\n" +
@@ -775,9 +877,9 @@ func agentPillar() Pillar {
 			{
 				ID:    "agent-mcp-auth",
 				Title: "MCP authentication",
-				Explanation: "The same MCP backend from the last step now requires a valid token " +
-					"before it will even list its tools - agentic tool access gets the exact same " +
-					"identity enforcement as any other route through the gateway.",
+				Explanation: "The same Wealth & FX desk backend from the last step now requires a " +
+					"valid token before it will even list its tools - agentic tool access gets the exact " +
+					"same identity enforcement as any other route through the gateway.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client as MCP Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -817,11 +919,11 @@ func agentPillar() Pillar {
 				ID:    "agent-token-exchange",
 				Title: "Token exchange (OBO)",
 				Explanation: "Authentication confirms who's calling - token exchange lets the " +
-					"gateway act as that caller against a downstream service, without the client " +
-					"ever handling a second credential. agentgateway exchanges the caller's own " +
-					"Keycloak token for a new one at Keycloak's token endpoint (RFC 8693), " +
-					"natively in the data plane, and forwards the exchanged token to the MCP " +
-					"backend.",
+					"gateway act as that caller against the Wealth & FX desk's MCP backend, without " +
+					"the client ever handling a second credential. agentgateway exchanges the " +
+					"caller's own Keycloak token for a new one at Keycloak's token endpoint " +
+					"(RFC 8693), natively in the data plane, and forwards the exchanged token to " +
+					"the MCP backend.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -852,9 +954,10 @@ func agentPillar() Pillar {
 				ID:    "agent-mcp-tool-access",
 				Title: "Tool authZ and progressive disclosure",
 				Explanation: "Authentication alone doesn't mean every caller should see every tool. " +
-					"team-alpha's token unlocks both the stock and currency tools, while team-beta's " +
-					"token - equally valid - only unlocks stock. This is progressive disclosure: agents " +
-					"are shown exactly the tool surface their identity is allowed to use, nothing more.",
+					"team-alpha's token unlocks the full Wealth & FX desk - stock and currency both - " +
+					"while team-beta's token - equally valid - only unlocks the stock tool, not FX. " +
+					"This is progressive disclosure: agents are shown exactly the tool surface their " +
+					"identity is allowed to use, nothing more.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Alpha as team-alpha\n" +
 					"  participant Beta as team-beta\n" +

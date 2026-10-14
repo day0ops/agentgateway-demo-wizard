@@ -63,3 +63,5 @@ yarn-error.log*
 
 #### Git worktrees ####
 .worktrees/
+# Superpowers plans/specs are working artifacts, never tracked
+docs/superpowers/

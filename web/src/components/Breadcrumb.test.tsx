@@ -93,8 +93,8 @@ describe("Breadcrumb", () => {
       />,
     );
     const segments = screen.getByTestId("step-segments").children;
-    expect(segments[0].className).toContain("bg-indigo-600");
-    expect(segments[1].className).toContain("bg-indigo-600");
+    expect(segments[0].className).toContain("bg-brand-600");
+    expect(segments[1].className).toContain("bg-brand-600");
 
     rerender(
       <Breadcrumb
