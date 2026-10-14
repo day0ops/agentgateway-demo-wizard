@@ -703,6 +703,48 @@ func guardrailsPillar() Pillar {
 					},
 				},
 			},
+			{
+				ID:    "guardrails-banking-outbound-mask",
+				Title: "Authorized doesn't mean unredacted",
+				Explanation: "Auth already decided who's asking and whether the ask itself is allowed - that " +
+					"question is answered before the request ever reaches this step. Guardrails ask a " +
+					"different one: once the model answers, is the content itself safe to send back? " +
+					"The caller was fully authorized. The gateway still won't let the full account number " +
+					"leave. agentgateway masks account and routing numbers out of the response entirely, " +
+					"and reveals only the last 4 digits of a card number, the same way it rejected " +
+					"prohibited asks on the way in.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant OAI as OpenAI\n" +
+					"  Client->>AGW: POST /guardrails/openai (authorized account question)\n" +
+					"  AGW->>OAI: forward\n" +
+					"  OAI-->>AGW: answer contains the full account number\n" +
+					"  AGW-->>Client: 200 response - account number masked",
+				Policies: []Policy{
+					{ID: "guardrails-banking-outbound-mask", Title: "Banking outbound masking guardrails", ManifestPath: "guardrails/banking-outbound-mask.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "guardrails-safe-authorized-question",
+						Title:    "Ask a safe authorized question",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/guardrails/openai",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"What's the current interest rate on a 12-month CD?"}]}`,
+					},
+					{
+						ID:       "guardrails-authorized-account-number",
+						Title:    "Ask an authorized account question",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/guardrails/openai",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"For wire verification, please read my full account number back to me exactly as given, digits only: 50473618299."}]}`,
+					},
+				},
+			},
 		},
 	}
 }

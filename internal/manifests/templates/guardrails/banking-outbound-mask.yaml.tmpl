@@ -1,0 +1,36 @@
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: guardrails-banking-outbound-mask
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: guardrails-openai
+  backend:
+    ai:
+      promptGuard:
+        response:
+          - regex:
+              action: Mask
+              # agentgateway's regex mask has no lookaround support, so a card PAN's
+              # last 4 digits are revealed by matching only a fixed 12-digit prefix
+              # (exact for 16-digit Visa/Mastercard/Discover numbers) instead of a
+              # variable-length "all but the last 4" assertion.
+              matches:
+                - '\b\d{12}'
+          - regex:
+              action: Mask
+              # Whatever 9+ digit run is left once a PAN prefix above is masked is a
+              # full account or routing number - mask it whole.
+              matches:
+                - '\b\d{9,}\b'
+          - regex:
+              action: Mask
+              # Safety net for separator-formatted card numbers (e.g. "4111-1111-1111-1111")
+              # the plain-digit patterns above don't match.
+              builtins:
+                - CreditCard
