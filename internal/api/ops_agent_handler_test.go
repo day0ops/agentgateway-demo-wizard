@@ -12,10 +12,41 @@ import (
 	"github.com/day0ops/agentgateway-demo-wizard/internal/oauthlogin"
 )
 
+func TestOpsAgentURLResolvesConfiguredAgents(t *testing.T) {
+	cfg := &config.Config{
+		AccountsAgentURL:             "http://accounts-agent/run",
+		TransferOrchestratorAgentURL: "http://transfer-orchestrator-agent/run",
+		StatementsAgentURL:           "http://statements-agent/run",
+	}
+	s := NewServer(WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"), WithConfig(cfg))
+
+	cases := []struct {
+		agent   string
+		wantURL string
+	}{
+		{"accounts", cfg.AccountsAgentURL},
+		{"transfer-orchestrator", cfg.TransferOrchestratorAgentURL},
+		{"statements", cfg.StatementsAgentURL},
+	}
+	for _, tc := range cases {
+		got, err := s.opsAgentURL(tc.agent)
+		if err != nil {
+			t.Fatalf("opsAgentURL(%q): unexpected error: %v", tc.agent, err)
+		}
+		if got != tc.wantURL {
+			t.Fatalf("opsAgentURL(%q) = %q, want %q", tc.agent, got, tc.wantURL)
+		}
+	}
+
+	if _, err := s.opsAgentURL("nonexistent"); err == nil {
+		t.Fatalf("opsAgentURL(%q): expected an error for an unknown agent", "nonexistent")
+	}
+}
+
 func TestOpsAgentRunRequiresLogin(t *testing.T) {
 	s := NewServer(WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"), WithConfig(&config.Config{}))
 
-	reqBody := `{"identity":"team-alpha","agent":"repo","mode":"standard","query":"list repos"}`
+	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"standard","query":"list repos"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/ops-agent/run", strings.NewReader(reqBody))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
@@ -37,11 +68,11 @@ func TestOpsAgentRunForwardsTokenAndModeToTheTargetAgent(t *testing.T) {
 
 	s := NewServer(
 		WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"),
-		WithConfig(&config.Config{RepoAgentURL: agentServer.URL + "/run"}),
+		WithConfig(&config.Config{AccountsAgentURL: agentServer.URL + "/run"}),
 	)
 	s.oauthStore.PutToken("session-1", "team-alpha", oauthlogin.Token{AccessToken: "real-token", ExpiresAt: time.Now().Add(time.Hour)})
 
-	reqBody := `{"identity":"team-alpha","agent":"repo","mode":"sts-delegation","query":"list repos"}`
+	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"sts-delegation","query":"list repos"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/ops-agent/run", strings.NewReader(reqBody))
 	req.AddCookie(&http.Cookie{Name: oauthlogin.SessionCookieName, Value: "session-1"})
 	rec := httptest.NewRecorder()

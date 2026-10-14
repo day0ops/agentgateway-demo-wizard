@@ -46,11 +46,11 @@ type Step struct {
 // agent container through POST /api/ops-agent/run.
 type OpsAgentDemo struct {
 	// Agent selects which container's /run endpoint this step calls - must
-	// match one of the cases in Server.opsAgentURL: "repo",
-	// "release-manager", or "github".
+	// match one of the cases in Server.opsAgentURL: "accounts",
+	// "transfer-orchestrator", or "statements".
 	Agent string `json:"agent"`
 	// Mode is forwarded to the agent as-is; empty for agents that don't
-	// branch on mode (release-manager, github).
+	// branch on mode (transfer-orchestrator, statements).
 	Mode          string `json:"mode"`
 	DefaultPrompt string `json:"defaultPrompt"`
 }

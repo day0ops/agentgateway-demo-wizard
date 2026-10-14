@@ -35,9 +35,9 @@ type Config struct {
 	DemoUserPassword               string
 	STSHost                        string
 	STSPort                        string
-	RepoAgentURL                   string
-	ReleaseManagerAgentURL         string
-	GitHubAgentURL                 string
+	AccountsAgentURL               string
+	TransferOrchestratorAgentURL   string
+	StatementsAgentURL             string
 }
 
 // Load reads configuration from environment variables. It never errors:
@@ -56,9 +56,9 @@ func Load() *Config {
 		DemoUserPassword:               os.Getenv("DEMO_USER_PASSWORD"),
 		STSHost:                        envOrDefault("STS_HOST", defaultSTSHost),
 		STSPort:                        envOrDefault("STS_PORT", defaultSTSPort),
-		RepoAgentURL:                   envOrDefault("REPO_AGENT_URL", defaultAgentGatewayInternalURL+"/repo-agent/run"),
-		ReleaseManagerAgentURL:         envOrDefault("RELEASE_MANAGER_AGENT_URL", defaultAgentGatewayInternalURL+"/release-manager-agent/run"),
-		GitHubAgentURL:                 envOrDefault("GITHUB_AGENT_URL", defaultAgentGatewayInternalURL+"/github-agent/run"),
+		AccountsAgentURL:               envOrDefault("ACCOUNTS_AGENT_URL", defaultAgentGatewayInternalURL+"/accounts-agent/run"),
+		TransferOrchestratorAgentURL:   envOrDefault("TRANSFER_ORCHESTRATOR_AGENT_URL", defaultAgentGatewayInternalURL+"/transfer-orchestrator-agent/run"),
+		StatementsAgentURL:             envOrDefault("STATEMENTS_AGENT_URL", defaultAgentGatewayInternalURL+"/statements-agent/run"),
 	}
 }
 
