@@ -46,7 +46,7 @@ func TestOpsAgentURLResolvesConfiguredAgents(t *testing.T) {
 func TestOpsAgentRunRequiresLogin(t *testing.T) {
 	s := NewServer(WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"), WithConfig(&config.Config{}))
 
-	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"standard","query":"list repos"}`
+	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"","query":"what's my balance"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/ops-agent/run", strings.NewReader(reqBody))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
@@ -62,7 +62,7 @@ func TestOpsAgentRunForwardsTokenAndModeToTheTargetAgent(t *testing.T) {
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"answer":"3 repos found","extra":{"chain":{"sub":"team-alpha"}}}`))
+		_, _ = w.Write([]byte(`{"answer":"Checking balance: $4,210.55","extra":{"chain":{"sub":"team-alpha"}}}`))
 	}))
 	defer agentServer.Close()
 
@@ -72,7 +72,7 @@ func TestOpsAgentRunForwardsTokenAndModeToTheTargetAgent(t *testing.T) {
 	)
 	s.oauthStore.PutToken("session-1", "team-alpha", oauthlogin.Token{AccessToken: "real-token", ExpiresAt: time.Now().Add(time.Hour)})
 
-	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"sts-delegation","query":"list repos"}`
+	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"sts-delegation","query":"what's my balance"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/ops-agent/run", strings.NewReader(reqBody))
 	req.AddCookie(&http.Cookie{Name: oauthlogin.SessionCookieName, Value: "session-1"})
 	rec := httptest.NewRecorder()
@@ -84,7 +84,7 @@ func TestOpsAgentRunForwardsTokenAndModeToTheTargetAgent(t *testing.T) {
 	if !strings.Contains(gotBody, `"token":"real-token"`) || !strings.Contains(gotBody, `"mode":"sts-delegation"`) {
 		t.Fatalf("expected the captured token and mode to be forwarded, got: %s", gotBody)
 	}
-	if !strings.Contains(rec.Body.String(), "3 repos found") || !strings.Contains(rec.Body.String(), "chain") {
+	if !strings.Contains(rec.Body.String(), "Checking balance: $4,210.55") || !strings.Contains(rec.Body.String(), "chain") {
 		t.Fatalf("expected the agent's answer and extra fields to pass through, got: %s", rec.Body.String())
 	}
 }

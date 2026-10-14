@@ -14,47 +14,47 @@ function mockJsonFetch(body: unknown, ok = true) {
 
 describe("OpsAgentRunPane", () => {
   it("renders the agent's answer after a run", async () => {
-    globalThis.fetch = mockJsonFetch({ answer: "3 repos found" });
+    globalThis.fetch = mockJsonFetch({ answer: "Checking balance: $4,210.55" });
 
     render(
       <OpsAgentRunPane
         identity="team-alpha"
-        agent="repo"
-        mode="standard"
-        defaultPrompt="List our repos"
+        agent="accounts"
+        mode=""
+        defaultPrompt="What's my balance?"
       />,
     );
     fireEvent.click(screen.getByText("Run agent"));
 
     await waitFor(() =>
-      expect(screen.getByText("3 repos found")).toBeInTheDocument(),
+      expect(screen.getByText("Checking balance: $4,210.55")).toBeInTheDocument(),
     );
   });
 
   it("renders markdown formatting (lists, bold, links) in the answer", async () => {
     globalThis.fetch = mockJsonFetch({
       answer:
-        "1. **payments-service** - [repo](https://github.com/day0ops/payments-service)\n2. **checkout-web**",
+        "1. **Everyday Checking** - [details](https://dashboard.stripe.com/test/balance)\n2. **Rainy Day Savings**",
     });
 
     render(
       <OpsAgentRunPane
         identity="team-alpha"
-        agent="repo"
-        mode="standard"
-        defaultPrompt="List our repos"
+        agent="accounts"
+        mode=""
+        defaultPrompt="What's my balance?"
       />,
     );
     fireEvent.click(screen.getByText("Run agent"));
 
     await waitFor(() =>
-      expect(screen.getByText("payments-service")).toBeInTheDocument(),
+      expect(screen.getByText("Everyday Checking")).toBeInTheDocument(),
     );
-    expect(screen.getByText("payments-service").tagName).toBe("STRONG");
-    const link = screen.getByRole("link", { name: "repo" });
+    expect(screen.getByText("Everyday Checking").tagName).toBe("STRONG");
+    const link = screen.getByRole("link", { name: "details" });
     expect(link).toHaveAttribute(
       "href",
-      "https://github.com/day0ops/payments-service",
+      "https://dashboard.stripe.com/test/balance",
     );
     expect(link).toHaveAttribute("target", "_blank");
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
@@ -62,12 +62,12 @@ describe("OpsAgentRunPane", () => {
 
   it("renders the decoded delegation chain when present", async () => {
     globalThis.fetch = mockJsonFetch({
-      answer: "Deployed payments-service.",
+      answer: "Transferred $500 from savings to checking.",
       extra: {
         chain: {
           sub: "team-alpha",
-          act: "deploy-agent",
-          act_act: "release-manager-agent",
+          act: "settlement-agent",
+          act_act: "transfer-orchestrator-agent",
         },
       },
     });
@@ -75,18 +75,18 @@ describe("OpsAgentRunPane", () => {
     render(
       <OpsAgentRunPane
         identity="team-alpha"
-        agent="release-manager"
+        agent="transfer-orchestrator"
         mode=""
-        defaultPrompt="Deploy payments-service"
+        defaultPrompt="Move $500 from savings to checking"
       />,
     );
     fireEvent.click(screen.getByText("Run agent"));
 
     await waitFor(() =>
-      expect(screen.getByText(/act: deploy-agent/)).toBeInTheDocument(),
+      expect(screen.getByText(/act: settlement-agent/)).toBeInTheDocument(),
     );
     expect(
-      screen.getByText(/act.act: release-manager-agent/),
+      screen.getByText(/act.act: transfer-orchestrator-agent/),
     ).toBeInTheDocument();
   });
 
@@ -101,9 +101,9 @@ describe("OpsAgentRunPane", () => {
     render(
       <OpsAgentRunPane
         identity="team-alpha"
-        agent="repo"
-        mode="standard"
-        defaultPrompt="List our repos"
+        agent="accounts"
+        mode=""
+        defaultPrompt="What's my balance?"
       />,
     );
     fireEvent.click(screen.getByText("Run agent"));
