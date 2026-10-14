@@ -102,6 +102,28 @@ func TestAuthAgentStepsDriveTheRightOpsAgent(t *testing.T) {
 	}
 }
 
+// TestStatementsStepsSetModeToSelectTheRightProvider enforces that the two
+// Statements Agent steps carry the Mode the agent needs to pick the right
+// upstream (Stripe only ever supports Brokered, so Interactive targets
+// PayPal instead - see the agent's build_agent() in ops-agents).
+func TestStatementsStepsSetModeToSelectTheRightProvider(t *testing.T) {
+	wantMode := map[string]string{
+		"auth-statements-interactive": "interactive",
+		"auth-statements-brokered":    "brokered",
+	}
+
+	auth := authPillar()
+	for id, want := range wantMode {
+		step := findStep(auth.Steps, id)
+		if step.OpsAgent == nil {
+			t.Fatalf("step %q: expected OpsAgent to be set", id)
+		}
+		if step.OpsAgent.Mode != want {
+			t.Fatalf("step %q: OpsAgent.Mode = %q, want %q", id, step.OpsAgent.Mode, want)
+		}
+	}
+}
+
 // wantViewRefNames is the expected, ordered set of ViewRef names per
 // read-only agent step - see the field-kit integration contract referenced
 // from the GVR const docs in registry.go.
@@ -110,7 +132,7 @@ var wantViewRefNames = map[string][]string{
 	"auth-accounts-rbac":          {"core-banking-standard", "core-banking-standard-rbac"},
 	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation"},
 	"auth-settlement-rbac":        {"core-banking-delegation", "core-banking-delegation-rbac"},
-	"auth-statements-interactive": {"mcp-stripe", "stripe-mcp-elicitation"},
+	"auth-statements-interactive": {"mcp-paypal", "paypal-mcp-elicitation"},
 	"auth-statements-brokered":    {"mcp-stripe-brokered", "stripe-mcp-brokered"},
 }
 
@@ -119,7 +141,7 @@ var wantViewRefNames = map[string][]string{
 var policyViewRefNames = map[string]bool{
 	"core-banking-standard-rbac":   true,
 	"core-banking-delegation-rbac": true,
-	"stripe-mcp-elicitation":       true,
+	"paypal-mcp-elicitation":       true,
 	"stripe-mcp-brokered":          true,
 }
 
