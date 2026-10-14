@@ -27,7 +27,9 @@ describe("OpsAgentRunPane", () => {
     fireEvent.click(screen.getByText("Run agent"));
 
     await waitFor(() =>
-      expect(screen.getByText("Checking balance: $4,210.55")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Checking balance: $4,210.55"),
+      ).toBeInTheDocument(),
     );
   });
 

@@ -7,9 +7,6 @@ describe("ArchitectureDiagram", () => {
     render(<ArchitectureDiagram />);
 
     const img = screen.getByAltText(/agentgateway/i);
-    expect(img).toHaveAttribute(
-      "src",
-      "/diagrams/agents-mcp-architecture.svg",
-    );
+    expect(img).toHaveAttribute("src", "/diagrams/agents-mcp-architecture.svg");
   });
 });

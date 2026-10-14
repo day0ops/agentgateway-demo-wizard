@@ -29,14 +29,19 @@ export function LoginPane({ identities }: { identities: string[] }) {
       </h2>
       <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 shadow-sm dark:divide-zinc-800 dark:border-zinc-800">
         {identities.map((identity) => (
-          <div key={identity} className="flex items-center justify-between gap-3 p-4">
+          <div
+            key={identity}
+            className="flex items-center justify-between gap-3 p-4"
+          >
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
                 {identity.charAt(0).toUpperCase()}
               </span>
               <div>
                 <div className="font-mono text-sm font-medium">{identity}</div>
-                <div className="text-xs text-slate-500">Demo customer identity</div>
+                <div className="text-xs text-slate-500">
+                  Demo customer identity
+                </div>
               </div>
             </div>
             {status[identity] ? (
