@@ -27,10 +27,18 @@ export function LoginPane({ identities }: { identities: string[] }) {
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
         Log in
       </h2>
-      <div className="space-y-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">
+      <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 shadow-sm dark:divide-zinc-800 dark:border-zinc-800">
         {identities.map((identity) => (
-          <div key={identity} className="flex items-center justify-between">
-            <span className="font-mono text-sm">{identity}</span>
+          <div key={identity} className="flex items-center justify-between gap-3 p-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                {identity.charAt(0).toUpperCase()}
+              </span>
+              <div>
+                <div className="font-mono text-sm font-medium">{identity}</div>
+                <div className="text-xs text-slate-500">Demo customer identity</div>
+              </div>
+            </div>
             {status[identity] ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
                 <CheckCircle2 size={12} />
@@ -39,7 +47,7 @@ export function LoginPane({ identities }: { identities: string[] }) {
             ) : (
               <a
                 href={`/auth/login?identity=${identity}&return_to=auth`}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm dark:bg-slate-100 dark:text-slate-900"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900"
               >
                 <LogIn size={14} />
                 Log in as {identity}

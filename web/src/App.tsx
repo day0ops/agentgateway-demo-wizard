@@ -13,6 +13,7 @@ import { AgentRunPane } from "./components/AgentRunPane";
 import { OpsAgentRunPane } from "./components/OpsAgentRunPane";
 import { VirtualKeyPane } from "./components/VirtualKeyPane";
 import { WelcomeFeatures } from "./components/WelcomeFeatures";
+import { ArchitectureDiagram } from "./components/ArchitectureDiagram";
 import { LoginPane } from "./components/LoginPane";
 
 const AUTH_IDENTITIES = ["team-alpha", "team-beta"];
@@ -73,7 +74,7 @@ export default function App() {
 
   if (pillars.length === 0) {
     return (
-      <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="min-h-screen bg-white text-slate-900 dark:bg-zinc-950 dark:text-zinc-100">
         <h1 className="p-6 text-xl font-semibold">Agentgateway Demo Console</h1>
         {missingEnvBanner}
         {scenariosError && (
@@ -119,10 +120,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex h-screen flex-col bg-white text-slate-900 dark:bg-zinc-950 dark:text-zinc-100">
       <div className="shrink-0 shadow-sm">
-        <header className="flex items-center justify-between bg-indigo-50/70 px-6 py-3 dark:bg-slate-900/60">
-          <h1 className="text-xl font-bold tracking-tight text-indigo-700 dark:text-indigo-300">
+        <header className="flex items-center justify-between bg-brand-50/70 px-6 py-3 dark:bg-zinc-900/60">
+          <h1 className="text-xl font-bold tracking-tight text-brand-700 dark:text-brand-300">
             Agentgateway Demo Console
           </h1>
           <div className="flex items-center gap-3">
@@ -145,6 +146,7 @@ export default function App() {
       <div className="flex-1 overflow-y-auto">
         <ExplanationBand key={activeStep.id} step={activeStep} />
         {activeStep.id === "welcome" && <WelcomeFeatures pillars={pillars} />}
+        {activeStep.id === "welcome" && <ArchitectureDiagram />}
         {activeStep.loginDemo && (
           <div className="px-6 py-6">
             <LoginPane
@@ -189,22 +191,22 @@ export default function App() {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-950">
+      <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-950">
         <button
           onClick={previousStep}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 transition-colors hover:text-brand-600 hover:underline dark:hover:text-brand-400"
         >
           <ChevronLeft size={14} />
           previous
         </button>
         {version && (
-          <span className="text-xs text-slate-400 dark:text-slate-600">
+          <span className="text-xs text-slate-400 dark:text-zinc-600">
             {version}
           </span>
         )}
         <button
           onClick={nextStep}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-slate-500 transition-colors hover:text-brand-600 hover:underline dark:hover:text-brand-400"
         >
           next
           <ChevronRight size={14} />

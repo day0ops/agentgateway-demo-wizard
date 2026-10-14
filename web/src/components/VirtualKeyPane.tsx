@@ -92,29 +92,29 @@ export function VirtualKeyPane() {
         Virtual Keys
       </h2>
 
-      <div className="space-y-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">
+      <div className="space-y-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800">
         <div className="flex flex-wrap gap-2">
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Key name (e.g. team-gamma)"
-            className="rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-slate-700"
+            className="rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
           />
           <input
             value={form.userId}
             onChange={(e) => setForm({ ...form, userId: e.target.value })}
             placeholder="User id"
-            className="rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-slate-700"
+            className="rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
           />
           <input
             value={form.tokenBudget}
             onChange={(e) => setForm({ ...form, tokenBudget: e.target.value })}
             placeholder="Token budget"
-            className="w-28 rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-slate-700"
+            className="w-28 rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
           />
           <button
             onClick={createKey}
-            className="rounded bg-slate-900 px-3 py-1 text-sm text-white dark:bg-slate-100 dark:text-slate-900"
+            className="rounded bg-slate-900 px-3 py-1 text-sm text-white transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900"
           >
             Create key
           </button>
@@ -127,7 +127,7 @@ export function VirtualKeyPane() {
         {keys.map((key) => (
           <div
             key={key.name}
-            className="space-y-1 rounded-lg border border-slate-200 p-3 text-sm shadow-sm dark:border-slate-800"
+            className="space-y-1 rounded-lg border border-slate-200 p-3 text-sm shadow-sm dark:border-zinc-800"
           >
             <div className="flex items-center justify-between">
               <span className="font-medium">
@@ -136,14 +136,14 @@ export function VirtualKeyPane() {
               <div className="flex gap-2">
                 <button
                   onClick={() => rotateKey(key.name)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs shadow-sm dark:bg-slate-800"
+                  className="inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
                 >
                   <RefreshCw size={12} />
                   Rotate
                 </button>
                 <button
                   onClick={() => sendTestRequest(key)}
-                  className="rounded bg-slate-200 px-2 py-0.5 text-xs dark:bg-slate-800"
+                  className="rounded bg-slate-200 px-2 py-0.5 text-xs transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
                 >
                   Send test request
                 </button>

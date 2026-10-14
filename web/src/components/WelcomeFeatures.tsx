@@ -11,14 +11,14 @@ export function WelcomeFeatures({ pillars }: { pillars: Pillar[] }) {
       {features.map((pillar, i) => (
         <div
           key={pillar.id}
-          className="flex gap-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-slate-800"
+          className="flex gap-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
             {i + 1}
           </span>
           <div>
             <div className="font-medium">{pillar.title}</div>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            <p className="mt-1 text-sm text-slate-600 dark:text-zinc-400">
               {pillar.teaser}
             </p>
           </div>

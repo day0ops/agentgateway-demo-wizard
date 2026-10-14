@@ -845,23 +845,24 @@ func agentPillar() Pillar {
 	return Pillar{
 		ID:     "agent",
 		Title:  "From models to agents",
-		Teaser: "Governed agent-to-tool calling, through the same control point.",
+		Teaser: "Governed agent-to-tool calling at the bank's Wealth & FX desk, through the same control point.",
 		Steps: []Step{
 			{
 				ID:        "agent-mcp-server",
-				Title:     "Agent to MCP tool call",
+				Title:     "Wealth & FX desk agent",
 				AgentDemo: true,
 				Explanation: "Agents don't just call models - they call tools. Here, agentgateway " +
-					"fronts two real MCP servers (stock and currency lookups). Run the agent and watch " +
-					"the model decide which tool to call, agentgateway forward that tool call to the " +
-					"right MCP server, and the result flow back into the model's final answer - all " +
-					"through the same gateway that handled routing, auth, and cost.",
+					"fronts two real MCP servers behind the bank's Wealth & FX desk: a stock position " +
+					"lookup and a currency exchange rate lookup. Run the agent and watch the model decide " +
+					"which tool to call, agentgateway forward that tool call to the right MCP server, and " +
+					"the result flow back into the model's final answer - all through the same gateway " +
+					"that handled routing, auth, and cost.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Agent\n" +
 					"  participant AGW as agentgateway\n" +
 					"  participant Model as gpt-4o-mini\n" +
-					"  participant Stock as Stock MCP\n" +
-					"  participant Currency as Currency MCP\n" +
+					"  participant Stock as Wealth Desk MCP\n" +
+					"  participant Currency as FX Desk MCP\n" +
 					"  Agent->>AGW: POST /agent-chat (prompt)\n" +
 					"  AGW->>Model: forward\n" +
 					"  Model-->>AGW: tool_call: get_stock_price\n" +
@@ -876,9 +877,9 @@ func agentPillar() Pillar {
 			{
 				ID:    "agent-mcp-auth",
 				Title: "MCP authentication",
-				Explanation: "The same MCP backend from the last step now requires a valid token " +
-					"before it will even list its tools - agentic tool access gets the exact same " +
-					"identity enforcement as any other route through the gateway.",
+				Explanation: "The same Wealth & FX desk backend from the last step now requires a " +
+					"valid token before it will even list its tools - agentic tool access gets the exact " +
+					"same identity enforcement as any other route through the gateway.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client as MCP Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -918,11 +919,11 @@ func agentPillar() Pillar {
 				ID:    "agent-token-exchange",
 				Title: "Token exchange (OBO)",
 				Explanation: "Authentication confirms who's calling - token exchange lets the " +
-					"gateway act as that caller against a downstream service, without the client " +
-					"ever handling a second credential. agentgateway exchanges the caller's own " +
-					"Keycloak token for a new one at Keycloak's token endpoint (RFC 8693), " +
-					"natively in the data plane, and forwards the exchanged token to the MCP " +
-					"backend.",
+					"gateway act as that caller against the Wealth & FX desk's MCP backend, without " +
+					"the client ever handling a second credential. agentgateway exchanges the " +
+					"caller's own Keycloak token for a new one at Keycloak's token endpoint " +
+					"(RFC 8693), natively in the data plane, and forwards the exchanged token to " +
+					"the MCP backend.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -953,9 +954,10 @@ func agentPillar() Pillar {
 				ID:    "agent-mcp-tool-access",
 				Title: "Tool authZ and progressive disclosure",
 				Explanation: "Authentication alone doesn't mean every caller should see every tool. " +
-					"team-alpha's token unlocks both the stock and currency tools, while team-beta's " +
-					"token - equally valid - only unlocks stock. This is progressive disclosure: agents " +
-					"are shown exactly the tool surface their identity is allowed to use, nothing more.",
+					"team-alpha's token unlocks the full Wealth & FX desk - stock and currency both - " +
+					"while team-beta's token - equally valid - only unlocks the stock tool, not FX. " +
+					"This is progressive disclosure: agents are shown exactly the tool surface their " +
+					"identity is allowed to use, nothing more.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Alpha as team-alpha\n" +
 					"  participant Beta as team-beta\n" +

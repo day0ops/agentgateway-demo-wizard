@@ -37,7 +37,7 @@ export function Breadcrumb({
   const stepCount = activePillar?.steps.length ?? 0;
 
   return (
-    <nav className="flex items-center justify-between border-b-2 border-indigo-200 bg-indigo-50/70 px-6 py-3 dark:border-indigo-900/60 dark:bg-slate-900/60">
+    <nav className="flex items-center justify-between border-b-2 border-brand-200 bg-brand-50/70 px-6 py-3 dark:border-brand-900/60 dark:bg-zinc-900/60">
       <ol className="flex items-center gap-2 text-sm">
         {pillars.map((pillar, index) => {
           const Icon = PILLAR_ICONS[pillar.id];
@@ -45,14 +45,14 @@ export function Breadcrumb({
           return (
             <li key={pillar.id} className="flex items-center gap-2">
               {index > 0 && (
-                <span className="text-indigo-300 dark:text-indigo-800">-</span>
+                <span className="text-brand-300 dark:text-brand-800">-</span>
               )}
               <button
                 onClick={() => onSelectPillar(index)}
                 className={
                   isActive
-                    ? "inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 font-semibold text-indigo-700 shadow-sm dark:bg-slate-800 dark:text-indigo-300"
-                    : "inline-flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-300"
+                    ? "inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 font-semibold text-brand-700 shadow-sm dark:bg-zinc-800 dark:text-brand-300"
+                    : "inline-flex items-center gap-1.5 text-slate-500 transition-colors hover:text-brand-600 dark:hover:text-brand-300"
                 }
               >
                 {Icon && <Icon size={14} />}
@@ -70,13 +70,13 @@ export function Breadcrumb({
                 key={i}
                 className={`h-1.5 w-6 rounded-full transition-colors ${
                   i <= activeStepIndex
-                    ? "bg-indigo-600 dark:bg-indigo-400"
-                    : "bg-indigo-100 dark:bg-indigo-950"
+                    ? "bg-brand-600 dark:bg-brand-400"
+                    : "bg-brand-100 dark:bg-brand-950"
                 }`}
               />
             ))}
           </div>
-          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950 dark:text-brand-300">
             step {activeStepIndex + 1} of {stepCount}
           </span>
         </div>

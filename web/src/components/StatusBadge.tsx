@@ -22,7 +22,7 @@ const CONFIG: Record<
     icon: Loader2,
     label: "applying",
     className:
-      "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+      "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400",
   },
   error: {
     icon: AlertCircle,
@@ -33,7 +33,7 @@ const CONFIG: Record<
     icon: Circle,
     label: "not applied",
     className:
-      "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+      "bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400",
   },
 };
 
