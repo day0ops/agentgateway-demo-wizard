@@ -562,10 +562,11 @@ func authPillar() Pillar {
 					"resulting Stripe token keyed to your identity, and retries the call in the same round " +
 					"trip. This is not a token exchange - the downstream token presented to the Statements " +
 					"MCP route still identifies you directly; only the upstream Stripe credential is " +
-					"brokered, and it's stored exactly the way the Interactive flow above stores it. The " +
-					"contrast is the point: Interactive sends you to a separate consent surface because " +
-					"nothing else trusts it yet; Brokered folds that consent into the gateway's own issuer " +
-					"because your session already does.",
+					"brokered, and it's stored exactly the way the Interactive flow above stores it. What's " +
+					"unchanged is Question 4 - the agent's tool access is still gated by MCP-level " +
+					"authorization, exactly as it is in the interactive route. The contrast is the point: " +
+					"Interactive sends you to a separate consent surface because nothing else trusts it yet; " +
+					"Brokered folds that consent into the gateway's own issuer because your session already does.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
