@@ -15,8 +15,8 @@ var routingBackendGVR = schema.GroupVersionResource{
 
 // opsAgentHTTPRouteGVR identifies the HTTPRoutes the banking usecase creates
 // for the agent containers (accounts-agent, transfer-orchestrator-agent,
-// settlement-agent, statements-agent) and the Core Banking / Stripe MCP routes
-// (core-banking-standard, core-banking-delegation, mcp-stripe,
+// settlement-agent, statements-agent) and the Core Banking / PayPal / Stripe
+// MCP routes (core-banking-standard, core-banking-delegation, mcp-paypal,
 // mcp-stripe-brokered). These objects are pre-provisioned by the
 // agentgateway-field-kit usecase, not by this repo.
 var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
@@ -27,9 +27,9 @@ var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
 
 // opsAgentPolicyGVR identifies the enterpriseagentgateway.solo.io Policy CRD
 // the auth pillar's read-only steps display alongside their HTTPRoute - MCP
-// tool-level RBAC policies and Stripe elicitation policies. These objects
-// are pre-provisioned by the agentgateway-field-kit ops-agents usecase, not
-// by this repo.
+// tool-level RBAC policies and PayPal/Stripe elicitation policies. These
+// objects are pre-provisioned by the agentgateway-field-kit ops-agents
+// usecase, not by this repo.
 var opsAgentPolicyGVR = schema.GroupVersionResource{
 	Group:    "enterpriseagentgateway.solo.io",
 	Version:  "v1alpha1",
@@ -503,17 +503,19 @@ func authPillar() Pillar {
 			},
 			{
 				ID:    "auth-statements-interactive",
-				Title: "Statements Agent → Stripe (Interactive elicitation)",
+				Title: "Statements Agent → PayPal (Interactive elicitation)",
 				Explanation: "Not every credential an agent needs lives in Keycloak. The Statements " +
-					"Agent calls Stripe's own real MCP server, in sandbox/test mode, on your behalf - but " +
-					"the gateway has no Stripe token for you yet. Instead of failing, the STS returns a " +
+					"Agent calls PayPal's own real MCP server, in sandbox mode, on your behalf - but " +
+					"the gateway has no PayPal token for you yet. Instead of failing, the STS returns a " +
 					"one-time consent URL; after you approve it in the Solo UI, the STS stores a real " +
-					"Stripe OAuth token and injects it into every later call automatically. Stripe's own " +
-					"OAuth app advertises exactly one scope, mcp - there's no read-only grant to fall back " +
-					"on, so this consent only ever proves you authorized some Stripe access, not which " +
-					"Statements tools the agent may actually call; that's still Question 4's job, enforced " +
-					"the same way as the banking tools above. The agent never sees or stores the Stripe " +
-					"token itself.",
+					"PayPal OAuth token and injects it into every later call automatically. This step uses " +
+					"PayPal rather than Stripe for a concrete reason: Stripe's OAuth app only ever issues " +
+					"secretless public clients (confirmed live against its own metadata), which Interactive " +
+					"elicitation - a classic static client_id/secret flow - can't use, while PayPal's does " +
+					"support that model. Either way, this consent only ever proves you authorized some " +
+					"account access, not which Statements tools the agent may actually call; that's still " +
+					"Question 4's job, enforced the same way as the banking tools above. The agent never " +
+					"sees or stores the PayPal token itself.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
@@ -521,54 +523,58 @@ func authPillar() Pillar {
 					"  participant AGW as agentgateway\n" +
 					"  participant STS\n" +
 					"  participant UI as Solo UI\n" +
-					"  participant Stripe\n" +
-					"  You->>Wizard: \"Show my recent Stripe payouts.\"\n" +
+					"  participant PayPal\n" +
+					"  You->>Wizard: \"Show my recent PayPal transactions.\"\n" +
 					"  Wizard->>Stmt: POST /statements-agent/run (token)\n" +
 					"  Stmt->>AGW: MCP call (Bearer: your token)\n" +
-					"  AGW->>STS: check for a stored Stripe token\n" +
+					"  AGW->>STS: check for a stored PayPal token\n" +
 					"  STS-->>AGW: none yet - elicitation required\n" +
 					"  AGW-->>Stmt: pending + consent URL\n" +
-					"  Stmt-->>Wizard: \"open this link to connect Stripe\"\n" +
+					"  Stmt-->>Wizard: \"open this link to connect PayPal\"\n" +
 					"  You->>UI: open the link, approve\n" +
-					"  UI->>Stripe: OAuth consent (sandbox)\n" +
-					"  Stripe-->>STS: Stripe access token (stored)\n" +
+					"  UI->>PayPal: OAuth consent (sandbox)\n" +
+					"  PayPal-->>STS: PayPal access token (stored)\n" +
 					"  You->>Wizard: retry\n" +
 					"  Wizard->>Stmt: POST /statements-agent/run (token)\n" +
 					"  Stmt->>AGW: MCP call (Bearer: your token)\n" +
-					"  AGW->>STS: check for a stored Stripe token\n" +
+					"  AGW->>STS: check for a stored PayPal token\n" +
 					"  STS-->>AGW: found - inject it\n" +
-					"  AGW-->>Stmt: real Stripe payouts",
+					"  AGW-->>Stmt: real PayPal transactions",
 				Policies: []Policy{
 					{
 						ID:       "auth-statements-interactive",
-						Title:    "Statements Agent + Stripe (Interactive elicitation)",
+						Title:    "Statements Agent + PayPal (Interactive elicitation)",
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-stripe"},
-							{GVR: opsAgentPolicyGVR, Name: "stripe-mcp-elicitation"},
+							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-paypal"},
+							{GVR: opsAgentPolicyGVR, Name: "paypal-mcp-elicitation"},
 						},
 					},
 				},
 				OpsAgent: &OpsAgentDemo{
 					Agent:         "statements",
-					DefaultPrompt: "Show my recent Stripe payouts.",
+					Mode:          "interactive",
+					DefaultPrompt: "Show my recent PayPal transactions.",
 				},
 			},
 			{
 				ID:    "auth-statements-brokered",
 				Title: "Statements Agent → Stripe (Brokered elicitation)",
-				Explanation: "Same agent, same goal, a smoother path. You already authenticated once, " +
-					"back in the login step - there's no need to send you out to the Solo UI again just to " +
-					"connect Stripe. This route's gateway-hosted OAuth issuer brokers only the missing " +
-					"upstream credential inline: it shows its own consent screen for Stripe, banks the " +
-					"resulting Stripe token keyed to your identity, and retries the call in the same round " +
-					"trip. This is not a token exchange - the downstream token presented to the Statements " +
-					"MCP route still identifies you directly; only the upstream Stripe credential is " +
-					"brokered, and it's stored exactly the way the Interactive flow above stores it. What's " +
-					"unchanged is Question 4 - the agent's tool access is still gated by MCP-level " +
-					"authorization, exactly as it is in the interactive route. The contrast is the point: " +
-					"Interactive sends you to a separate consent surface because nothing else trusts it yet; " +
-					"Brokered folds that consent into the gateway's own issuer because your session already does.",
+				Explanation: "Same agent, a different external processor, a smoother path. Stripe's " +
+					"own OAuth app is DCR + PKCE only, no static secret - which is exactly the shape " +
+					"Brokered is built for, unlike the PayPal step above. You already authenticated once, " +
+					"back in the login step - there's " +
+					"no need to send you out to the Solo UI again just to connect Stripe. This route's " +
+					"gateway-hosted OAuth issuer brokers only the missing upstream credential inline: it " +
+					"shows its own consent screen for Stripe, banks the resulting Stripe token keyed to " +
+					"your identity, and retries the call in the same round trip. This is not a token " +
+					"exchange - the downstream token presented to the Statements MCP route still " +
+					"identifies you directly; only the upstream Stripe credential is brokered, and it's " +
+					"stored exactly the way the Interactive flow above stores its own. What's unchanged is " +
+					"Question 4 - the agent's tool access is still gated by MCP-level authorization, " +
+					"exactly as it is in the interactive route. The contrast is the point: Interactive " +
+					"sends you to a separate consent surface because nothing else trusts it yet; Brokered " +
+					"folds that consent into the gateway's own issuer because your session already does.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
@@ -601,6 +607,7 @@ func authPillar() Pillar {
 				},
 				OpsAgent: &OpsAgentDemo{
 					Agent:         "statements",
+					Mode:          "brokered",
 					DefaultPrompt: "Show my recent Stripe payouts.",
 				},
 			},
