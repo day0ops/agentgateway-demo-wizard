@@ -13,10 +13,12 @@ var routingBackendGVR = schema.GroupVersionResource{
 	Resource: "enterpriseagentgatewaybackends",
 }
 
-// opsAgentHTTPRouteGVR identifies the HTTPRoutes the ops-agents usecase
-// creates for the four agent containers and the two repo-MCP routes. These
-// objects are pre-provisioned by the agentgateway-field-kit ops-agents
-// usecase, not by this repo.
+// opsAgentHTTPRouteGVR identifies the HTTPRoutes the banking usecase creates
+// for the agent containers (accounts-agent, transfer-orchestrator-agent,
+// settlement-agent, statements-agent) and the Core Banking / Stripe MCP routes
+// (core-banking-standard, core-banking-delegation, mcp-stripe,
+// mcp-stripe-brokered). These objects are pre-provisioned by the
+// agentgateway-field-kit usecase, not by this repo.
 var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
 	Group:    "gateway.networking.k8s.io",
 	Version:  "v1",

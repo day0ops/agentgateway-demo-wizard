@@ -49,8 +49,9 @@ type OpsAgentDemo struct {
 	// match one of the cases in Server.opsAgentURL: "accounts",
 	// "transfer-orchestrator", or "statements".
 	Agent string `json:"agent"`
-	// Mode is forwarded to the agent as-is; empty for agents that don't
-	// branch on mode (transfer-orchestrator, statements).
+	// Mode is forwarded to the agent as-is. The banking agents don't branch on
+	// mode (it's left empty for all of them); the field is retained for agents
+	// that may need it.
 	Mode          string `json:"mode"`
 	DefaultPrompt string `json:"defaultPrompt"`
 }
