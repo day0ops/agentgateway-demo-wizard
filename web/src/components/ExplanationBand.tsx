@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Step } from "../lib/api";
 import { getTheme, onThemeChange } from "../lib/theme";
+import { markdownComponents } from "../lib/markdown";
 
 // Tracks the color theme reactively, so the diagram effect below can depend
 // on it directly instead of only re-reading the DOM once per step change.
@@ -33,9 +36,14 @@ export function ExplanationBand({ step }: { step: Step }) {
   return (
     <section className="border-b border-slate-200 px-6 py-6 dark:border-zinc-800">
       <h2 className="text-lg font-semibold">{step.title}</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
-        {step.explanation}
-      </p>
+      <div className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-700 dark:text-zinc-300">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={markdownComponents}
+        >
+          {step.explanation}
+        </ReactMarkdown>
+      </div>
       {step.diagram && (
         <>
           <button

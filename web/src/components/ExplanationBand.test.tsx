@@ -44,6 +44,19 @@ describe("ExplanationBand", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders markdown bullet lists in the explanation as an actual list", () => {
+    const bulletedStep: Step = {
+      ...step,
+      explanation: "Two things to know:\n\n- First point\n- Second point",
+    };
+    render(<ExplanationBand step={bulletedStep} />);
+
+    const list = screen.getByRole("list");
+    expect(list.tagName).toBe("UL");
+    expect(screen.getByText("First point")).toBeInTheDocument();
+    expect(screen.getByText("Second point")).toBeInTheDocument();
+  });
+
   it("hides the diagram by default and reveals it on toggle", async () => {
     render(<ExplanationBand step={step} />);
 
