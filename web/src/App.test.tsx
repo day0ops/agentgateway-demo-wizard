@@ -238,6 +238,12 @@ describe("App", () => {
           json: async () => emptyConfig,
         } as unknown as Response);
       }
+      if (url === "/secure/session") {
+        return Promise.resolve({
+          type: "opaqueredirect",
+          ok: false,
+        } as unknown as Response);
+      }
       return Promise.resolve({
         ok: true,
         json: async () => pillars,
@@ -249,7 +255,7 @@ describe("App", () => {
     expect(await screen.findByText("Real login")).toBeInTheDocument();
     expect(
       await screen.findByRole("link", { name: /^log in$/i }),
-    ).toHaveAttribute("href", "/secure/login?returnTo=auth");
+    ).toHaveAttribute("href", "/secure/login?returnTo=auth-login");
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
   });
 
@@ -292,6 +298,12 @@ describe("App", () => {
           json: async () => emptyConfig,
         } as unknown as Response);
       }
+      if (url === "/secure/session") {
+        return Promise.resolve({
+          type: "opaqueredirect",
+          ok: false,
+        } as unknown as Response);
+      }
       return Promise.resolve({
         ok: true,
         json: async () => pillars,
@@ -303,7 +315,7 @@ describe("App", () => {
     expect(await screen.findByText("Real login")).toBeInTheDocument();
     expect(
       await screen.findByRole("link", { name: /^log in$/i }),
-    ).toHaveAttribute("href", "/secure/login?returnTo=auth");
+    ).toHaveAttribute("href", "/secure/login?returnTo=auth-login");
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
     expect(screen.queryByText("Ask")).not.toBeInTheDocument();
   });
@@ -354,6 +366,12 @@ describe("App", () => {
           json: async () => emptyConfig,
         } as unknown as Response);
       }
+      if (url === "/secure/session") {
+        return Promise.resolve({
+          type: "opaqueredirect",
+          ok: false,
+        } as unknown as Response);
+      }
       return Promise.resolve({
         ok: true,
         json: async () => pillars,
@@ -362,7 +380,7 @@ describe("App", () => {
 
     const originalLocation = window.location;
     Object.defineProperty(window, "location", {
-      value: { ...originalLocation, search: "?returnTo=auth" },
+      value: { ...originalLocation, search: "?returnTo=auth-login" },
       writable: true,
     });
 

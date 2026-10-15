@@ -39,15 +39,21 @@ export default function App() {
       .then((loadedPillars) => {
         setPillars(loadedPillars);
         // Additive: a login redirect (see SecureLoginPane) sends the browser back
-        // to "/?returnTo=<pillar id>" instead of the default welcome screen.
+        // to "/?returnTo=<step id>" instead of the default welcome screen - restore
+        // the exact step the presenter was on, not just its pillar.
         const returnTo = new URLSearchParams(window.location.search).get(
           "returnTo",
         );
         if (!returnTo) return;
-        const index = loadedPillars.findIndex((p) => p.id === returnTo);
-        if (index >= 0) {
-          setActivePillarIndex(index);
-          setActiveStepIndex(0);
+        for (let pIndex = 0; pIndex < loadedPillars.length; pIndex++) {
+          const sIndex = loadedPillars[pIndex].steps.findIndex(
+            (s) => s.id === returnTo,
+          );
+          if (sIndex >= 0) {
+            setActivePillarIndex(pIndex);
+            setActiveStepIndex(sIndex);
+            break;
+          }
         }
       })
       .catch((err) =>
@@ -147,7 +153,10 @@ export default function App() {
         {activeStep.id === "welcome" && <ArchitectureDiagram />}
         {activeStep.loginDemo && (
           <div className="px-6 py-6">
-            <SecureLoginPane key={`${activeStep.id}-login`} />
+            <SecureLoginPane
+              key={`${activeStep.id}-login`}
+              returnToStepId={activeStep.id}
+            />
           </div>
         )}
         {hasDemo && !activeStep.loginDemo && (
