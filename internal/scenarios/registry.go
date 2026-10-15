@@ -329,8 +329,7 @@ func authPillar() Pillar {
 					"  AGW->>KC: exchange for tokens\n" +
 					"  AGW->>AGW: bank session (Redis), set session cookie\n" +
 					"  AGW-->>Browser: 302 back into the wizard at the right pillar\n" +
-					"  Note over AGW: every later call: inject Authorization: Bearer <token>,\n" +
-					"  refreshing transparently before it expires",
+					"  Note over AGW: every later call: inject Authorization: Bearer token,<br/>refreshing transparently before it expires",
 			},
 			{
 				ID:    "auth-accounts-impersonation",

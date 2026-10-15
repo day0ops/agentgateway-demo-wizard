@@ -45,14 +45,14 @@ export function SecureLoginPane({
       </h2>
       <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800">
         {session.status === "loggedIn" ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
-            <CheckCircle2 size={12} />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
+            <CheckCircle2 size={14} />
             logged in as {session.identity}
           </span>
         ) : (
           <a
             href={`/secure/login?returnTo=${encodeURIComponent(returnToStepId)}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out hover:bg-brand-700 active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             <LogIn size={14} />
             Log in
