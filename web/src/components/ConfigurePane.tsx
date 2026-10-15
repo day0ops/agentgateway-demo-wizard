@@ -186,7 +186,12 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
       const message = await res.text();
       setState((s) => ({
         ...s,
-        [policy.id]: { ...current, status: "error", message, showYaml: false },
+        [policy.id]: {
+          ...(s[policy.id] ?? current),
+          status: "error",
+          message,
+          showYaml: false,
+        },
       }));
       return;
     }
@@ -199,7 +204,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
       .join("\n---\n");
     setState((s) => ({
       ...s,
-      [policy.id]: { ...current, yaml, showYaml: true },
+      [policy.id]: { ...(s[policy.id] ?? current), yaml, showYaml: true },
     }));
   }
 
