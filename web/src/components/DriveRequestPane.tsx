@@ -11,8 +11,6 @@ type RequestState = {
   identity: string;
   headers: Record<string, string>;
   stream: boolean;
-  requiresSessionToken: boolean;
-  exchangeViaSts: boolean;
 };
 
 const methodBadgeClassName: Record<string, string> = {
@@ -49,8 +47,6 @@ export function DriveRequestPane({
       identity: preset.identity,
       headers: preset.headers,
       stream: preset.stream,
-      requiresSessionToken: preset.requiresSessionToken,
-      exchangeViaSts: preset.exchangeViaSts,
     });
     setResult({ status: "idle" });
   }

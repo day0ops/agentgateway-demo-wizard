@@ -13,14 +13,19 @@ export type RequestPreset = {
   headers: Record<string, string>;
   body: string;
   stream: boolean;
-  requiresSessionToken: boolean;
-  exchangeViaSts: boolean;
 };
 
 export type OpsAgentDemo = {
   agent: string;
   mode: string;
   defaultPrompt: string;
+};
+
+export type DirectCallDemo = {
+  title: string;
+  path: string;
+  tool: string;
+  arguments: Record<string, unknown>;
 };
 
 export type Step = {
@@ -34,6 +39,7 @@ export type Step = {
   virtualKeys: boolean;
   loginDemo: boolean;
   opsAgent?: OpsAgentDemo;
+  directCall?: DirectCallDemo;
 };
 
 export type Pillar = {

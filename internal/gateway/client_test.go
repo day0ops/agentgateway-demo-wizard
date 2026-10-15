@@ -187,3 +187,113 @@ func TestProxyWithTokenEmptyTokenOmitsAuthorizationHeader(t *testing.T) {
 		t.Fatalf("expected no Authorization header for an empty token, got %q", gotAuth)
 	}
 }
+
+func TestProxyMCPToolCallPerformsTheThreeStepHandshake(t *testing.T) {
+	var sawSessionIDs []string
+	var sawMethods []string
+	var sawAuth []string
+
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded struct {
+			Method string `json:"method"`
+		}
+		_ = json.Unmarshal(body, &decoded)
+		sawMethods = append(sawMethods, decoded.Method)
+		sawSessionIDs = append(sawSessionIDs, r.Header.Get("Mcp-Session-Id"))
+		sawAuth = append(sawAuth, r.Header.Get("Authorization"))
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		switch decoded.Method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "test-session-123")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n"))
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/call":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"ok\"}],\"isError\":false}}\n\n"))
+		}
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "unused")
+	resp, err := client.ProxyMCPToolCall(context.Background(), "/core-banking-delegation/mcp", "real-token", "transfer", map[string]any{"from_account": "savings", "to_account": "checking", "amount": 500})
+	if err != nil {
+		t.Fatalf("ProxyMCPToolCall: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(resp.Body, `"isError":false`) {
+		t.Fatalf("expected the tools/call result in the body, got: %s", resp.Body)
+	}
+
+	if len(sawMethods) != 3 || sawMethods[0] != "initialize" || sawMethods[1] != "notifications/initialized" || sawMethods[2] != "tools/call" {
+		t.Fatalf("expected initialize, notifications/initialized, tools/call in order, got: %v", sawMethods)
+	}
+	if sawSessionIDs[1] != "test-session-123" || sawSessionIDs[2] != "test-session-123" {
+		t.Fatalf("expected the session ID threaded into both later requests, got: %v", sawSessionIDs)
+	}
+	for _, auth := range sawAuth {
+		if auth != "Bearer real-token" {
+			t.Fatalf("expected every request to carry the real token, got: %q", auth)
+		}
+	}
+}
+
+func TestProxyMCPToolCallErrorsWithoutASessionID(t *testing.T) {
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n"))
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "unused")
+	if _, err := client.ProxyMCPToolCall(context.Background(), "/core-banking-delegation/mcp", "real-token", "transfer", map[string]any{}); err == nil {
+		t.Fatalf("expected an error when the server never returns an Mcp-Session-Id")
+	}
+}
+
+func TestProxyMCPToolCallPassesThroughANonSuccessToolsCallResponse(t *testing.T) {
+	var sawMethods []string
+
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded struct {
+			Method string `json:"method"`
+		}
+		_ = json.Unmarshal(body, &decoded)
+		sawMethods = append(sawMethods, decoded.Method)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		switch decoded.Method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "test-session-123")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n"))
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/call":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32000,\"message\":\"denied by policy\"}}\n\n"))
+		}
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "unused")
+	resp, err := client.ProxyMCPToolCall(context.Background(), "/core-banking-delegation/mcp", "real-token", "transfer", map[string]any{"from_account": "savings", "to_account": "checking", "amount": 500})
+	if err != nil {
+		t.Fatalf("ProxyMCPToolCall: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(resp.Body, "denied by policy") {
+		t.Fatalf("expected the error message in the body, got: %s", resp.Body)
+	}
+	if len(sawMethods) != 3 || sawMethods[0] != "initialize" || sawMethods[1] != "notifications/initialized" || sawMethods[2] != "tools/call" {
+		t.Fatalf("expected all three handshake steps, got: %v", sawMethods)
+	}
+}

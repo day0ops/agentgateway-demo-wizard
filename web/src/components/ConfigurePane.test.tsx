@@ -181,6 +181,42 @@ describe("ConfigurePane", () => {
     );
     expect(screen.getByText("Revert")).toBeInTheDocument();
   });
+
+  it("previews a policy's YAML before it has been applied", async () => {
+    globalThis.fetch = ((url: RequestInfo | URL) => {
+      if (typeof url === "string" && url.startsWith("/api/config/view")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            refs: [
+              {
+                name: "EnterpriseAgentgatewayPolicy/auth-accounts-rbac",
+                found: true,
+                yaml: "kind: EnterpriseAgentgatewayPolicy",
+              },
+            ],
+          }),
+        } as unknown as Response);
+      }
+      return Promise.reject(new Error(`unexpected fetch to ${String(url)}`));
+    }) as unknown as typeof fetch;
+
+    render(
+      <ConfigurePane
+        policies={[
+          { id: "auth-accounts-rbac", title: "MCP tool RBAC", readOnly: false },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("view YAML"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/EnterpriseAgentgatewayPolicy/),
+      ).toBeInTheDocument(),
+    );
+  });
 });
 
 describe("ConfigurePane - read-only policies", () => {

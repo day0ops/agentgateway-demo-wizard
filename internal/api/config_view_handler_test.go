@@ -12,6 +12,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 
+	"github.com/day0ops/agentgateway-demo-wizard/internal/config"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/k8s"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/k8s/k8stest"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/scenarios"
@@ -197,7 +198,7 @@ func TestConfigViewUnknownPolicyReturns404(t *testing.T) {
 	}
 }
 
-func TestConfigViewRejectsNonReadOnlyPolicy(t *testing.T) {
+func TestConfigViewRendersManifestForNonReadOnlyPolicy(t *testing.T) {
 	applier := newApplierForTest()
 	s := NewServer(WithScenarios(testRegistryWithFixturePolicy()), WithApplier(applier)) // "test-fixture", ReadOnly: false
 
@@ -205,8 +206,58 @@ func TestConfigViewRejectsNonReadOnlyPolicy(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for a non-read-only policy, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"name":"ConfigMap/test-fixture"`) || !strings.Contains(body, `"name":"ConfigMap/test-fixture-2"`) {
+		t.Fatalf("expected both rendered docs labeled by kind/name, got: %s", body)
+	}
+	if !strings.Contains(body, `"found":true`) {
+		t.Fatalf("expected found:true (rendering never fails for a well-formed template), got: %s", body)
+	}
+	if !strings.Contains(body, "hello: world") || !strings.Contains(body, "hello: again") {
+		t.Fatalf("expected both docs' content in the response, got: %s", body)
+	}
+}
+
+func TestConfigViewManifestOmitsSecretKindDocs(t *testing.T) {
+	// handleConfigViewManifest (the non-ReadOnly preview path) must not leak a
+	// rendered Secret doc's content, even though this template renders one
+	// alongside three other, safe-to-show docs.
+	applier := newApplierForTest()
+	reg := []scenarios.Pillar{{
+		ID: "test", Title: "Test",
+		Steps: []scenarios.Step{{
+			ID: "test-step", Title: "Test step",
+			Policies: []scenarios.Policy{{
+				ID:           "test-secret-manifest",
+				Title:        "Test secret manifest",
+				ManifestPath: "guardrails/prompt-guard.yaml.tmpl",
+			}},
+		}},
+	}}
+	cfg := &config.Config{OpenAIKey: "sk-should-never-leak"}
+	s := NewServer(WithScenarios(reg), WithApplier(applier), WithConfig(cfg))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/config/view?policyId=test-secret-manifest", nil)
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "sk-should-never-leak") {
+		t.Fatalf("expected the Secret doc's content to be omitted, got: %s", body)
+	}
+	if strings.Contains(body, `"name":"Secret/`) {
+		t.Fatalf("expected no Secret-kind ref in the response, got: %s", body)
+	}
+	// The template renders 4 docs (Secret, Backend, HTTPRoute, Policy); only
+	// the 3 non-Secret docs should come back.
+	if count := strings.Count(body, `"found":true`); count != 3 {
+		t.Fatalf("expected 3 refs (Secret omitted), got %d: %s", count, body)
 	}
 }
 

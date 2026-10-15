@@ -170,10 +170,41 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
     setState((s) => ({ ...s, [policy.id]: idleState }));
   }
 
-  function toggleYaml(policyId: string) {
+  async function toggleYaml(policy: Policy) {
+    const current = state[policy.id] ?? idleState;
+    if (current.showYaml) {
+      setState((s) => ({ ...s, [policy.id]: { ...current, showYaml: false } }));
+      return;
+    }
+    if (current.yaml) {
+      setState((s) => ({ ...s, [policy.id]: { ...current, showYaml: true } }));
+      return;
+    }
+
+    const res = await fetch(`/api/config/view?policyId=${policy.id}`);
+    if (!res.ok) {
+      const message = await res.text();
+      setState((s) => ({
+        ...s,
+        [policy.id]: {
+          ...(s[policy.id] ?? current),
+          status: "error",
+          message,
+          showYaml: false,
+        },
+      }));
+      return;
+    }
+    const { refs } = (await res.json()) as {
+      refs: { name: string; found: boolean; yaml?: string }[];
+    };
+    const yaml = refs
+      .map((r) => r.yaml ?? "")
+      .filter(Boolean)
+      .join("\n---\n");
     setState((s) => ({
       ...s,
-      [policyId]: { ...s[policyId], showYaml: !s[policyId]?.showYaml },
+      [policy.id]: { ...(s[policy.id] ?? current), yaml, showYaml: true },
     }));
   }
 
@@ -277,19 +308,17 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                     Apply
                   </button>
                 )}
-                {st.yaml && (
-                  <button
-                    onClick={() => toggleYaml(policy.id)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 transition-colors active:scale-[0.97] hover:bg-brand-100 dark:border-brand-900 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900"
+                <button
+                  onClick={() => toggleYaml(policy)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 transition-colors active:scale-[0.97] hover:bg-brand-100 dark:border-brand-900 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900"
+                >
+                  <span
+                    className={`transition-transform ${st.showYaml ? "rotate-90" : ""}`}
                   >
-                    <span
-                      className={`transition-transform ${st.showYaml ? "rotate-90" : ""}`}
-                    >
-                      ›
-                    </span>
-                    {st.showYaml ? "hide YAML" : "view YAML"}
-                  </button>
-                )}
+                    ›
+                  </span>
+                  {st.showYaml ? "hide YAML" : "view YAML"}
+                </button>
               </div>
               <StatusBadge status={st.status} />
             </div>

@@ -375,38 +375,37 @@ func authPillar() Pillar {
 				ID:    "auth-accounts-rbac",
 				Title: "Accounts Agent → Core Banking (MCP tool RBAC)",
 				Explanation: "Same agent, same MCP server, a different question: does this token carry " +
-					"the right to call this exact tool right now? list_accounts and get_transactions are " +
-					"open to any authenticated customer, but get_account_detail - which returns full " +
-					"account and routing numbers - is gated by a CEL rule on the MCP backend requiring an " +
-					"is_org_admin claim. Your session token doesn't carry it, so that one tool call is " +
-					"denied even though the Impersonation exchange above succeeds cleanly every time. This " +
-					"is Question 4: capability-at-the-tool, evaluated at the moment of the call, not once " +
-					"at login. Ask the agent to list your accounts, then edit the prompt above and ask for " +
-					"your full account number to see the same identity denied one tool over.",
+					"the right to call this exact tool right now? Run the agent now, before applying " +
+					"anything below - list_accounts and get_transactions are open to any authenticated " +
+					"customer, and so, right now, is get_account_detail, which returns full account and " +
+					"routing numbers. Apply the policy below, then run the agent again with the exact " +
+					"same question: now a CEL rule on the MCP backend requires an is_org_admin claim for " +
+					"that one tool, and your session token doesn't carry it, so the call is denied even " +
+					"though the Impersonation exchange still succeeds cleanly every time. This is " +
+					"Question 4: capability-at-the-tool, evaluated at the moment of the call, not once " +
+					"at login.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Accounts as Accounts Agent\n" +
 					"  participant AGW as agentgateway\n" +
 					"  participant Bank as Core Banking MCP\n" +
-					"  Accounts->>AGW: tools/call list_accounts (Bearer exchanged token)\n" +
-					"  AGW->>Bank: forward\n" +
-					"  Bank-->>Accounts: accounts + balances\n" +
+					"  Note over AGW: before Apply - no rule at all\n" +
+					"  Accounts->>AGW: tools/call get_account_detail (Bearer exchanged token)\n" +
+					"  AGW->>Bank: forward (nothing stops it)\n" +
+					"  Bank-->>Accounts: account + routing numbers\n" +
+					"  Note over AGW: after Apply\n" +
 					"  Accounts->>AGW: tools/call get_account_detail (same token)\n" +
 					"  AGW->>AGW: CEL: jwt.is_org_admin == true -> required\n" +
 					"  AGW-->>Accounts: 403 denied - tool-level RBAC",
 				Policies: []Policy{
 					{
-						ID:       "auth-accounts-rbac",
-						Title:    "Core Banking standard route + tool RBAC",
-						ReadOnly: true,
-						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-standard"},
-							{GVR: opsAgentPolicyGVR, Name: "mcp-tool-access-core-banking-standard-backend"},
-						},
+						ID:           "auth-accounts-rbac",
+						Title:        "MCP tool RBAC: admin-only account detail",
+						ManifestPath: "auth/accounts-rbac.yaml.tmpl",
 					},
 				},
 				OpsAgent: &OpsAgentDemo{
 					Agent:         "accounts",
-					DefaultPrompt: "List my accounts and recent transactions.",
+					DefaultPrompt: "What's my full account and routing number?",
 				},
 			},
 			{
@@ -465,22 +464,28 @@ func authPillar() Pillar {
 				ID:    "auth-settlement-rbac",
 				Title: "Settlement → Core Banking (right task, right now)",
 				Explanation: "The chain of custody from the previous step isn't just an audit trail - " +
-					"it's the authorization decision. The transfer tool's CEL rule on the delegation route " +
-					"requires jwt.act.act.sub to equal the Transfer Orchestrator's ServiceAccount " +
-					"(system:serviceaccount:agentgateway-system:transfer-orchestrator-agent) before it " +
-					"will move money; a direct call to transfer with your own token - same user, same " +
-					"bank, no Orchestrator anywhere in the chain - is denied, even though your identity is " +
-					"exactly as valid as it was a moment ago. This is Question 4 at its sharpest: holding a " +
+					"it's the authorization decision. Run the agent now, before applying anything below: " +
+					"a direct transfer with your own token - same user, same bank, no Orchestrator " +
+					"anywhere in the chain - succeeds, because no rule stops it yet. Apply the policy " +
+					"below: now the transfer tool's CEL rule on the delegation route requires " +
+					"jwt.act.act.sub to equal the Transfer Orchestrator's ServiceAccount before it will " +
+					"move money. Run the agent again - the chained \"move $500\" path is still allowed, " +
+					"because the Orchestrator really does vouch for it. Use the direct-call button below " +
+					"to retry the same raw, non-delegated transfer - now denied, every time. Holding a " +
 					"capability (your token can reach this backend) and having been delegated to (the " +
-					"Orchestrator vouches for you) are each necessary and neither is sufficient alone - the " +
-					"call is allowed only where both are true, checked at the moment of the call. Run the " +
-					"same \"move $500\" prompt again to see the chained path allowed; a raw direct " +
-					"transfer that bypasses the Orchestrator entirely is denied the same way every time.",
+					"Orchestrator vouches for you) are each necessary and neither is sufficient alone. " +
+					"This is Question 4: capability-at-the-tool, evaluated against the full delegation " +
+					"chain, not just at login.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Settle as Settlement Agent (via chain)\n" +
 					"  participant Direct as You (direct call, no chain)\n" +
 					"  participant AGW as agentgateway\n" +
 					"  participant Bank as Core Banking MCP\n" +
+					"  Note over AGW: before Apply - no rule at all\n" +
+					"  Direct->>AGW: tools/call transfer (your token, no act chain)\n" +
+					"  AGW->>Bank: forward (nothing stops it)\n" +
+					"  Bank-->>Direct: transfer confirmed\n" +
+					"  Note over AGW: after Apply\n" +
 					"  Settle->>AGW: tools/call transfer (act.act.sub = transfer-orchestrator-agent)\n" +
 					"  AGW->>AGW: CEL: jwt.act.act.sub == orchestrator SA -> Allow\n" +
 					"  AGW->>Bank: forward\n" +
@@ -490,18 +495,20 @@ func authPillar() Pillar {
 					"  AGW-->>Direct: 403 denied - wrong task, wrong path",
 				Policies: []Policy{
 					{
-						ID:       "auth-settlement-rbac",
-						Title:    "Core Banking delegation route + actor-gated transfer RBAC",
-						ReadOnly: true,
-						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-delegation"},
-							{GVR: opsAgentPolicyGVR, Name: "mcp-tool-access-core-banking-delegation-backend"},
-						},
+						ID:           "auth-settlement-rbac",
+						Title:        "MCP tool RBAC: transfer requires the delegation chain",
+						ManifestPath: "auth/settlement-rbac.yaml.tmpl",
 					},
 				},
 				OpsAgent: &OpsAgentDemo{
 					Agent:         "transfer-orchestrator",
 					DefaultPrompt: "Move $500 from savings to checking.",
+				},
+				DirectCall: &DirectCallDemo{
+					Title:     "Try a direct transfer (no delegation chain)",
+					Path:      "/core-banking-delegation/mcp",
+					Tool:      "transfer",
+					Arguments: map[string]any{"from_account": "savings", "to_account": "checking", "amount": 500},
 				},
 			},
 			{

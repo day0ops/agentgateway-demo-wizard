@@ -1,0 +1,21 @@
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: auth-accounts-rbac
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: enterpriseagentgateway.solo.io
+      kind: EnterpriseAgentgatewayBackend
+      name: core-banking-standard-backend
+  backend:
+    mcp:
+      authorization:
+        action: Allow
+        policy:
+          matchExpressions:
+            - "mcp.tool.name == \"list_accounts\""
+            - "mcp.tool.name == \"get_transactions\""
+            - "mcp.tool.name == \"get_account_detail\" && jwt.is_org_admin == \"true\""
