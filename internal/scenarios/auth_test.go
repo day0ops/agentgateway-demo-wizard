@@ -128,7 +128,7 @@ func TestStatementsStepsSetModeToSelectTheRightProvider(t *testing.T) {
 // read-only agent step - see the field-kit integration contract referenced
 // from the GVR const docs in registry.go.
 var wantViewRefNames = map[string][]string{
-	"auth-accounts-impersonation": {"core-banking-standard"},
+	"auth-accounts-impersonation": {"core-banking-standard", "oauth-token-exchange-core-banking-standard"},
 	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation"},
 	"auth-statements-interactive": {"mcp-paypal", "elicitation-backend-paypal-mcp-backend"},
 	"auth-statements-brokered":    {"mcp-stripe-brokered", "elicitation-backend-stripe-mcp-brokered-backend"},
@@ -142,6 +142,7 @@ var wantViewRefNames = map[string][]string{
 // not whatever policyName the usecase config happens to set - every policy
 // goes through that merge/rename pipeline regardless of contributor count.
 var policyViewRefNames = map[string]bool{
+	"oauth-token-exchange-core-banking-standard":      true,
 	"elicitation-backend-paypal-mcp-backend":          true,
 	"elicitation-backend-stripe-mcp-brokered-backend": true,
 }
