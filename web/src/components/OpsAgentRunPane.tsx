@@ -94,7 +94,7 @@ export function OpsAgentRunPane({
         <button
           onClick={run}
           disabled={running}
-          className="rounded bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
+          className="rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
         >
           Run agent
         </button>
