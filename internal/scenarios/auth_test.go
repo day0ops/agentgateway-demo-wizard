@@ -193,6 +193,7 @@ func TestAuthExplanationsNameTheQuestionsTheyAnswer(t *testing.T) {
 		"auth-accounts-impersonation": {"Question 1", "Question 2", "Question 3"},
 		"auth-accounts-rbac":          {"Question 4"},
 		"auth-transfer-chain":         {"Question 1", "Question 2", "Question 3"},
+		"auth-settlement-rbac":        {"Question 4"},
 		"auth-statements-interactive": {"Question 4"},
 		"auth-statements-brokered":    {"Question 4"},
 	}

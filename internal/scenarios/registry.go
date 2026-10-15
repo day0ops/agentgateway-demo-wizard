@@ -473,7 +473,9 @@ func authPillar() Pillar {
 					"because the Orchestrator really does vouch for it. Use the direct-call button below " +
 					"to retry the same raw, non-delegated transfer - now denied, every time. Holding a " +
 					"capability (your token can reach this backend) and having been delegated to (the " +
-					"Orchestrator vouches for you) are each necessary and neither is sufficient alone.",
+					"Orchestrator vouches for you) are each necessary and neither is sufficient alone. " +
+					"This is Question 4: capability-at-the-tool, evaluated against the full delegation " +
+					"chain, not just at login.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Settle as Settlement Agent (via chain)\n" +
 					"  participant Direct as You (direct call, no chain)\n" +
