@@ -40,6 +40,9 @@ type Step struct {
 	// instead of a Configure+DriveRequest pane pair or this repo's own
 	// built-in agent loop (AgentDemo).
 	OpsAgent *OpsAgentDemo `json:"opsAgent,omitempty"`
+	// DirectCall marks a step with an additional raw, non-delegated MCP tool
+	// call button alongside its OpsAgent pane - see DirectCallDemo.
+	DirectCall *DirectCallDemo `json:"directCall,omitempty"`
 }
 
 // OpsAgentDemo configures the pane for a step that calls a real external
@@ -55,6 +58,18 @@ type OpsAgentDemo struct {
 	// empty.
 	Mode          string `json:"mode"`
 	DefaultPrompt string `json:"defaultPrompt"`
+}
+
+// DirectCallDemo configures a step's optional "direct, non-delegated call"
+// button (see internal/api/secure_direct_call_handler.go) - for steps whose
+// normal OpsAgent call can never exercise the denied path a policy protects
+// against (e.g. auth-settlement-rbac's Transfer Orchestrator always goes
+// through the proper delegation chain by construction).
+type DirectCallDemo struct {
+	Title     string         `json:"title"`
+	Path      string         `json:"path"`
+	Tool      string         `json:"tool"`
+	Arguments map[string]any `json:"arguments"`
 }
 
 // Policy is one clickops Configure-pane card: a named group of manifests the
