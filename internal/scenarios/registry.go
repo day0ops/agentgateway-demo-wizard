@@ -79,12 +79,13 @@ func introPillar() Pillar {
 			{
 				ID:    "welcome",
 				Title: "Welcome to agentgateway",
-				Explanation: "agentgateway is the one control point every AI call in an organization can " +
-					"flow through - chat completions, agent tool calls - instead of every team wiring " +
-					"up its own access, safety, and cost controls against each provider directly.\n\n" +
-					"- This wizard drives a live agentgateway instance: every step applies real " +
-					"configuration to a real cluster and fires real requests through it.\n" +
-					"- You'll see the gateway's policies working, not just read about them.\n\n" +
+				Explanation: "agentgateway is the single control point every AI call in an organization " +
+					"can flow through - whether that's a chatbot answering a question or an AI agent " +
+					"calling a tool - instead of every team building its own access, safety, and cost " +
+					"controls against each AI provider separately.\n\n" +
+					"- This wizard drives a live agentgateway: every step applies real configuration to " +
+					"a real cluster and sends real requests through it.\n" +
+					"- You'll watch the gateway's policies actually working, not just read about them.\n\n" +
 					"Here's what you'll see:",
 			},
 		},
@@ -100,12 +101,12 @@ func routingPillar() Pillar {
 			{
 				ID:    "routing-by-name",
 				Title: "Model routing by name",
-				Explanation: "Acme Corp's teams all call one agentgateway endpoint, but each request " +
-					"can ask for a different model.\n\n" +
-					"- Here, OpenAI's gpt-4o-mini or Anthropic's Claude.\n" +
-					"- The gateway resolves the backend from a single signal in the request and " +
-					"forwards to the right provider.\n" +
-					"- One endpoint, many models, zero client-side routing logic.",
+				Explanation: "Acme Corp's teams all call one agentgateway address, but each request " +
+					"can ask for a different AI model by name.\n\n" +
+					"- Here, that's OpenAI's gpt-4o-mini or Anthropic's Claude.\n" +
+					"- The gateway reads which model the request wants and forwards it to the right " +
+					"provider.\n" +
+					"- One address, many models, and no routing logic in the app itself.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -151,10 +152,12 @@ func routingPillar() Pillar {
 			{
 				ID:    "routing-dynamic",
 				Title: "Dynamic routing",
-				Explanation: "The gateway isn't limited to routing by model name - any signal in the " +
-					"request can steer traffic.\n\n" +
-					"- Here, a tier header picks between a fast, inexpensive model and a premium one.\n" +
-					"- The caller never needs to know which concrete model backs each tier.",
+				Explanation: "The gateway doesn't have to route by model name - anything in the " +
+					"request can steer it.\n\n" +
+					"- Here, a simple \"tier\" label on the request picks between a fast, cheap model " +
+					"and a premium one.\n" +
+					"- The caller just asks for \"fast\" or \"premium\" and never needs to know which " +
+					"actual model sits behind each tier.",
 				Diagram: "flowchart LR\n" +
 					"  Client -->|\"X-Model-Tier: fast\"| AGW[agentgateway]\n" +
 					"  Client -->|\"X-Model-Tier: premium\"| AGW\n" +
@@ -195,10 +198,12 @@ func routingPillar() Pillar {
 			{
 				ID:    "routing-fallback",
 				Title: "Automatic fallback",
-				Explanation: "Production traffic doesn't get to choose a good day.\n\n" +
-					"- agentgateway groups backends into priority tiers.\n" +
-					"- Traffic automatically shifts to the next tier the moment the current one degrades.\n" +
-					"- No client retry logic, no manual failover runbook.",
+				Explanation: "Real traffic has to keep working even when a provider is having a bad " +
+					"day.\n\n" +
+					"- agentgateway ranks the AI providers in priority order.\n" +
+					"- If the preferred one slows down or starts failing, traffic shifts to the next " +
+					"one automatically, in the moment.\n" +
+					"- No retry code in the app, and no one paged to flip a switch by hand.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -234,11 +239,13 @@ func routingPillar() Pillar {
 			{
 				ID:    "routing-streaming",
 				Title: "Streaming responses",
-				Explanation: "OpenAI is natively OpenAI-compatible, so \"stream\": true in the " +
-					"request body is all agentgateway needs - no separate streaming policy.\n\n" +
-					"- The same by-name route from the first step now returns the response as it's " +
-					"generated, token by token.\n" +
-					"- The caller never has to wait for the whole completion.",
+				Explanation: "agentgateway speaks OpenAI's API natively, so streaming just works: " +
+					"adding \"stream\": true to the request is all it takes - there's no extra setting " +
+					"to turn on.\n\n" +
+					"- The same by-name route from the first step now sends the answer back piece by " +
+					"piece, as the model writes it.\n" +
+					"- The user starts reading right away instead of waiting for the whole reply to " +
+					"finish.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -278,21 +285,22 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-questions",
 				Title: "Four questions every call must answer",
-				Explanation: "Everything else in this pillar is a real agent calling a real banking " +
-					"tool, and every one of those calls has to answer the same four questions before " +
-					"agentgateway lets it through.\n\n" +
-					"- Question 1: who is this being acted on behalf of - carried in the token's sub " +
-					"claim, and it should be the real customer, not a stand-in.\n" +
-					"- Question 2: who is actually performing the action - carried in act, and in a " +
-					"nested act.act once more than one agent is in the chain.\n" +
-					"- Question 3: is this token intended for this specific service - carried in aud, " +
-					"scoped down every time the gateway exchanges a token, so a token minted for one " +
-					"backend can't be replayed against another.\n" +
-					"- Question 4: does this agent have the right to this exact task right now - " +
-					"decided per MCP tool call, as the intersection of what the agent is capable of and " +
-					"what the user actually delegated to it.\n\n" +
-					"Authentication only ever answers the first two; the gateway enforces all four, on " +
-					"every call, not just at login.",
+				Explanation: "Everything after this step is a real AI agent calling a real banking " +
+					"tool on your behalf. Before agentgateway lets any of those calls through, it " +
+					"checks the same four things every time - and logging in only settles the first " +
+					"two.\n\n" +
+					"- **Question 1 - who is this for?** The call has to act for the real customer, " +
+					"not a stand-in (the identity in the token's `sub`).\n" +
+					"- **Question 2 - who is actually doing it?** When one agent hands work to " +
+					"another, every agent in the chain is named, in order (the `act` chain).\n" +
+					"- **Question 3 - is this token meant for this exact service?** Each time the " +
+					"gateway passes a token along, it narrows what that token is good for, so one " +
+					"stolen on its way to the ledger is useless anywhere else (the `aud`).\n" +
+					"- **Question 4 - is this agent allowed to do this one thing, right now?** " +
+					"Decided at the moment of each tool call: the overlap between what the agent " +
+					"*can* do and what you actually asked it to do.\n\n" +
+					"Logging in answers only the first two. agentgateway checks all four, on every " +
+					"single call.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Agent\n" +
@@ -311,21 +319,20 @@ func authPillar() Pillar {
 				ID:        "auth-login",
 				Title:     "Real login",
 				LoginDemo: true,
-				Explanation: "Every other step in this pillar - and every other pillar in this wizard - " +
-					"uses a quick password grant: the wizard itself asks Keycloak for a token using a " +
-					"fixed demo username and password. That's fine for driving routing or cost demos, " +
-					"but it's the wrong way to establish Question 1 (who this is being acted on behalf " +
-					"of) for a real customer.\n\n" +
-					"This step replaces it with agentgateway's own OAuth authorization code flow:\n\n" +
-					"- agentgateway - not the wizard - is the OAuth client, and owns the entire redirect " +
-					"to Keycloak's real hosted login page.\n" +
-					"- It banks the resulting session, and every subsequent call in this pillar carries " +
-					"that real sub, forwarded by agentgateway itself as a standard Authorization header.\n" +
-					"- The session is refreshed transparently server-side, so it outlives any single " +
-					"token's short lifespan without the wizard managing any of it.\n\n" +
-					"This is the clearest illustration of the welcome step's own claim: agentgateway is " +
-					"the one control point every call can flow through - here, that includes the login " +
-					"itself, not just the downstream MCP calls.",
+				Explanation: "Every other step in this wizard takes a shortcut to log you in: the " +
+					"wizard itself asks Keycloak (the identity provider) for a token using a fixed demo " +
+					"username and password. That's fine for showing off routing or cost, but it's the " +
+					"wrong way to prove **Question 1** - who a real customer actually is.\n\n" +
+					"This step does it properly, the way a real app would:\n\n" +
+					"- agentgateway itself - not the wizard - sends you to Keycloak's own hosted login " +
+					"page, and you sign in there.\n" +
+					"- From then on, every call in this pillar carries your real identity, attached by " +
+					"agentgateway as a standard login token - the wizard never handles it.\n" +
+					"- agentgateway quietly renews that login in the background, so your session keeps " +
+					"working without anyone managing it.\n\n" +
+					"It's the welcome screen's promise made literal: agentgateway is the one point every " +
+					"call flows through - and here, that includes the login itself, not just the banking " +
+					"calls that follow.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Browser\n" +
 					"  participant AGW as agentgateway (ext-auth)\n" +
@@ -343,16 +350,16 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-accounts-impersonation",
 				Title: "Accounts Agent → Core Banking (Impersonation)",
-				Explanation: "The Accounts Agent takes your real session token as-is and presents it " +
-					"straight to the Core Banking MCP server's gateway route; agentgateway performs a " +
-					"Standard/Impersonation token exchange itself before forwarding - the same identity, " +
-					"re-signed for this backend, with no act claim.\n\n" +
-					"- Question 1: sub is still you.\n" +
-					"- Question 2: the only actor here is the gateway itself, impersonating - nothing " +
-					"was delegated.\n" +
-					"- Question 3: the exchanged token's aud is scoped to the core banking backend, so " +
-					"even if it leaked, it couldn't be replayed against any other service - a token " +
-					"minted for the ledger only works on the ledger.",
+				Explanation: "The Accounts Agent reads your own balances and recent activity from the " +
+					"Core Banking system. It passes your login along as-is, and agentgateway swaps it " +
+					"for a token scoped to the banking system before forwarding the call - same you, " +
+					"just re-issued for this one backend.\n\n" +
+					"- **Question 1 - who is this for?** Still you (`sub` is unchanged).\n" +
+					"- **Question 2 - who's acting?** Only the gateway, standing in for you directly. " +
+					"No other agent is involved yet, so there's nothing to delegate.\n" +
+					"- **Question 3 - is the token meant for this service?** Yes, and only this one: " +
+					"it's scoped to the banking system (`aud`), so even if it leaked it couldn't be " +
+					"used anywhere else - a token for the ledger only works on the ledger.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
@@ -386,17 +393,17 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-accounts-rbac",
 				Title: "Accounts Agent → Core Banking (MCP tool RBAC)",
-				Explanation: "Same agent, same MCP server, a different question: does this token carry " +
-					"the right to call this exact tool right now?\n\n" +
-					"- Run the agent now, before applying anything below - list_accounts and " +
-					"get_transactions are open to any authenticated customer, and so, right now, is " +
-					"get_account_detail, which returns full account and routing numbers.\n" +
-					"- Apply the policy below, then run the agent again with the exact same question: " +
-					"now a CEL rule on the MCP backend requires an is_org_admin claim for that one tool, " +
-					"and your session token doesn't carry it, so the call is denied - even though the " +
-					"Impersonation exchange still succeeds cleanly every time.\n\n" +
-					"This is Question 4: capability-at-the-tool, evaluated at the moment of the call, " +
-					"not once at login.",
+				Explanation: "Same agent, same banking system, but a sharper question: is this user " +
+					"allowed to call this *specific* tool right now?\n\n" +
+					"- **Try it first, before applying anything below.** Listing accounts and reading " +
+					"transactions are open to any logged-in customer - and so, right now, is pulling " +
+					"full account and routing numbers.\n" +
+					"- **Now apply the policy and ask the exact same thing again.** A rule on the " +
+					"banking backend now requires an \"org admin\" mark on your login for that one " +
+					"tool. Yours doesn't have it, so that call is turned down - even though logging in " +
+					"and reaching the backend still work perfectly.\n\n" +
+					"That's **Question 4**: permission checked at the individual tool, in the moment of " +
+					"the call - not decided once at login.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Accounts as Accounts Agent\n" +
 					"  participant AGW as agentgateway\n" +
@@ -424,20 +431,20 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-transfer-chain",
 				Title: "Transfer Orchestrator → Settlement → Core Banking (Delegation)",
-				Explanation: "Moving money needs more than your own identity re-signed - it needs a " +
-					"verified record of which agents acted along the way.\n\n" +
-					"- The Transfer Orchestrator exchanges your token at the STS, presenting its own " +
-					"Kubernetes ServiceAccount as actor; the resulting token carries " +
-					"act=transfer-orchestrator-agent.\n" +
-					"- It calls the Settlement Agent with that token, not your raw one; Settlement " +
-					"exchanges it again, presenting its own SA as actor.\n" +
-					"- The token that finally calls Core Banking's transfer tool carries a nested act: " +
-					"act.sub is Settlement, act.act.sub is the Orchestrator - a signed chain of custody " +
-					"for every hop.\n\n" +
-					"That answers Question 1 (sub is still you throughout) and Question 2 (act / " +
-					"act.act name exactly which agents acted, in order), and Question 3: each exchange " +
-					"is scoped to the next hop's audience, so neither intermediate token works anywhere " +
-					"but its intended destination.",
+				Explanation: "Moving money takes more than proving who you are - the bank needs a " +
+					"signed record of every agent that touched the request on its way to the ledger.\n\n" +
+					"- You ask the Transfer Orchestrator to move money. It never touches the ledger " +
+					"itself - it hands the job to the Settlement Agent, stamping its own name on the " +
+					"request as it passes it along.\n" +
+					"- The Settlement Agent does the same, adding its own name, before it finally calls " +
+					"the transfer tool.\n" +
+					"- The request that reaches Core Banking carries the whole signed trail: still " +
+					"*your* money, moved by Settlement, acting for the Orchestrator, acting for you (a " +
+					"nested `act` chain).\n\n" +
+					"That covers **Question 1** (it's still you throughout), **Question 2** (the trail " +
+					"names exactly which agents acted, and in what order), and **Question 3** (each " +
+					"hand-off is locked to the next service only, so a token grabbed mid-chain is " +
+					"useless anywhere else).",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
@@ -480,22 +487,22 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-settlement-rbac",
 				Title: "Settlement → Core Banking (right task, right now)",
-				Explanation: "The chain of custody from the previous step isn't just an audit trail - " +
-					"it's the authorization decision.\n\n" +
-					"- Run the agent now, before applying anything below: a direct transfer with your " +
-					"own token - same user, same bank, no Orchestrator anywhere in the chain - succeeds, " +
-					"because no rule stops it yet.\n" +
-					"- Apply the policy below: now the transfer tool's CEL rule on the delegation route " +
-					"requires jwt.act.act.sub to equal the Transfer Orchestrator's ServiceAccount before " +
-					"it will move money.\n" +
-					"- Run the agent again - the chained \"move $500\" path is still allowed, because " +
-					"the Orchestrator really does vouch for it.\n" +
-					"- Use the direct-call button below to retry the same raw, non-delegated transfer - " +
-					"now denied, every time.\n\n" +
-					"Holding a capability (your token can reach this backend) and having been delegated " +
-					"to (the Orchestrator vouches for you) are each necessary and neither is sufficient " +
-					"alone. This is Question 4: capability-at-the-tool, evaluated against the full " +
-					"delegation chain, not just at login.",
+				Explanation: "That signed trail from the last step isn't just for auditing later - " +
+					"it's what the bank uses to decide whether to move the money at all.\n\n" +
+					"- **Try it first, before applying anything.** Run the agent: the proper chained " +
+					"\"move $500\" request goes through. A direct transfer with just your own login - " +
+					"same user, same bank, but no Orchestrator in the trail - also goes through for now, " +
+					"because nothing is stopping it yet.\n" +
+					"- **Now apply the policy.** The transfer tool now insists the request arrive " +
+					"through the Transfer Orchestrator - its name has to be in the signed trail before " +
+					"any money moves.\n" +
+					"- **Run the agent again** and the proper chained path still works, because the " +
+					"Orchestrator really did vouch for it.\n" +
+					"- **Then use the \"direct transfer\" button below** to try the raw, chain-less " +
+					"transfer again - now it's turned down, every time.\n\n" +
+					"Reaching the banking system and being properly delegated to are *both* required, " +
+					"and neither is enough on its own. That's **Question 4**: permission judged against " +
+					"the whole chain of who-acted-for-whom, not just who logged in.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Settle as Settlement Agent (via chain)\n" +
 					"  participant Direct as You (direct call, no chain)\n" +
@@ -534,20 +541,19 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-statements-interactive",
 				Title: "Statements Agent → PayPal (Interactive elicitation)",
-				Explanation: "Not every credential an agent needs lives in Keycloak. The Statements " +
-					"Agent calls PayPal's own real MCP server, in sandbox mode, on your behalf - but " +
-					"the gateway has no PayPal token for you yet.\n\n" +
-					"- Instead of failing, the STS returns a one-time consent URL; after you approve it " +
-					"in the Solo UI, the STS stores a real PayPal OAuth token and injects it into every " +
-					"later call automatically.\n" +
-					"- This step uses PayPal rather than Stripe for a concrete reason: Stripe's OAuth " +
-					"app only ever issues secretless public clients (confirmed live against its own " +
-					"metadata), which Interactive elicitation - a classic static client_id/secret flow - " +
-					"can't use, while PayPal's does support that model.\n" +
-					"- Either way, this consent only ever proves you authorized some account access, not " +
-					"which Statements tools the agent may actually call; that's still Question 4's job, " +
-					"enforced the same way as the banking tools above.\n\n" +
-					"The agent never sees or stores the PayPal token itself.",
+				Explanation: "Some things an agent needs to reach live outside the bank entirely. Here " +
+					"the Statements Agent pulls your history from PayPal's own system (in sandbox mode), " +
+					"on your behalf - but the gateway doesn't have your permission to use PayPal yet.\n\n" +
+					"- Instead of just failing, the gateway hands back a one-time approval link. You open " +
+					"it, approve access once, and from then on the gateway quietly supplies your PayPal " +
+					"credential on every later call.\n" +
+					"- This step uses PayPal, and the next one uses Stripe, because the two connect in " +
+					"genuinely different ways - PayPal fits this \"send the user off to approve it\" " +
+					"style, which is the contrast the next step builds on.\n" +
+					"- Approving PayPal only proves you allowed the connection; it still doesn't decide " +
+					"which Statements tools the agent may call. That's **Question 4** again, enforced " +
+					"exactly like the banking tools earlier.\n\n" +
+					"The agent itself never sees or stores your PayPal credential.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
@@ -592,22 +598,20 @@ func authPillar() Pillar {
 			{
 				ID:    "auth-statements-brokered",
 				Title: "Statements Agent → Stripe (Brokered elicitation)",
-				Explanation: "Same agent, a different external processor, a smoother path.\n\n" +
-					"- Stripe's own OAuth app is DCR + PKCE only, no static secret - which is exactly " +
-					"the shape Brokered is built for, unlike the PayPal step above.\n" +
-					"- You already authenticated once, back in the login step - there's no need to " +
-					"send you out to the Solo UI again just to connect Stripe.\n" +
-					"- This route's gateway-hosted OAuth issuer brokers only the missing upstream " +
-					"credential inline: it shows its own consent screen for Stripe, banks the resulting " +
-					"Stripe token keyed to your identity, and retries the call in the same round trip.\n" +
-					"- This is not a token exchange - the downstream token presented to the Statements " +
-					"MCP route still identifies you directly; only the upstream Stripe credential is " +
-					"brokered, stored exactly the way the Interactive flow above stores its own.\n\n" +
-					"What's unchanged is Question 4 - the agent's tool access is still gated by " +
-					"MCP-level authorization, exactly as it is in the interactive route. The contrast is " +
-					"the point: Interactive sends you to a separate consent surface because nothing " +
-					"else trusts it yet; Brokered folds that consent into the gateway's own issuer " +
-					"because your session already does.",
+				Explanation: "Same agent, a different outside service (Stripe), and a smoother path to " +
+					"connecting it.\n\n" +
+					"- You already signed in once, back at the login step, and the gateway trusts that - " +
+					"so there's no need to send you off to a separate approval page again.\n" +
+					"- Instead, the gateway handles the Stripe connection inline: it shows its own " +
+					"approval screen, saves the resulting Stripe credential against your identity, and " +
+					"retries the call in the same round trip.\n" +
+					"- Your identity to the bank doesn't change here - you're still you. The only thing " +
+					"being brokered is the extra Stripe credential, saved the same way the PayPal step " +
+					"saved its own.\n\n" +
+					"**Question 4** is unchanged - the agent's tool access is still checked per tool, " +
+					"exactly as before. The contrast is the whole point: PayPal sent you to a separate " +
+					"page because nothing trusted you there yet; Stripe can fold approval right into the " +
+					"gateway because your session already does.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant You\n" +
 					"  participant Wizard\n" +
@@ -657,10 +661,11 @@ func guardrailsPillar() Pillar {
 			{
 				ID:    "guardrails-prompt-guard",
 				Title: "Not everything should get through",
-				Explanation: "A valid token only proves who's asking - it says nothing about " +
-					"whether what they're asking for, or what comes back, is safe to send.\n\n" +
-					"- Custom phrases and built-in PII patterns are rejected outright on the way in.\n" +
-					"- The same patterns are masked on the way out.",
+				Explanation: "Knowing who's asking says nothing about whether the request itself - or " +
+					"the answer coming back - is safe to send.\n\n" +
+					"- Banned phrases and personal data like Social Security numbers are blocked outright " +
+					"on the way in.\n" +
+					"- The same patterns are hidden on the way back out.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -706,12 +711,12 @@ func guardrailsPillar() Pillar {
 			{
 				ID:    "guardrails-banking-inbound",
 				Title: "A valid token doesn't vouch for the ask",
-				Explanation: "That's the general case. For a bank, the inbound half of the story needs " +
-					"its own policy: a valid token says who's asking, not whether what they're asking " +
-					"for is a legitimate banking request.\n\n" +
-					"- A safe banking question passes through normally.\n" +
-					"- A prohibited ask - soliciting another customer's account data, a full card " +
-					"number - is rejected on the way in, before the request ever reaches the model.",
+				Explanation: "That was the general case. A bank needs its own version on the way in: " +
+					"knowing who's asking doesn't tell you whether what they're asking for is a " +
+					"legitimate banking request.\n\n" +
+					"- A normal banking question passes straight through.\n" +
+					"- An off-limits one - fishing for another customer's account details, or a full " +
+					"card number - is blocked before it ever reaches the model.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -748,15 +753,14 @@ func guardrailsPillar() Pillar {
 			{
 				ID:    "guardrails-banking-outbound-mask",
 				Title: "Authorized doesn't mean unredacted",
-				Explanation: "Auth already decided who's asking and whether the ask itself is allowed - " +
-					"that question is answered before the request ever reaches this step. Guardrails " +
-					"ask a different one: once the model answers, is the content itself safe to send " +
-					"back?\n\n" +
+				Explanation: "By now, who's asking and whether the request was allowed are both already " +
+					"settled - decided before the answer is even generated. Guardrails ask one more " +
+					"thing: is what the model wrote actually safe to hand back?\n\n" +
 					"- The caller was fully authorized. The gateway still won't let the full account " +
 					"number leave.\n" +
-					"- agentgateway masks account and routing numbers out of the response entirely, and " +
-					"reveals only the last 4 digits of a card number - the same way it rejected " +
-					"prohibited asks on the way in.",
+					"- agentgateway strips account and routing numbers out of the reply completely, and " +
+					"shows only the last 4 digits of a card number - the mirror image of what it blocked " +
+					"on the way in.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -802,13 +806,13 @@ func costPillar() Pillar {
 			{
 				ID:    "cost-attribution",
 				Title: "Cost attribution",
-				Explanation: "Once requests are authenticated per team, agentgateway can price every " +
-					"one of them using a model cost catalog attached to the gateway - no custom " +
-					"billing pipeline required.\n\n" +
-					"- The computed spend (llm.cost, agw.ai.usage.cost.total) lands in agentgateway's " +
-					"own request logs, ready to feed a cost dashboard.\n" +
-					"- The raw response below still shows OpenAI's own token usage - the numbers the " +
-					"catalog prices.",
+				Explanation: "Once every request is tied to a team, agentgateway can put a price on " +
+					"each one using a built-in price list for each model - no separate billing system " +
+					"needed.\n\n" +
+					"- The calculated cost is written into agentgateway's own request logs, ready to feed " +
+					"a spending dashboard.\n" +
+					"- The raw response below still shows the model's own token usage - the figures the " +
+					"price list turns into a dollar amount.",
 				Diagram: "flowchart LR\n" +
 					"  Client -->|POST /cost/openai| AGW[agentgateway]\n" +
 					"  AGW -->|spec.infrastructure.parametersRef| Params[EnterpriseAgentgatewayParameters]\n" +
@@ -840,13 +844,13 @@ func costPillar() Pillar {
 				ID:          "cost-budgets",
 				Title:       "Budgets and spend limits",
 				VirtualKeys: true,
-				Explanation: "Visibility is only half the story - agentgateway can also enforce a " +
-					"hard ceiling.\n\n" +
-					"- team-alpha and team-beta each call with a scoped API key and an identical " +
-					"one-token daily budget.\n" +
-					"- team-alpha's budget is in Audit mode: the overage is logged, the request still " +
-					"succeeds.\n" +
-					"- team-beta's budget is in Block mode: the request is rejected the moment the " +
+				Explanation: "Seeing the spend is only half of it - agentgateway can also enforce a " +
+					"hard limit.\n\n" +
+					"- team-alpha and team-beta each call with their own API key and the same " +
+					"deliberately tiny daily budget, set so it's used up almost immediately.\n" +
+					"- team-alpha's budget is in Audit mode: going over is logged, but the request still " +
+					"goes through.\n" +
+					"- team-beta's budget is in Block mode: the request is turned down the instant the " +
 					"budget is exceeded.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Alpha as team-alpha (API key)\n" +
@@ -898,14 +902,14 @@ func agentPillar() Pillar {
 				ID:        "agent-mcp-server",
 				Title:     "Wealth & FX desk agent",
 				AgentDemo: true,
-				Explanation: "Agents don't just call models - they call tools. Here, agentgateway " +
-					"fronts two real MCP servers behind the bank's Wealth & FX desk: a stock position " +
-					"lookup and a currency exchange rate lookup.\n\n" +
+				Explanation: "Agents don't just talk to models - they use tools. Here, agentgateway " +
+					"sits in front of two real tool servers behind the bank's Wealth & FX desk: one " +
+					"looks up stock positions, the other looks up currency exchange rates.\n\n" +
 					"Run the agent and watch:\n\n" +
-					"- The model decide which tool to call.\n" +
-					"- agentgateway forward that tool call to the right MCP server.\n" +
-					"- The result flow back into the model's final answer.\n\n" +
-					"All through the same gateway that handled routing, auth, and cost.",
+					"- the model decide which tool it needs,\n" +
+					"- agentgateway pass that request to the right tool server,\n" +
+					"- the result flow back into the model's final answer.\n\n" +
+					"All through the same gateway that handled routing, identity, and cost.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Agent\n" +
 					"  participant AGW as agentgateway\n" +
@@ -926,9 +930,10 @@ func agentPillar() Pillar {
 			{
 				ID:    "agent-mcp-auth",
 				Title: "MCP authentication",
-				Explanation: "The same Wealth & FX desk backend from the last step now requires a " +
-					"valid token before it will even list its tools - agentic tool access gets the exact " +
-					"same identity enforcement as any other route through the gateway.",
+				Explanation: "The same Wealth & FX desk from the last step now demands a valid login " +
+					"before it will even list its tools. An agent reaching for tools gets its identity " +
+					"checked exactly like any other request through the gateway - nothing is open just " +
+					"because it's an agent asking.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client as MCP Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -967,13 +972,13 @@ func agentPillar() Pillar {
 			{
 				ID:    "agent-token-exchange",
 				Title: "Token exchange (OBO)",
-				Explanation: "Authentication confirms who's calling - token exchange lets the " +
-					"gateway act as that caller against the Wealth & FX desk's MCP backend, without " +
-					"the client ever handling a second credential.\n\n" +
-					"- agentgateway exchanges the caller's own Keycloak token for a new one at " +
-					"Keycloak's token endpoint (RFC 8693).\n" +
-					"- This happens natively in the data plane, and the exchanged token is forwarded " +
-					"to the MCP backend.",
+				Explanation: "Knowing who's calling is one thing - this step lets the gateway then act " +
+					"as that caller against the Wealth & FX desk, without the app ever juggling a second " +
+					"credential.\n\n" +
+					"- agentgateway trades the caller's own login for a fresh one issued for this backend, " +
+					"using a standard token-exchange handshake with the identity provider.\n" +
+					"- It all happens inside the gateway, and the new token is forwarded to the tool " +
+					"server.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Client\n" +
 					"  participant AGW as agentgateway\n" +
@@ -1003,11 +1008,11 @@ func agentPillar() Pillar {
 			{
 				ID:    "agent-mcp-tool-access",
 				Title: "Tool authZ and progressive disclosure",
-				Explanation: "Authentication alone doesn't mean every caller should see every tool.\n\n" +
-					"- team-alpha's token unlocks the full Wealth & FX desk - stock and currency both.\n" +
-					"- team-beta's token - equally valid - only unlocks the stock tool, not FX.\n\n" +
-					"This is progressive disclosure: agents are shown exactly the tool surface their " +
-					"identity is allowed to use, nothing more.",
+				Explanation: "Being logged in doesn't mean every caller should see every tool.\n\n" +
+					"- team-alpha's login unlocks the full Wealth & FX desk - both stock and currency.\n" +
+					"- team-beta's login - just as valid - unlocks only the stock tool, not currency.\n\n" +
+					"Each agent is shown exactly the set of tools its identity is allowed to use, and " +
+					"nothing more.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Alpha as team-alpha\n" +
 					"  participant Beta as team-beta\n" +
@@ -1052,16 +1057,16 @@ func wrapPillar() Pillar {
 			{
 				ID:    "recap",
 				Title: "One gateway, five guarantees",
-				Explanation: "Every request we just ran - chat completions, blocked and masked " +
-					"content, budget-limited calls, and agent tool calls - went through the same " +
-					"agentgateway control point. Five things, one gateway:\n\n" +
-					"- Routing\n" +
-					"- Identity\n" +
+				Explanation: "Every request we just ran - chatbot replies, blocked and masked content, " +
+					"budget-limited calls, and agent tool calls - went through the same agentgateway " +
+					"control point. Five jobs, one gateway:\n\n" +
+					"- Routing to the right model\n" +
+					"- Identity - who's allowed to do what\n" +
 					"- Content safety\n" +
-					"- Cost\n" +
-					"- Agentic tool access\n\n" +
-					"They aren't five separate systems to integrate and maintain - they're one " +
-					"gateway's policies.",
+					"- Cost tracking and limits\n" +
+					"- Governed agent tool access\n\n" +
+					"They aren't five separate systems to buy, wire together, and maintain - they're all " +
+					"just policies on one gateway.",
 			},
 		},
 	}
