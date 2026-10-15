@@ -3,7 +3,7 @@ import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
 import {
-  vs,
+  oneLight,
   vscDarkPlus,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { getTheme, onThemeChange } from "../lib/theme";
@@ -24,7 +24,7 @@ export function CodeBlock({
   return (
     <SyntaxHighlighter
       language={language}
-      style={theme === "dark" ? vscDarkPlus : vs}
+      style={theme === "dark" ? vscDarkPlus : oneLight}
       wrapLongLines
       className="rounded bg-slate-50 text-xs dark:bg-slate-950"
       customStyle={{ background: "transparent", margin: 0, padding: "0.75rem" }}
