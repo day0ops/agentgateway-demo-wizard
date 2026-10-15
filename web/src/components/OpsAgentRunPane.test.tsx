@@ -18,7 +18,6 @@ describe("OpsAgentRunPane", () => {
 
     render(
       <OpsAgentRunPane
-        identity="team-alpha"
         agent="accounts"
         mode=""
         defaultPrompt="What's my balance?"
@@ -41,7 +40,6 @@ describe("OpsAgentRunPane", () => {
 
     render(
       <OpsAgentRunPane
-        identity="team-alpha"
         agent="accounts"
         mode=""
         defaultPrompt="What's my balance?"
@@ -62,6 +60,26 @@ describe("OpsAgentRunPane", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
+  it("renders the identity derived server-side from the JWT when no delegation chain is present", async () => {
+    globalThis.fetch = mockJsonFetch({
+      answer: "Checking balance: $4,210.55",
+      extra: { identity: "team-alpha" },
+    });
+
+    render(
+      <OpsAgentRunPane
+        agent="accounts"
+        mode=""
+        defaultPrompt="What's my balance?"
+      />,
+    );
+    fireEvent.click(screen.getByText("Run agent"));
+
+    await waitFor(() =>
+      expect(screen.getByText("identity: team-alpha")).toBeInTheDocument(),
+    );
+  });
+
   it("renders the decoded delegation chain when present", async () => {
     globalThis.fetch = mockJsonFetch({
       answer: "Transferred $500 from savings to checking.",
@@ -76,7 +94,6 @@ describe("OpsAgentRunPane", () => {
 
     render(
       <OpsAgentRunPane
-        identity="team-alpha"
         agent="transfer-orchestrator"
         mode=""
         defaultPrompt="Move $500 from savings to checking"
@@ -102,7 +119,6 @@ describe("OpsAgentRunPane", () => {
 
     render(
       <OpsAgentRunPane
-        identity="team-alpha"
         agent="accounts"
         mode=""
         defaultPrompt="What's my balance?"
@@ -128,7 +144,6 @@ describe("OpsAgentRunPane", () => {
 
     render(
       <OpsAgentRunPane
-        identity="team-alpha"
         agent="repo"
         mode="standard"
         defaultPrompt="List our repos"
