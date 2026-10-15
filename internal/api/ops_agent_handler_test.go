@@ -1,16 +1,23 @@
 package api
 
 import (
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/day0ops/agentgateway-demo-wizard/internal/config"
-	"github.com/day0ops/agentgateway-demo-wizard/internal/oauthlogin"
 )
+
+// fakeBearerToken builds an unsigned JWT carrying preferred_username, for
+// tests only - decodeJWTClaim never validates the signature, matching what
+// agentgateway's ext-auth has already done before forwarding it.
+func fakeBearerToken(preferredUsername string) string {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"preferred_username":"` + preferredUsername + `"}`))
+	return "Bearer header." + payload + ".sig"
+}
 
 func TestOpsAgentURLResolvesConfiguredAgents(t *testing.T) {
 	cfg := &config.Config{
@@ -18,7 +25,7 @@ func TestOpsAgentURLResolvesConfiguredAgents(t *testing.T) {
 		TransferOrchestratorAgentURL: "http://transfer-orchestrator-agent/run",
 		StatementsAgentURL:           "http://statements-agent/run",
 	}
-	s := NewServer(WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"), WithConfig(cfg))
+	s := NewServer(WithConfig(cfg))
 
 	cases := []struct {
 		agent   string
@@ -43,59 +50,57 @@ func TestOpsAgentURLResolvesConfiguredAgents(t *testing.T) {
 	}
 }
 
-func TestOpsAgentRunRequiresLogin(t *testing.T) {
-	s := NewServer(WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"), WithConfig(&config.Config{}))
+func TestOpsAgentRunRequiresAuthorizationHeader(t *testing.T) {
+	s := NewServer(WithConfig(&config.Config{}))
 
-	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"","query":"what's my balance"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/ops-agent/run", strings.NewReader(reqBody))
+	reqBody := `{"agent":"accounts","mode":"","query":"what's my balance"}`
+	req := httptest.NewRequest(http.MethodPost, "/secure/ops-agent/run", strings.NewReader(reqBody))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401 when no real session token has been captured, got %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 401 with no Authorization header, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
-func TestOpsAgentRunForwardsTokenAndModeToTheTargetAgent(t *testing.T) {
+func TestOpsAgentRunForwardsTokenAndDerivesIdentityFromJWT(t *testing.T) {
 	var gotBody string
 	agentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"answer":"Checking balance: $4,210.55","extra":{"chain":{"sub":"team-alpha"}}}`))
+		_, _ = w.Write([]byte(`{"answer":"Checking balance: $4,210.55"}`))
 	}))
 	defer agentServer.Close()
 
-	s := NewServer(
-		WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"),
-		WithConfig(&config.Config{AccountsAgentURL: agentServer.URL + "/run"}),
-	)
-	s.oauthStore.PutToken("session-1", "team-alpha", oauthlogin.Token{AccessToken: "real-token", ExpiresAt: time.Now().Add(time.Hour)})
+	s := NewServer(WithConfig(&config.Config{AccountsAgentURL: agentServer.URL + "/run"}))
 
-	reqBody := `{"identity":"team-alpha","agent":"accounts","mode":"sts-delegation","query":"what's my balance"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/ops-agent/run", strings.NewReader(reqBody))
-	req.AddCookie(&http.Cookie{Name: oauthlogin.SessionCookieName, Value: "session-1"})
+	reqBody := `{"agent":"accounts","mode":"sts-delegation","query":"what's my balance"}`
+	req := httptest.NewRequest(http.MethodPost, "/secure/ops-agent/run", strings.NewReader(reqBody))
+	req.Header.Set("Authorization", fakeBearerToken("team-alpha"))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(gotBody, `"token":"real-token"`) || !strings.Contains(gotBody, `"mode":"sts-delegation"`) {
-		t.Fatalf("expected the captured token and mode to be forwarded, got: %s", gotBody)
+	if !strings.Contains(gotBody, `"token":"header.`) || !strings.Contains(gotBody, `"mode":"sts-delegation"`) {
+		t.Fatalf("expected the forwarded token and mode in the agent request, got: %s", gotBody)
 	}
-	if !strings.Contains(rec.Body.String(), "Checking balance: $4,210.55") || !strings.Contains(rec.Body.String(), "chain") {
-		t.Fatalf("expected the agent's answer and extra fields to pass through, got: %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "Checking balance: $4,210.55") {
+		t.Fatalf("expected the agent's answer to pass through, got: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"identity":"team-alpha"`) {
+		t.Fatalf("expected identity derived from the JWT claim in the response, got: %s", rec.Body.String())
 	}
 }
 
 func TestOpsAgentRunRejectsUnknownAgent(t *testing.T) {
-	s := NewServer(WithOAuthLogin("https://keycloak.demo.example.com", "/dev/null"), WithConfig(&config.Config{}))
-	s.oauthStore.PutToken("session-1", "team-alpha", oauthlogin.Token{AccessToken: "real-token", ExpiresAt: time.Now().Add(time.Hour)})
+	s := NewServer(WithConfig(&config.Config{}))
 
-	reqBody := `{"identity":"team-alpha","agent":"nonexistent","query":"hi"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/ops-agent/run", strings.NewReader(reqBody))
-	req.AddCookie(&http.Cookie{Name: oauthlogin.SessionCookieName, Value: "session-1"})
+	reqBody := `{"agent":"nonexistent","query":"hi"}`
+	req := httptest.NewRequest(http.MethodPost, "/secure/ops-agent/run", strings.NewReader(reqBody))
+	req.Header.Set("Authorization", fakeBearerToken("team-alpha"))
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 
