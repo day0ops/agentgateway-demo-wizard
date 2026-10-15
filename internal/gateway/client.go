@@ -173,6 +173,98 @@ func (c *Client) ProxyWithToken(ctx context.Context, req Request, token string) 
 	return &Response{StatusCode: resp.StatusCode, Body: string(body), LatencyMS: latency.Milliseconds()}, nil
 }
 
+// mcpRequest is a minimal JSON-RPC 2.0 envelope for the MCP Streamable HTTP
+// handshake ProxyMCPToolCall performs.
+type mcpRequest struct {
+	JSONRPC string         `json:"jsonrpc"`
+	ID      int            `json:"id,omitempty"`
+	Method  string         `json:"method"`
+	Params  map[string]any `json:"params,omitempty"`
+}
+
+// ProxyMCPToolCall performs the three-step MCP Streamable HTTP handshake
+// (initialize -> notifications/initialized -> tools/call) against path using
+// token as the bearer credential on every request, and returns the
+// tools/call result as-is. Verified live against the real Core Banking MCP
+// server: initialize returns an Mcp-Session-Id response header that must be
+// threaded into both subsequent requests, or the server has no session to
+// attach the call to.
+func (c *Client) ProxyMCPToolCall(ctx context.Context, path, token, toolName string, arguments map[string]any) (*Response, error) {
+	endpoint := c.gatewayBaseURL + path
+
+	_, sessionID, err := c.doMCPRequest(ctx, endpoint, token, "", mcpRequest{
+		JSONRPC: "2.0",
+		ID:      1,
+		Method:  "initialize",
+		Params: map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]any{},
+			"clientInfo":      map[string]any{"name": "wizard-direct-call", "version": "1.0"},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("MCP initialize: %w", err)
+	}
+	if sessionID == "" {
+		return nil, fmt.Errorf("MCP initialize: server did not return an Mcp-Session-Id header")
+	}
+
+	if _, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, mcpRequest{
+		JSONRPC: "2.0",
+		Method:  "notifications/initialized",
+	}); err != nil {
+		return nil, fmt.Errorf("MCP notifications/initialized: %w", err)
+	}
+
+	resp, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, mcpRequest{
+		JSONRPC: "2.0",
+		ID:      2,
+		Method:  "tools/call",
+		Params:  map[string]any{"name": toolName, "arguments": arguments},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("MCP tools/call: %w", err)
+	}
+	return resp, nil
+}
+
+// doMCPRequest POSTs one JSON-RPC envelope to endpoint and returns the raw
+// response plus any Mcp-Session-Id the server set in its reply.
+func (c *Client) doMCPRequest(ctx context.Context, endpoint, token, sessionID string, payload mcpRequest) (*Response, string, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, "", fmt.Errorf("encoding MCP request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
+	if err != nil {
+		return nil, "", fmt.Errorf("building MCP request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json, text/event-stream")
+	if sessionID != "" {
+		httpReq.Header.Set("Mcp-Session-Id", sessionID)
+	}
+	if token != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, "", fmt.Errorf("calling gateway: %w", err)
+	}
+	defer resp.Body.Close()
+	latency := time.Since(start)
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading MCP response: %w", err)
+	}
+
+	return &Response{StatusCode: resp.StatusCode, Body: string(respBody), LatencyMS: latency.Milliseconds()}, resp.Header.Get("Mcp-Session-Id"), nil
+}
+
 // ProxyStream behaves like Proxy but copies the gateway's response body to w
 // as it arrives, flushing after each chunk, instead of buffering the whole
 // body first - for streaming (SSE) responses, where the point is showing
