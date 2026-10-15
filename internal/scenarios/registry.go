@@ -363,6 +363,7 @@ func authPillar() Pillar {
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
 							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-standard"},
+							{GVR: opsAgentPolicyGVR, Name: "oauth-token-exchange-core-banking-standard"},
 						},
 					},
 				},
