@@ -129,20 +129,25 @@ func TestStatementsStepsSetModeToSelectTheRightProvider(t *testing.T) {
 // from the GVR const docs in registry.go.
 var wantViewRefNames = map[string][]string{
 	"auth-accounts-impersonation": {"core-banking-standard"},
-	"auth-accounts-rbac":          {"core-banking-standard", "core-banking-standard-rbac"},
+	"auth-accounts-rbac":          {"core-banking-standard", "mcp-tool-access-core-banking-standard-backend"},
 	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation"},
-	"auth-settlement-rbac":        {"core-banking-delegation", "core-banking-delegation-rbac"},
-	"auth-statements-interactive": {"mcp-paypal", "paypal-mcp-elicitation"},
-	"auth-statements-brokered":    {"mcp-stripe-brokered", "stripe-mcp-brokered"},
+	"auth-settlement-rbac":        {"core-banking-delegation", "mcp-tool-access-core-banking-delegation-backend"},
+	"auth-statements-interactive": {"mcp-paypal", "elicitation-backend-paypal-mcp-backend"},
+	"auth-statements-brokered":    {"mcp-stripe-brokered", "elicitation-backend-stripe-mcp-brokered-backend"},
 }
 
 // policyViewRefNames are the ViewRef names that point at an
-// EnterpriseAgentgatewayPolicy rather than an HTTPRoute.
+// EnterpriseAgentgatewayPolicy rather than an HTTPRoute. These must match
+// the *merged* resource name EnterpriseAgentgatewayPolicy objects actually
+// get in the cluster (feature name + targetRef name - see
+// FeatureManager.commit in agentgateway-field-kit's src/lib/feature.js),
+// not whatever policyName the usecase config happens to set - every policy
+// goes through that merge/rename pipeline regardless of contributor count.
 var policyViewRefNames = map[string]bool{
-	"core-banking-standard-rbac":   true,
-	"core-banking-delegation-rbac": true,
-	"paypal-mcp-elicitation":       true,
-	"stripe-mcp-brokered":          true,
+	"mcp-tool-access-core-banking-standard-backend":   true,
+	"mcp-tool-access-core-banking-delegation-backend": true,
+	"elicitation-backend-paypal-mcp-backend":          true,
+	"elicitation-backend-stripe-mcp-brokered-backend": true,
 }
 
 func TestAuthAgentStepsAreReadOnlyAndNeverApply(t *testing.T) {

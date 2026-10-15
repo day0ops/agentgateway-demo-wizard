@@ -400,7 +400,7 @@ func authPillar() Pillar {
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
 							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-standard"},
-							{GVR: opsAgentPolicyGVR, Name: "core-banking-standard-rbac"},
+							{GVR: opsAgentPolicyGVR, Name: "mcp-tool-access-core-banking-standard-backend"},
 						},
 					},
 				},
@@ -495,7 +495,7 @@ func authPillar() Pillar {
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
 							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-delegation"},
-							{GVR: opsAgentPolicyGVR, Name: "core-banking-delegation-rbac"},
+							{GVR: opsAgentPolicyGVR, Name: "mcp-tool-access-core-banking-delegation-backend"},
 						},
 					},
 				},
@@ -550,7 +550,7 @@ func authPillar() Pillar {
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
 							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-paypal"},
-							{GVR: opsAgentPolicyGVR, Name: "paypal-mcp-elicitation"},
+							{GVR: opsAgentPolicyGVR, Name: "elicitation-backend-paypal-mcp-backend"},
 						},
 					},
 				},
@@ -604,7 +604,7 @@ func authPillar() Pillar {
 						ReadOnly: true,
 						ViewRefs: []ViewRef{
 							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-stripe-brokered"},
-							{GVR: opsAgentPolicyGVR, Name: "stripe-mcp-brokered"},
+							{GVR: opsAgentPolicyGVR, Name: "elicitation-backend-stripe-mcp-brokered-backend"},
 						},
 					},
 				},
