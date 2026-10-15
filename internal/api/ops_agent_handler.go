@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type opsAgentRunRequest struct {
-	Identity string `json:"identity"`
-	Agent    string `json:"agent"`
-	Mode     string `json:"mode"`
-	Query    string `json:"query"`
+	Agent string `json:"agent"`
+	Mode  string `json:"mode"`
+	Query string `json:"query"`
 }
 
 type opsAgentRunResponse struct {
@@ -36,10 +36,11 @@ func (s *Server) opsAgentURL(name string) (string, error) {
 }
 
 // handleOpsAgentRun proxies to one of the ops-agents usecase's real external
-// agent containers, forwarding the real session token captured by the auth
-// pillar's login step. Unlike handleAgentRun (this repo's own in-process
-// agent loop), the target is a separate HTTP service and the response is a
-// single JSON object, not a stream.
+// agent containers. The bearer token comes from agentgateway's own ext-auth
+// (Authorization header, injected only on requests that passed through the
+// /secure-prefixed route this handler is mounted under), and identity is
+// derived from that token's own preferred_username claim rather than a
+// client-supplied field.
 func (s *Server) handleOpsAgentRun(w http.ResponseWriter, r *http.Request) {
 	var req opsAgentRunRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -53,16 +54,20 @@ func (s *Server) handleOpsAgentRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID := s.sessionIDFromCookie(r)
-	tok, ok := s.oauthStore.GetToken(sessionID, req.Identity)
-	if !ok {
-		writeJSONError(w, http.StatusUnauthorized, fmt.Errorf("log in as %q first - see the login step above", req.Identity))
+	bearer := r.Header.Get("Authorization")
+	if bearer == "" {
+		writeJSONError(w, http.StatusUnauthorized, fmt.Errorf("log in first - see the login step above"))
+		return
+	}
+	identity, err := decodeJWTClaim(bearer, "preferred_username")
+	if err != nil {
+		writeJSONError(w, http.StatusUnauthorized, fmt.Errorf("resolving identity from token: %w", err))
 		return
 	}
 
 	body, err := json.Marshal(map[string]string{
 		"query": req.Query,
-		"token": tok.AccessToken,
+		"token": strings.TrimPrefix(bearer, "Bearer "),
 		"mode":  req.Mode,
 	})
 	if err != nil {
@@ -89,6 +94,10 @@ func (s *Server) handleOpsAgentRun(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadGateway, fmt.Errorf("decoding agent response: %w", err))
 		return
 	}
+	if parsed.Extra == nil {
+		parsed.Extra = map[string]any{}
+	}
+	parsed.Extra["identity"] = identity
 
 	writeJSON(w, http.StatusOK, parsed)
 }

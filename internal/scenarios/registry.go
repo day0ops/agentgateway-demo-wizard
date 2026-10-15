@@ -308,25 +308,29 @@ func authPillar() Pillar {
 					"uses a quick password grant: the wizard itself asks Keycloak for a token using a " +
 					"fixed demo username and password. That's fine for driving routing or cost demos, but " +
 					"it's the wrong way to establish Question 1 (who this is being acted on behalf of) for " +
-					"a real customer, since it means handing a password straight to a client. This step " +
-					"replaces it with a real Authorization Code + PKCE login: the wizard redirects your " +
-					"browser to Keycloak's own hosted login page, Keycloak redirects back with an " +
-					"authorization code, and the wizard exchanges that code for a real access token " +
-					"server-side. Every step after this one carries that real sub, not a password-grant " +
-					"placeholder.",
+					"a real customer. This step replaces it with agentgateway's own OAuth authorization " +
+					"code flow: agentgateway - not the wizard - is the OAuth client, owns the entire " +
+					"redirect to Keycloak's real hosted login page, and banks the resulting session. " +
+					"Every subsequent call in this pillar carries that real sub, forwarded by agentgateway " +
+					"itself as a standard Authorization header - refreshed transparently server-side, so " +
+					"the session outlives any single token's short lifespan without the wizard managing " +
+					"any of it. This is the clearest illustration of the welcome step's own claim: " +
+					"agentgateway is the one control point every call can flow through - here, that " +
+					"includes the login itself, not just the downstream MCP calls.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Browser\n" +
-					"  participant Wizard\n" +
+					"  participant AGW as agentgateway (ext-auth)\n" +
 					"  participant KC as Keycloak\n" +
-					"  Browser->>Wizard: GET /auth/login?identity=team-alpha\n" +
-					"  Wizard->>Wizard: generate PKCE verifier/challenge + state\n" +
-					"  Wizard-->>Browser: 302 to Keycloak (code_challenge, state)\n" +
-					"  Browser->>KC: real hosted login page\n" +
-					"  KC-->>Browser: 302 to /auth/callback (code, state)\n" +
-					"  Browser->>Wizard: GET /auth/callback\n" +
-					"  Wizard->>KC: POST /token (code + code_verifier)\n" +
-					"  KC-->>Wizard: real access token\n" +
-					"  Wizard-->>Browser: session cookie + redirect back into the wizard",
+					"  Browser->>AGW: GET /secure/login?returnTo=auth\n" +
+					"  AGW->>AGW: no session yet\n" +
+					"  AGW-->>Browser: 302 to Keycloak's real hosted login page\n" +
+					"  Browser->>KC: log in as team-alpha or team-beta\n" +
+					"  KC-->>AGW: authorization code\n" +
+					"  AGW->>KC: exchange for tokens\n" +
+					"  AGW->>AGW: bank session (Redis), set session cookie\n" +
+					"  AGW-->>Browser: 302 back into the wizard at the right pillar\n" +
+					"  Note over AGW: every later call: inject Authorization: Bearer <token>,\n" +
+					"  refreshing transparently before it expires",
 			},
 			{
 				ID:    "auth-accounts-impersonation",

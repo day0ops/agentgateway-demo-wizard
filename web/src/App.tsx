@@ -14,9 +14,7 @@ import { OpsAgentRunPane } from "./components/OpsAgentRunPane";
 import { VirtualKeyPane } from "./components/VirtualKeyPane";
 import { WelcomeFeatures } from "./components/WelcomeFeatures";
 import { ArchitectureDiagram } from "./components/ArchitectureDiagram";
-import { LoginPane } from "./components/LoginPane";
-
-const AUTH_IDENTITIES = ["team-alpha", "team-beta"];
+import { SecureLoginPane } from "./components/SecureLoginPane";
 
 export default function App() {
   const [pillars, setPillars] = useState<Pillar[]>([]);
@@ -40,7 +38,7 @@ export default function App() {
     fetchScenarios()
       .then((loadedPillars) => {
         setPillars(loadedPillars);
-        // Additive: a login redirect (see LoginPane) sends the browser back
+        // Additive: a login redirect (see SecureLoginPane) sends the browser back
         // to "/?returnTo=<pillar id>" instead of the default welcome screen.
         const returnTo = new URLSearchParams(window.location.search).get(
           "returnTo",
@@ -149,10 +147,7 @@ export default function App() {
         {activeStep.id === "welcome" && <ArchitectureDiagram />}
         {activeStep.loginDemo && (
           <div className="px-6 py-6">
-            <LoginPane
-              key={`${activeStep.id}-login`}
-              identities={AUTH_IDENTITIES}
-            />
+            <SecureLoginPane key={`${activeStep.id}-login`} />
           </div>
         )}
         {hasDemo && !activeStep.loginDemo && (
@@ -164,7 +159,6 @@ export default function App() {
             {activeStep.opsAgent ? (
               <OpsAgentRunPane
                 key={`${activeStep.id}-ops-agent`}
-                identity="team-alpha"
                 agent={activeStep.opsAgent.agent}
                 mode={activeStep.opsAgent.mode}
                 defaultPrompt={activeStep.opsAgent.defaultPrompt}

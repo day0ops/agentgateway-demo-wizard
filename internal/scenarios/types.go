@@ -32,8 +32,8 @@ type Step struct {
 	VirtualKeys bool            `json:"virtualKeys"`
 	// LoginDemo marks the one step (auth pillar's "Real login") that
 	// renders a dedicated login pane instead of Configure/Request panes -
-	// there's no policy to apply and no request to drive, just a real
-	// Authorization Code redirect.
+	// there's no policy to apply and no request to drive, just agentgateway's
+	// own ext-auth redirect to Keycloak's real hosted login page.
 	LoginDemo bool `json:"loginDemo"`
 	// OpsAgent marks a step that drives one of the ops-agents usecase's real
 	// external agent containers (see internal/api/ops_agent_handler.go)
@@ -43,7 +43,7 @@ type Step struct {
 }
 
 // OpsAgentDemo configures the pane for a step that calls a real external
-// agent container through POST /api/ops-agent/run.
+// agent container through POST /secure/ops-agent/run.
 type OpsAgentDemo struct {
 	// Agent selects which container's /run endpoint this step calls - must
 	// match one of the cases in Server.opsAgentURL: "accounts",
@@ -132,15 +132,4 @@ type RequestPreset struct {
 	Headers  map[string]string `json:"headers"`
 	Body     string            `json:"body"`
 	Stream   bool              `json:"stream"`
-	// RequiresSessionToken marks a preset that must use the real token
-	// captured by the auth pillar's login step instead of
-	// gateway.Client's own Resource Owner Password Credentials shortcut -
-	// handleRequest returns a clear "log in first" error rather than
-	// silently falling back when one isn't present.
-	RequiresSessionToken bool `json:"requiresSessionToken"`
-	// ExchangeViaSTS marks a preset whose captured session token must be
-	// exchanged through Solo's legacy STS (Delegation, sub+act claims)
-	// before being forwarded - only meaningful alongside
-	// RequiresSessionToken.
-	ExchangeViaSTS bool `json:"exchangeViaSts"`
 }

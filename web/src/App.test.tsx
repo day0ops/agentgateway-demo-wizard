@@ -238,12 +238,6 @@ describe("App", () => {
           json: async () => emptyConfig,
         } as unknown as Response);
       }
-      if (typeof url === "string" && url.startsWith("/api/auth/status")) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ loggedIn: false }),
-        } as unknown as Response);
-      }
       return Promise.resolve({
         ok: true,
         json: async () => pillars,
@@ -254,8 +248,8 @@ describe("App", () => {
 
     expect(await screen.findByText("Real login")).toBeInTheDocument();
     expect(
-      await screen.findByRole("link", { name: /log in as team-alpha/i }),
-    ).toBeInTheDocument();
+      await screen.findByRole("link", { name: /^log in$/i }),
+    ).toHaveAttribute("href", "/secure/login?returnTo=auth");
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
   });
 
@@ -282,8 +276,6 @@ describe("App", () => {
                 headers: {},
                 body: "{}",
                 stream: false,
-                requiresSessionToken: false,
-                exchangeViaSts: false,
               },
             ],
             agentDemo: false,
@@ -300,12 +292,6 @@ describe("App", () => {
           json: async () => emptyConfig,
         } as unknown as Response);
       }
-      if (typeof url === "string" && url.startsWith("/api/auth/status")) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ loggedIn: false }),
-        } as unknown as Response);
-      }
       return Promise.resolve({
         ok: true,
         json: async () => pillars,
@@ -316,8 +302,8 @@ describe("App", () => {
 
     expect(await screen.findByText("Real login")).toBeInTheDocument();
     expect(
-      await screen.findByRole("link", { name: /log in as team-alpha/i }),
-    ).toBeInTheDocument();
+      await screen.findByRole("link", { name: /^log in$/i }),
+    ).toHaveAttribute("href", "/secure/login?returnTo=auth");
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
     expect(screen.queryByText("Ask")).not.toBeInTheDocument();
   });
@@ -366,12 +352,6 @@ describe("App", () => {
         return Promise.resolve({
           ok: true,
           json: async () => emptyConfig,
-        } as unknown as Response);
-      }
-      if (typeof url === "string" && url.startsWith("/api/auth/status")) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ loggedIn: false }),
         } as unknown as Response);
       }
       return Promise.resolve({

@@ -11,7 +11,10 @@ type OpsAgentChain = {
 
 type OpsAgentResult = {
   answer: string;
-  extra?: { chain?: OpsAgentChain } & Record<string, unknown>;
+  extra?: { chain?: OpsAgentChain; identity?: string } & Record<
+    string,
+    unknown
+  >;
 };
 
 const markdownComponents = {
@@ -37,12 +40,10 @@ const markdownComponents = {
 };
 
 export function OpsAgentRunPane({
-  identity,
   agent,
   mode,
   defaultPrompt,
 }: {
-  identity: string;
   agent: string;
   mode: string;
   defaultPrompt: string;
@@ -58,10 +59,10 @@ export function OpsAgentRunPane({
     setResult(null);
 
     try {
-      const res = await fetch("/api/ops-agent/run", {
+      const res = await fetch("/secure/ops-agent/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identity, agent, mode, query }),
+        body: JSON.stringify({ agent, mode, query }),
       });
       if (!res.ok) {
         setError(await extractErrorMessage(res));
@@ -76,6 +77,7 @@ export function OpsAgentRunPane({
   }
 
   const chain = result?.extra?.chain;
+  const identity = result?.extra?.identity;
 
   return (
     <div className="space-y-4">
@@ -114,6 +116,13 @@ export function OpsAgentRunPane({
               {result.answer}
             </ReactMarkdown>
           </div>
+          {identity && !chain && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span className="rounded bg-slate-100 px-2 py-1 dark:bg-zinc-800">
+                identity: {identity}
+              </span>
+            </div>
+          )}
           {chain && (
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span className="rounded bg-slate-100 px-2 py-1 dark:bg-zinc-800">
