@@ -129,7 +129,7 @@ func TestStatementsStepsSetModeToSelectTheRightProvider(t *testing.T) {
 // from the GVR const docs in registry.go.
 var wantViewRefNames = map[string][]string{
 	"auth-accounts-impersonation": {"core-banking-standard", "oauth-token-exchange-core-banking-standard"},
-	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation"},
+	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation", "obo-token-exchange-core-banking-delegation"},
 	"auth-statements-interactive": {"mcp-paypal", "elicitation-backend-paypal-mcp-backend"},
 	"auth-statements-brokered":    {"mcp-stripe-brokered", "elicitation-backend-stripe-mcp-brokered-backend"},
 }
@@ -143,6 +143,7 @@ var wantViewRefNames = map[string][]string{
 // goes through that merge/rename pipeline regardless of contributor count.
 var policyViewRefNames = map[string]bool{
 	"oauth-token-exchange-core-banking-standard":      true,
+	"obo-token-exchange-core-banking-delegation":      true,
 	"elicitation-backend-paypal-mcp-backend":          true,
 	"elicitation-backend-stripe-mcp-brokered-backend": true,
 }
