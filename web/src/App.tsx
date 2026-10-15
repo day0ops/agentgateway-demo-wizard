@@ -11,6 +11,7 @@ import { ConfigurePane } from "./components/ConfigurePane";
 import { DriveRequestPane } from "./components/DriveRequestPane";
 import { AgentRunPane } from "./components/AgentRunPane";
 import { OpsAgentRunPane } from "./components/OpsAgentRunPane";
+import { DirectCallPane } from "./components/DirectCallPane";
 import { VirtualKeyPane } from "./components/VirtualKeyPane";
 import { WelcomeFeatures } from "./components/WelcomeFeatures";
 import { ArchitectureDiagram } from "./components/ArchitectureDiagram";
@@ -165,26 +166,34 @@ export default function App() {
               key={`${activeStep.id}-configure`}
               policies={activeStep.policies}
             />
-            {activeStep.opsAgent ? (
-              <OpsAgentRunPane
-                key={`${activeStep.id}-ops-agent`}
-                agent={activeStep.opsAgent.agent}
-                mode={activeStep.opsAgent.mode}
-                defaultPrompt={activeStep.opsAgent.defaultPrompt}
-              />
-            ) : activeStep.agentDemo ? (
-              <AgentRunPane
-                key={`${activeStep.id}-agent`}
-                identity="team-alpha"
-                model="gpt-4o-mini"
-              />
-            ) : (
-              <DriveRequestPane
-                key={`${activeStep.id}-request`}
-                presets={activeStep.presets}
-                onResponse={recordResponseCost}
-              />
-            )}
+            <div className="space-y-6">
+              {activeStep.opsAgent ? (
+                <OpsAgentRunPane
+                  key={`${activeStep.id}-ops-agent`}
+                  agent={activeStep.opsAgent.agent}
+                  mode={activeStep.opsAgent.mode}
+                  defaultPrompt={activeStep.opsAgent.defaultPrompt}
+                />
+              ) : activeStep.agentDemo ? (
+                <AgentRunPane
+                  key={`${activeStep.id}-agent`}
+                  identity="team-alpha"
+                  model="gpt-4o-mini"
+                />
+              ) : (
+                <DriveRequestPane
+                  key={`${activeStep.id}-request`}
+                  presets={activeStep.presets}
+                  onResponse={recordResponseCost}
+                />
+              )}
+              {activeStep.directCall && (
+                <DirectCallPane
+                  key={`${activeStep.id}-direct-call`}
+                  config={activeStep.directCall}
+                />
+              )}
+            </div>
           </div>
         )}
         {activeStep.virtualKeys && (
