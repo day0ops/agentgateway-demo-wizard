@@ -255,3 +255,45 @@ func TestProxyMCPToolCallErrorsWithoutASessionID(t *testing.T) {
 		t.Fatalf("expected an error when the server never returns an Mcp-Session-Id")
 	}
 }
+
+func TestProxyMCPToolCallPassesThroughANonSuccessToolsCallResponse(t *testing.T) {
+	var sawMethods []string
+
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded struct {
+			Method string `json:"method"`
+		}
+		_ = json.Unmarshal(body, &decoded)
+		sawMethods = append(sawMethods, decoded.Method)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		switch decoded.Method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "test-session-123")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n"))
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/call":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\"error\":{\"code\":-32000,\"message\":\"denied by policy\"}}\n\n"))
+		}
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "unused")
+	resp, err := client.ProxyMCPToolCall(context.Background(), "/core-banking-delegation/mcp", "real-token", "transfer", map[string]any{"from_account": "savings", "to_account": "checking", "amount": 500})
+	if err != nil {
+		t.Fatalf("ProxyMCPToolCall: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(resp.Body, "denied by policy") {
+		t.Fatalf("expected the error message in the body, got: %s", resp.Body)
+	}
+	if len(sawMethods) != 3 || sawMethods[0] != "initialize" || sawMethods[1] != "notifications/initialized" || sawMethods[2] != "tools/call" {
+		t.Fatalf("expected all three handshake steps, got: %v", sawMethods)
+	}
+}
