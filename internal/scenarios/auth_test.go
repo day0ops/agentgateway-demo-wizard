@@ -70,7 +70,7 @@ func TestAuthLoginStepKeepsLoginDemo(t *testing.T) {
 		t.Fatalf("expected the login step to have no OpsAgent")
 	}
 	if login.Diagram == "" {
-		t.Fatalf("expected the login step to keep its PKCE sequence diagram")
+		t.Fatalf("expected the login step to keep its ext-auth sequence diagram")
 	}
 }
 
