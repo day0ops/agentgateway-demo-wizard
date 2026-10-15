@@ -62,6 +62,7 @@ func NewServer(opts ...Option) *Server {
 	s.mux.HandleFunc("POST /api/agent/run", s.handleAgentRun)
 	s.mux.HandleFunc("POST /secure/ops-agent/run", s.handleOpsAgentRun)
 	s.mux.HandleFunc("GET /secure/login", s.handleSecureLogin)
+	s.mux.HandleFunc("GET /secure/session", s.handleSecureSession)
 	s.mux.HandleFunc("POST /api/virtual-keys", s.handleVirtualKeyCreate)
 	s.mux.HandleFunc("POST /api/virtual-keys/{name}/rotate", s.handleVirtualKeyRotate)
 	s.registerSPA()
