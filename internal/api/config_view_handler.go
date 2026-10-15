@@ -104,6 +104,12 @@ func (s *Server) handleConfigViewManifest(w http.ResponseWriter, policy scenario
 		if err := yaml.Unmarshal(doc, &parsed); err == nil && parsed.Kind != "" {
 			name = fmt.Sprintf("%s/%s", parsed.Kind, parsed.Metadata.Name)
 		}
+		if parsed.Kind == "Secret" {
+			// Refuse to leak secret material through this preview path - omit
+			// the doc entirely rather than failing the whole policy, since a
+			// policy's other docs (routes, policies, etc.) are still safe to show.
+			continue
+		}
 		results = append(results, viewRefResult{Name: name, Found: true, YAML: string(doc)})
 	}
 

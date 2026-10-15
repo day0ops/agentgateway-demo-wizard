@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type secureDirectCallRequest struct {
@@ -31,19 +32,11 @@ func (s *Server) handleSecureDirectCall(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := s.gatewayClient.ProxyMCPToolCall(r.Context(), req.Path, trimBearer(bearer), req.Tool, req.Arguments)
+	resp, err := s.gatewayClient.ProxyMCPToolCall(r.Context(), req.Path, strings.TrimPrefix(bearer, "Bearer "), req.Tool, req.Arguments)
 	if err != nil {
 		writeJSONError(w, http.StatusBadGateway, err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, driveResponse{StatusCode: resp.StatusCode, Body: resp.Body, LatencyMS: resp.LatencyMS})
-}
-
-func trimBearer(bearer string) string {
-	const prefix = "Bearer "
-	if len(bearer) > len(prefix) && bearer[:len(prefix)] == prefix {
-		return bearer[len(prefix):]
-	}
-	return bearer
 }

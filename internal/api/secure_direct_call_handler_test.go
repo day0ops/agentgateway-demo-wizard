@@ -1,6 +1,7 @@
 package api
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,8 +30,7 @@ func TestSecureDirectCallForwardsTheRealTokenWithNoExchange(t *testing.T) {
 	var sawMethods []string
 	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawAuth = r.Header.Get("Authorization")
-		body := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(body)
+		body, _ := io.ReadAll(r.Body)
 		sawMethods = append(sawMethods, string(body))
 
 		w.Header().Set("Content-Type", "text/event-stream")
