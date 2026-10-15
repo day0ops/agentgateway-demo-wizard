@@ -135,10 +135,9 @@ func (c *Client) Proxy(ctx context.Context, req Request) (*Response, error) {
 
 // ProxyWithToken forwards req to agentgateway using token directly as the
 // bearer credential, skipping Token() entirely - for callers that already
-// hold a real, interactively-obtained token (see internal/oauthlogin)
-// rather than one of this client's own fixed demo identities. An empty
-// token forwards the request with no Authorization header, same as Proxy
-// does for "anonymous".
+// hold a real token rather than one of this client's own fixed demo
+// identities. An empty token forwards the request with no Authorization
+// header, same as Proxy does for "anonymous".
 func (c *Client) ProxyWithToken(ctx context.Context, req Request, token string) (*Response, error) {
 	method := req.Method
 	if method == "" {
