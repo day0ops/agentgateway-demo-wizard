@@ -197,7 +197,7 @@ func TestConfigViewUnknownPolicyReturns404(t *testing.T) {
 	}
 }
 
-func TestConfigViewRejectsNonReadOnlyPolicy(t *testing.T) {
+func TestConfigViewRendersManifestForNonReadOnlyPolicy(t *testing.T) {
 	applier := newApplierForTest()
 	s := NewServer(WithScenarios(testRegistryWithFixturePolicy()), WithApplier(applier)) // "test-fixture", ReadOnly: false
 
@@ -205,8 +205,18 @@ func TestConfigViewRejectsNonReadOnlyPolicy(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for a non-read-only policy, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"name":"ConfigMap/test-fixture"`) || !strings.Contains(body, `"name":"ConfigMap/test-fixture-2"`) {
+		t.Fatalf("expected both rendered docs labeled by kind/name, got: %s", body)
+	}
+	if !strings.Contains(body, `"found":true`) {
+		t.Fatalf("expected found:true (rendering never fails for a well-formed template), got: %s", body)
+	}
+	if !strings.Contains(body, "hello: world") || !strings.Contains(body, "hello: again") {
+		t.Fatalf("expected both docs' content in the response, got: %s", body)
 	}
 }
 

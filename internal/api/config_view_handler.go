@@ -10,6 +10,8 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/yaml"
+
+	"github.com/day0ops/agentgateway-demo-wizard/internal/scenarios"
 )
 
 // configViewNamespace matches the hardcoded namespace every other handler in
@@ -32,7 +34,7 @@ func (s *Server) handleConfigView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !policy.ReadOnly {
-		http.Error(w, fmt.Sprintf("policy %q is not read-only", policyID), http.StatusBadRequest)
+		s.handleConfigViewManifest(w, policy)
 		return
 	}
 
@@ -78,4 +80,32 @@ func stripAppliedState(obj map[string]any) {
 		}
 	}
 	delete(obj, "status")
+}
+
+// handleConfigViewManifest previews a non-ReadOnly policy's manifest by
+// rendering its template directly - no cluster round-trip, so it returns the
+// same content whether or not the policy has actually been applied yet.
+func (s *Server) handleConfigViewManifest(w http.ResponseWriter, policy scenarios.Policy) {
+	docs, err := policy.Render(s.manifestParams())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	results := make([]viewRefResult, 0, len(docs))
+	for _, doc := range docs {
+		var parsed struct {
+			Kind     string `json:"kind"`
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+		}
+		name := policy.Title
+		if err := yaml.Unmarshal(doc, &parsed); err == nil && parsed.Kind != "" {
+			name = fmt.Sprintf("%s/%s", parsed.Kind, parsed.Metadata.Name)
+		}
+		results = append(results, viewRefResult{Name: name, Found: true, YAML: string(doc)})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"refs": results})
 }
