@@ -209,7 +209,7 @@ export function DriveRequestPane({
                     setRequest({ ...request, body: e.target.value })
                   }
                   rows={Math.min(20, request.body.split("\n").length + 1)}
-                  className="mt-1 w-full resize-y rounded bg-slate-950 p-3 font-mono text-xs text-slate-100"
+                  className="mt-1 w-full resize-y rounded bg-slate-50 p-3 font-mono text-xs text-slate-900 dark:bg-slate-950 dark:text-slate-100"
                   spellCheck={false}
                 />
               </div>
