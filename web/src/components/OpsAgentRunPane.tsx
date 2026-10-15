@@ -2,6 +2,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { extractErrorMessage } from "../lib/json";
+import { markdownComponents } from "../lib/markdown";
 
 type OpsAgentChain = {
   sub?: string;
@@ -15,28 +16,6 @@ type OpsAgentResult = {
     string,
     unknown
   >;
-};
-
-const markdownComponents = {
-  a: ({ ...props }) => (
-    <a
-      {...props}
-      target="_blank"
-      rel="noreferrer"
-      className="text-brand-600 underline dark:text-brand-400"
-    />
-  ),
-  ul: ({ ...props }) => <ul {...props} className="list-disc space-y-1 pl-5" />,
-  ol: ({ ...props }) => (
-    <ol {...props} className="list-decimal space-y-1 pl-5" />
-  ),
-  p: ({ ...props }) => <p {...props} className="[&:not(:first-child)]:mt-2" />,
-  code: ({ ...props }) => (
-    <code
-      {...props}
-      className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-zinc-800"
-    />
-  ),
 };
 
 export function OpsAgentRunPane({
