@@ -453,6 +453,7 @@ func authPillar() Pillar {
 							{GVR: opsAgentHTTPRouteGVR, Name: "transfer-orchestrator-agent"},
 							{GVR: opsAgentHTTPRouteGVR, Name: "settlement-agent"},
 							{GVR: opsAgentHTTPRouteGVR, Name: "core-banking-delegation"},
+							{GVR: opsAgentPolicyGVR, Name: "obo-token-exchange-core-banking-delegation"},
 						},
 					},
 				},
