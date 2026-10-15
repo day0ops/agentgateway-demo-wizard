@@ -129,9 +129,7 @@ func TestStatementsStepsSetModeToSelectTheRightProvider(t *testing.T) {
 // from the GVR const docs in registry.go.
 var wantViewRefNames = map[string][]string{
 	"auth-accounts-impersonation": {"core-banking-standard"},
-	"auth-accounts-rbac":          {"core-banking-standard", "mcp-tool-access-core-banking-standard-backend"},
 	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation"},
-	"auth-settlement-rbac":        {"core-banking-delegation", "mcp-tool-access-core-banking-delegation-backend"},
 	"auth-statements-interactive": {"mcp-paypal", "elicitation-backend-paypal-mcp-backend"},
 	"auth-statements-brokered":    {"mcp-stripe-brokered", "elicitation-backend-stripe-mcp-brokered-backend"},
 }
@@ -144,8 +142,6 @@ var wantViewRefNames = map[string][]string{
 // not whatever policyName the usecase config happens to set - every policy
 // goes through that merge/rename pipeline regardless of contributor count.
 var policyViewRefNames = map[string]bool{
-	"mcp-tool-access-core-banking-standard-backend":   true,
-	"mcp-tool-access-core-banking-delegation-backend": true,
 	"elicitation-backend-paypal-mcp-backend":          true,
 	"elicitation-backend-stripe-mcp-brokered-backend": true,
 }
@@ -197,7 +193,6 @@ func TestAuthExplanationsNameTheQuestionsTheyAnswer(t *testing.T) {
 		"auth-accounts-impersonation": {"Question 1", "Question 2", "Question 3"},
 		"auth-accounts-rbac":          {"Question 4"},
 		"auth-transfer-chain":         {"Question 1", "Question 2", "Question 3"},
-		"auth-settlement-rbac":        {"Question 4"},
 		"auth-statements-interactive": {"Question 4"},
 		"auth-statements-brokered":    {"Question 4"},
 	}
@@ -210,6 +205,43 @@ func TestAuthExplanationsNameTheQuestionsTheyAnswer(t *testing.T) {
 				t.Fatalf("step %q: expected Explanation to name %q, got: %s", id, q, step.Explanation)
 			}
 		}
+	}
+}
+
+func TestRBACStepsAreApplyableWithManifestPath(t *testing.T) {
+	auth := authPillar()
+	cases := map[string]string{
+		"auth-accounts-rbac":   "auth/accounts-rbac.yaml.tmpl",
+		"auth-settlement-rbac": "auth/settlement-rbac.yaml.tmpl",
+	}
+	for id, wantPath := range cases {
+		step := findStep(auth.Steps, id)
+		if len(step.Policies) != 1 {
+			t.Fatalf("step %q: expected exactly 1 policy, got %d", id, len(step.Policies))
+		}
+		p := step.Policies[0]
+		if p.ReadOnly {
+			t.Fatalf("step %q: expected ReadOnly to be false", id)
+		}
+		if len(p.ViewRefs) != 0 {
+			t.Fatalf("step %q: expected no ViewRefs, got %d", id, len(p.ViewRefs))
+		}
+		if p.ManifestPath != wantPath {
+			t.Fatalf("step %q: ManifestPath = %q, want %q", id, p.ManifestPath, wantPath)
+		}
+	}
+}
+
+func TestSettlementRBACHasDirectCallDemo(t *testing.T) {
+	step := findStep(authPillar().Steps, "auth-settlement-rbac")
+	if step.DirectCall == nil {
+		t.Fatalf("expected auth-settlement-rbac to have a DirectCall demo")
+	}
+	if step.DirectCall.Path != "/core-banking-delegation/mcp" {
+		t.Fatalf("unexpected DirectCall.Path: %q", step.DirectCall.Path)
+	}
+	if step.DirectCall.Tool != "transfer" {
+		t.Fatalf("unexpected DirectCall.Tool: %q", step.DirectCall.Tool)
 	}
 }
 
