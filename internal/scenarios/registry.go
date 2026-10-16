@@ -519,7 +519,7 @@ func authPillar() Pillar {
 					"  Bank-->>Settle: transfer confirmed\n" +
 					"  Direct->>AGW: tools/call transfer (your token, no act chain)\n" +
 					"  AGW->>AGW: CEL: jwt.act.act.sub missing -> no match\n" +
-					"  AGW-->>Direct: 403 denied - wrong task, wrong path",
+					"  AGW-->>Direct: denied - transfer tool hidden (no delegation chain)",
 				Policies: []Policy{
 					{
 						ID:           "auth-settlement-rbac",
