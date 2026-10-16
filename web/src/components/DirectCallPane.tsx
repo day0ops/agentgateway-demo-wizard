@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Send } from "lucide-react";
 import type { DirectCallDemo } from "../lib/api";
-import { CodeBlock } from "./CodeBlock";
+import { interpretToolCall, type DirectCallOutcome } from "../lib/mcp";
 
 type ResultState =
   | { status: "idle" }
   | { status: "sending" }
-  | { status: "done"; statusCode: number; body: string }
+  | { status: "done"; outcome: DirectCallOutcome }
   | { status: "error"; message: string };
 
 export function DirectCallPane({ config }: { config: DirectCallDemo }) {
@@ -31,8 +31,7 @@ export function DirectCallPane({ config }: { config: DirectCallDemo }) {
       const body = await res.json();
       setResult({
         status: "done",
-        statusCode: body.statusCode,
-        body: body.body,
+        outcome: interpretToolCall(body.statusCode, body.body),
       });
     } catch (err) {
       setResult({
@@ -59,10 +58,40 @@ export function DirectCallPane({ config }: { config: DirectCallDemo }) {
         </div>
       )}
 
-      {result.status === "done" && (
-        <div className="space-y-2">
-          <div className="text-xs text-slate-500">{result.statusCode}</div>
-          <CodeBlock language="json" code={result.body} />
+      {result.status === "done" && result.outcome.kind === "success" && (
+        <div className="space-y-1 rounded-lg border border-green-500 bg-green-50 p-3 text-sm dark:bg-green-950">
+          <div className="font-medium text-green-800 dark:text-green-300">
+            Allowed - the transfer went through
+          </div>
+          <pre className="whitespace-pre-wrap font-mono text-xs text-green-900 dark:text-green-200">
+            {result.outcome.text}
+          </pre>
+        </div>
+      )}
+
+      {result.status === "done" && result.outcome.kind === "denied" && (
+        <div className="space-y-1 rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
+          <div className="font-medium text-amber-800 dark:text-amber-300">
+            Denied by policy
+          </div>
+          <div className="text-amber-900 dark:text-amber-200">
+            The{" "}
+            <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-900">
+              {config.tool}
+            </code>{" "}
+            tool isn't available to this direct, non-delegated call - the
+            gateway hides it unless the request arrives through the proper
+            delegation chain.
+          </div>
+          <div className="font-mono text-xs text-amber-700 dark:text-amber-400">
+            {result.outcome.detail}
+          </div>
+        </div>
+      )}
+
+      {result.status === "done" && result.outcome.kind === "error" && (
+        <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm dark:bg-red-950">
+          {result.outcome.detail}
         </div>
       )}
     </div>
