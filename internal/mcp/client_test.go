@@ -35,6 +35,26 @@ func TestListToolsParsesToolNames(t *testing.T) {
 	}
 }
 
+func TestCallToolSetsAcceptHeaderForStreamableHTTP(t *testing.T) {
+	var gotAccept string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccept = r.Header.Get("Accept")
+		_ = json.NewEncoder(w).Encode(jsonRPCResponse{
+			JSONRPC: "2.0", ID: 1,
+			Result: json.RawMessage(`{"content":[{"type":"text","text":"AAPL: $150"}]}`),
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "/mcp")
+	if _, err := client.CallTool(context.Background(), "test-token", "get_stock_price", map[string]any{"symbol": "AAPL"}); err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if gotAccept != "application/json, text/event-stream" {
+		t.Fatalf("expected Accept header required by the Streamable HTTP transport, got %q", gotAccept)
+	}
+}
+
 func TestCallToolReturnsContent(t *testing.T) {
 	var gotAuth string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

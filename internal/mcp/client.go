@@ -78,6 +78,9 @@ func (c *Client) call(ctx context.Context, token, method string, params any, out
 		return fmt.Errorf("building MCP request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	// The MCP Streamable HTTP transport requires both values - the server returns 406
+	// otherwise, regardless of which one the response actually ends up using.
+	httpReq.Header.Set("Accept", "application/json, text/event-stream")
 	if token != "" {
 		httpReq.Header.Set("Authorization", "Bearer "+token)
 	}
