@@ -119,3 +119,33 @@ func TestCostBudgetsPolicyMergesTrafficFragments(t *testing.T) {
 		t.Fatalf("unresolved template variable in output: %s", joined)
 	}
 }
+
+// TestCostBudgetsPolicyTargetsItsOwnRouteNotTheGateway is the regression
+// test for a live bug: the policy's traffic.apiKeyAuthentication was
+// targeting the whole Gateway, so Strict API-key enforcement applied to
+// every route on it, not just /cost/budgets - confirmed live, every other
+// pillar (routing, auth's ops-agents, etc.) started 401ing with "no API Key
+// found" the moment this step was applied. It must target only this step's
+// own HTTPRoute.
+func TestCostBudgetsPolicyTargetsItsOwnRouteNotTheGateway(t *testing.T) {
+	params := ManifestParams{
+		Namespace:   "agentgateway-system",
+		GatewayName: "agentgateway-gw",
+		GatewayNS:   "agentgateway-system",
+		OpenAIKey:   "sk-test",
+	}
+
+	policy := Registry()[4].Steps[1].Policies[0]
+	docs, err := policy.Render(params)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+
+	joined := strings.Join(toStrings(docs), "\n")
+	if strings.Contains(joined, "kind: Gateway") {
+		t.Fatalf("expected no targetRefs entry to target the Gateway kind, got: %s", joined)
+	}
+	if !strings.Contains(joined, "kind: HTTPRoute") || !strings.Contains(joined, "name: cost-budgets-openai") {
+		t.Fatalf("expected the policy to target its own cost-budgets-openai HTTPRoute, got: %s", joined)
+	}
+}
