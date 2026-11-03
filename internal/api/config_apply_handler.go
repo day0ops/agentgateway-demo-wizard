@@ -66,6 +66,21 @@ func (s *Server) handleConfigApply(w http.ResponseWriter, r *http.Request) {
 
 	params := s.manifestParams()
 
+	if guardrailsMergePolicies[policy.ID] {
+		writeSSE(w, flusher, sseEvent{Type: "progress", Message: "Applying to cluster..."})
+		applied, err := s.applyGuardrailsMerge(r.Context(), policy, params)
+		if err != nil {
+			writeSSE(w, flusher, sseEvent{Type: "error", Message: err.Error()})
+			return
+		}
+		dtos := make([]appliedResourceDTO, 0, len(applied))
+		for _, a := range applied {
+			dtos = append(dtos, appliedResourceDTO{Resource: a.GVR.Resource, Namespace: a.Namespace, Name: a.Name})
+		}
+		writeSSE(w, flusher, sseEvent{Type: "done", Message: fmt.Sprintf("Applied %d resource(s)", len(applied)), Applied: dtos})
+		return
+	}
+
 	docs, err := policy.Render(params)
 	if err != nil {
 		writeSSE(w, flusher, sseEvent{Type: "error", Message: err.Error()})
@@ -144,6 +159,15 @@ func (s *Server) handleConfigRevert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if guardrailsMergePolicies[policy.ID] {
+		if err := s.revertGuardrailsMerge(r.Context(), policy, s.manifestParams()); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		return
+	}
+
 	if err := s.applier.Revert(r.Context(), policy.ID); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -173,7 +197,17 @@ func (s *Server) handleConfigReset(w http.ResponseWriter, r *http.Request) {
 	for _, pillar := range s.scenarios {
 		for _, step := range pillar.Steps {
 			for _, policy := range step.Policies {
-				if policy.PatchRevertManifestPath == "" || !s.applier.IsApplied(policy.ID) {
+				if !s.applier.IsApplied(policy.ID) {
+					continue
+				}
+				if guardrailsMergePolicies[policy.ID] {
+					if err := s.revertGuardrailsMerge(r.Context(), policy, s.manifestParams()); err != nil {
+						writeJSONError(w, http.StatusInternalServerError, err)
+						return
+					}
+					continue
+				}
+				if policy.PatchRevertManifestPath == "" {
 					continue
 				}
 				revertDocs, err := policy.RenderPatchRevert(s.manifestParams())
