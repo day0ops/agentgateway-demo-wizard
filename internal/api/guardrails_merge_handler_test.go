@@ -219,3 +219,38 @@ func TestConfigApplyUsesGuardrailsMergeForBankingPolicies(t *testing.T) {
 		t.Fatalf("expected the base policy to remain applied - revert must not delete it")
 	}
 }
+
+// TestApplyGuardrailsMergeIsIdempotent covers a real scenario: IsApplied is
+// tracked in memory, so a wizard pod restart (or a repeat click) can call
+// Apply again when the rules are already merged in - it must not
+// accumulate a duplicate copy of the same rule.
+func TestApplyGuardrailsMergeIsIdempotent(t *testing.T) {
+	applier := newApplierForGuardrailsTest()
+	ctx := context.Background()
+	if _, err := applier.Apply(ctx, "guardrails-prompt-guard", [][]byte{[]byte(basePromptGuardFixture)}); err != nil {
+		t.Fatalf("seeding base policy: %v", err)
+	}
+
+	s := &Server{applier: applier}
+	policy := findGuardrailsPolicy(t, "guardrails-banking-inbound")
+	params := scenarios.ManifestParams{Namespace: "agentgateway-system"}
+
+	if _, err := s.applyGuardrailsMerge(ctx, policy, params); err != nil {
+		t.Fatalf("first applyGuardrailsMerge: %v", err)
+	}
+	if _, err := s.applyGuardrailsMerge(ctx, policy, params); err != nil {
+		t.Fatalf("second applyGuardrailsMerge: %v", err)
+	}
+
+	base, err := applier.Get(ctx, guardrailsPolicyGVR, "agentgateway-system", "guardrails-prompt-guard")
+	if err != nil {
+		t.Fatalf("getting merged base policy: %v", err)
+	}
+	request, _, err := unstructured.NestedSlice(base.Object, "spec", "backend", "ai", "promptGuard", "request")
+	if err != nil {
+		t.Fatalf("reading merged request rules: %v", err)
+	}
+	if len(request) != 2 {
+		t.Fatalf("expected re-applying to be a no-op (1 original + 1 banking-inbound rule), got %d: %+v", len(request), request)
+	}
+}
