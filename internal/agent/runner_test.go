@@ -3,11 +3,12 @@ package agent
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	"github.com/google/jsonschema-go/jsonschema"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/day0ops/agentgateway-demo-wizard/internal/gateway"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/mcp"
@@ -15,6 +16,16 @@ import (
 
 func TestRunCallsToolThenReturnsFinalAnswer(t *testing.T) {
 	var chatCallCount int
+
+	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "0.0.1"}, nil)
+	mcpServer.AddTool(&sdkmcp.Tool{
+		Name:        "get_stock_price",
+		Description: "look up a stock price",
+		InputSchema: &jsonschema.Schema{Type: "object"},
+	}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "AAPL: $150"}}}, nil
+	})
+	mcpHandler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return mcpServer }, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/openai/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
@@ -26,14 +37,7 @@ func TestRunCallsToolThenReturnsFinalAnswer(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"AAPL is trading at $150."}}]}`))
 	})
-	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		if !strings.Contains(string(body), "tools/call") {
-			t.Fatalf("expected a tools/call request, got: %s", body)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"AAPL: $150"}]}}`))
-	})
+	mux.Handle("/mcp", mcpHandler)
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
