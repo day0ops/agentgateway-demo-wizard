@@ -103,3 +103,29 @@ func TestAgentPoliciesRenderValidManifests(t *testing.T) {
 		t.Fatalf("unresolved template variable in output: %s", toolAccessJoined)
 	}
 }
+
+// TestAgentPillarMCPPresetsSetAcceptHeader is the regression test for a live
+// bug: every RequestPreset that POSTs to /mcp went through the generic
+// request-builder (handleRequest), which forwards Headers verbatim with no
+// MCP-specific defaults - an empty Headers map meant agentgateway's
+// Streamable HTTP transport rejected the request with 406 "client must
+// accept both application/json and text/event-stream".
+func TestAgentPillarMCPPresetsSetAcceptHeader(t *testing.T) {
+	agentPillarResult := Registry()[5]
+
+	var checked int
+	for _, step := range agentPillarResult.Steps {
+		for _, preset := range step.Presets {
+			if preset.Path != "/mcp" {
+				continue
+			}
+			checked++
+			if got := preset.Headers["Accept"]; got != "application/json, text/event-stream" {
+				t.Errorf("preset %q: expected Accept header, got %q", preset.ID, got)
+			}
+		}
+	}
+	if checked != 5 {
+		t.Fatalf("expected 5 presets hitting /mcp, checked %d - update this test if presets were added/removed", checked)
+	}
+}
