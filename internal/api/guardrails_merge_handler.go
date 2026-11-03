@@ -78,8 +78,12 @@ func mergedGuardrailsPolicy(base *unstructured.Unstructured, namespace string, r
 	}
 
 	if add {
-		existingRequest = append(existingRequest, ruleRequest...)
-		existingResponse = append(existingResponse, ruleResponse...)
+		// IsApplied is tracked in memory, so a wizard pod restart - or just a
+		// repeat click - can call this again when the rules are already merged
+		// in. Only append entries not already present, so re-applying is a
+		// no-op instead of accumulating duplicate rules.
+		existingRequest = append(existingRequest, newEntries(existingRequest, ruleRequest)...)
+		existingResponse = append(existingResponse, newEntries(existingResponse, ruleResponse)...)
 	} else {
 		existingRequest = removeMatchingEntries(existingRequest, ruleRequest)
 		existingResponse = removeMatchingEntries(existingResponse, ruleResponse)
@@ -105,6 +109,25 @@ func mergedGuardrailsPolicy(base *unstructured.Unstructured, namespace string, r
 			},
 		},
 	}, nil
+}
+
+// newEntries returns the entries in candidates not already deep-equal to one
+// in existing.
+func newEntries(existing, candidates []any) []any {
+	var fresh []any
+	for _, c := range candidates {
+		present := false
+		for _, e := range existing {
+			if reflect.DeepEqual(e, c) {
+				present = true
+				break
+			}
+		}
+		if !present {
+			fresh = append(fresh, c)
+		}
+	}
+	return fresh
 }
 
 // removeMatchingEntries returns existing with every entry deep-equal to one
