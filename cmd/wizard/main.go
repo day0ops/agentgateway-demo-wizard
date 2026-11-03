@@ -59,15 +59,15 @@ func main() {
 
 // agentToolSpecs describes the two MCP tools (Task 15's agent-mcp-server
 // step) in OpenAI function-calling schema, so the built-in agent loop can
-// offer them to the model. get_stock_price's {symbol} schema is confirmed
-// directly from the field-kit's own usecase tests; get_exchange_rate's
-// {from, to} schema is this wizard's best-effort guess at that MCP server's
-// real parameters, since no usecase test in the field-kit exercises its
-// arguments.
+// offer them to the model. The agent-mcp-server step's
+// EnterpriseAgentgatewayBackend aggregates both MCP servers behind one
+// endpoint under targets named "stock" and "currency", so agentgateway
+// routes tools/call by a "<target>_" prefix on the tool name - confirmed
+// directly against the live multiplexed endpoint's tools/list response.
 func agentToolSpecs() []agent.ToolSpec {
 	return []agent.ToolSpec{
 		{
-			Name:        "get_stock_price",
+			Name:        "stock_get_stock_price",
 			Description: "Look up the current price of a stock by its ticker symbol.",
 			Parameters: json.RawMessage(`{
 				"type": "object",
@@ -78,15 +78,15 @@ func agentToolSpecs() []agent.ToolSpec {
 			}`),
 		},
 		{
-			Name:        "get_exchange_rate",
+			Name:        "currency_get_exchange_rate",
 			Description: "Look up the current exchange rate between two currencies.",
 			Parameters: json.RawMessage(`{
 				"type": "object",
 				"properties": {
-					"from": {"type": "string", "description": "Three-letter source currency code, e.g. USD"},
-					"to": {"type": "string", "description": "Three-letter target currency code, e.g. EUR"}
+					"base": {"type": "string", "description": "Three-letter source currency code, e.g. USD"},
+					"target": {"type": "string", "description": "Three-letter target currency code, e.g. EUR"}
 				},
-				"required": ["from", "to"]
+				"required": ["base", "target"]
 			}`),
 		},
 	}
