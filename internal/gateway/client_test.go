@@ -297,3 +297,132 @@ func TestProxyMCPToolCallPassesThroughANonSuccessToolsCallResponse(t *testing.T)
 		t.Fatalf("expected all three handshake steps, got: %v", sawMethods)
 	}
 }
+
+// TestProxyMCPPerformsHandshakeThenForwardsRawBody is the regression test
+// for a live bug: the wizard's generic raw-request presets POST a single
+// bare JSON-RPC call (e.g. tools/list) straight to /mcp with no prior
+// session, and agentgateway's Streamable HTTP transport rejects any
+// non-initialize request with no session with 400. ProxyMCP performs the
+// initialize/notifications/initialized handshake first, then forwards the
+// caller's own body as the final step.
+func TestProxyMCPPerformsHandshakeThenForwardsRawBody(t *testing.T) {
+	var sawMethods []string
+	var sawSessionIDs []string
+	var sawAuth []string
+
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded struct {
+			Method string `json:"method"`
+		}
+		_ = json.Unmarshal(body, &decoded)
+		sawMethods = append(sawMethods, decoded.Method)
+		sawSessionIDs = append(sawSessionIDs, r.Header.Get("Mcp-Session-Id"))
+		sawAuth = append(sawAuth, r.Header.Get("Authorization"))
+
+		switch decoded.Method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "test-session-456")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{}}`))
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"stock_get_stock_price"}]}}`))
+		}
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "unused")
+	resp, err := client.ProxyMCP(context.Background(), Request{
+		Identity: "",
+		Method:   http.MethodPost,
+		Path:     "/mcp",
+		Body:     `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
+	})
+	if err != nil {
+		t.Fatalf("ProxyMCP: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, resp.Body)
+	}
+	if !strings.Contains(resp.Body, "stock_get_stock_price") {
+		t.Fatalf("expected the tools/list result in the body, got: %s", resp.Body)
+	}
+	if len(sawMethods) != 3 || sawMethods[0] != "initialize" || sawMethods[1] != "notifications/initialized" || sawMethods[2] != "tools/list" {
+		t.Fatalf("expected initialize, notifications/initialized, tools/list in order, got: %v", sawMethods)
+	}
+	if sawSessionIDs[1] != "test-session-456" || sawSessionIDs[2] != "test-session-456" {
+		t.Fatalf("expected the session ID threaded into both later requests, got: %v", sawSessionIDs)
+	}
+}
+
+// TestProxyMCPPassesThroughANonSuccessInitializeResponse covers the "no
+// token" teaching step: if ext-auth rejects the handshake's own initialize
+// call, that rejection (e.g. a 401) is the real demo outcome and must be
+// returned as-is, not hidden behind a generic transport error.
+func TestProxyMCPPassesThroughANonSuccessInitializeResponse(t *testing.T) {
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "unused")
+	resp, err := client.ProxyMCP(context.Background(), Request{
+		Method: http.MethodPost,
+		Path:   "/mcp",
+		Body:   `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
+	})
+	if err != nil {
+		t.Fatalf("ProxyMCP: %v", err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected the initialize step's 401 to pass through, got %d", resp.StatusCode)
+	}
+}
+
+// TestProxyMCPWorksWithoutServerAssignedSessionID covers a session-less
+// server - per spec, session IDs are optional, so ProxyMCP must still
+// forward the final request even when initialize never assigns one.
+func TestProxyMCPWorksWithoutServerAssignedSessionID(t *testing.T) {
+	var sawSessionHeaderOnFinalCall bool
+
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var decoded struct {
+			Method string `json:"method"`
+		}
+		_ = json.Unmarshal(body, &decoded)
+
+		switch decoded.Method {
+		case "initialize":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{}}`))
+		case "tools/list":
+			if r.Header.Get("Mcp-Session-Id") != "" {
+				sawSessionHeaderOnFinalCall = true
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}`))
+		}
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "unused")
+	resp, err := client.ProxyMCP(context.Background(), Request{
+		Method: http.MethodPost,
+		Path:   "/mcp",
+		Body:   `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
+	})
+	if err != nil {
+		t.Fatalf("ProxyMCP: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, resp.Body)
+	}
+	if sawSessionHeaderOnFinalCall {
+		t.Fatalf("expected no Mcp-Session-Id header when the server never assigned one")
+	}
+}
