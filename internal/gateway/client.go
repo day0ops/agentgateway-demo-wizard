@@ -192,7 +192,7 @@ type mcpRequest struct {
 func (c *Client) ProxyMCPToolCall(ctx context.Context, path, token, toolName string, arguments map[string]any) (*Response, error) {
 	endpoint := c.gatewayBaseURL + path
 
-	_, sessionID, err := c.doMCPRequest(ctx, endpoint, token, "", mcpRequest{
+	initBody, err := json.Marshal(mcpRequest{
 		JSONRPC: "2.0",
 		ID:      1,
 		Method:  "initialize",
@@ -203,40 +203,106 @@ func (c *Client) ProxyMCPToolCall(ctx context.Context, path, token, toolName str
 		},
 	})
 	if err != nil {
+		return nil, fmt.Errorf("encoding MCP initialize: %w", err)
+	}
+	_, sessionID, err := c.doMCPRequest(ctx, endpoint, token, "", string(initBody))
+	if err != nil {
 		return nil, fmt.Errorf("MCP initialize: %w", err)
 	}
 	if sessionID == "" {
 		return nil, fmt.Errorf("MCP initialize: server did not return an Mcp-Session-Id header")
 	}
 
-	if _, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, mcpRequest{
-		JSONRPC: "2.0",
-		Method:  "notifications/initialized",
-	}); err != nil {
+	initializedBody, err := json.Marshal(mcpRequest{JSONRPC: "2.0", Method: "notifications/initialized"})
+	if err != nil {
+		return nil, fmt.Errorf("encoding MCP notifications/initialized: %w", err)
+	}
+	if _, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, string(initializedBody)); err != nil {
 		return nil, fmt.Errorf("MCP notifications/initialized: %w", err)
 	}
 
-	resp, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, mcpRequest{
+	callBody, err := json.Marshal(mcpRequest{
 		JSONRPC: "2.0",
 		ID:      2,
 		Method:  "tools/call",
 		Params:  map[string]any{"name": toolName, "arguments": arguments},
 	})
 	if err != nil {
+		return nil, fmt.Errorf("encoding MCP tools/call: %w", err)
+	}
+	resp, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, string(callBody))
+	if err != nil {
 		return nil, fmt.Errorf("MCP tools/call: %w", err)
 	}
 	return resp, nil
 }
 
-// doMCPRequest POSTs one JSON-RPC envelope to endpoint and returns the raw
-// response plus any Mcp-Session-Id the server set in its reply.
-func (c *Client) doMCPRequest(ctx context.Context, endpoint, token, sessionID string, payload mcpRequest) (*Response, string, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, "", fmt.Errorf("encoding MCP request: %w", err)
+// ProxyMCP acquires a token for req.Identity (same as Proxy) and performs
+// the MCP Streamable HTTP handshake (initialize ->
+// notifications/initialized) against req.Path before forwarding req.Body as
+// the final JSON-RPC call, returning that response as-is. Needed because
+// the transport requires an established session for any non-initialize
+// request - a bare one-shot call, like the demo's raw request presets send,
+// doesn't carry one on its own.
+//
+// If the handshake's own initialize call doesn't succeed (e.g. ext-auth
+// rejects it for lacking a token), that response is returned as-is rather
+// than treated as a transport error - for some demo steps, that rejection
+// is the actual teaching point.
+func (c *Client) ProxyMCP(ctx context.Context, req Request) (*Response, error) {
+	var token string
+	if req.Identity != "" && req.Identity != "anonymous" {
+		t, err := c.Token(ctx, req.Identity)
+		if err != nil {
+			return nil, fmt.Errorf("acquiring token for %q: %w", req.Identity, err)
+		}
+		token = t
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
+	endpoint := c.gatewayBaseURL + req.Path
+
+	initBody, err := json.Marshal(mcpRequest{
+		JSONRPC: "2.0",
+		ID:      1,
+		Method:  "initialize",
+		Params: map[string]any{
+			"protocolVersion": "2025-06-18",
+			"capabilities":    map[string]any{},
+			"clientInfo":      map[string]any{"name": "wizard-request-builder", "version": "1.0"},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encoding MCP initialize: %w", err)
+	}
+	initResp, sessionID, err := c.doMCPRequest(ctx, endpoint, token, "", string(initBody))
+	if err != nil {
+		return nil, fmt.Errorf("MCP initialize: %w", err)
+	}
+	if initResp.StatusCode != http.StatusOK {
+		return initResp, nil
+	}
+
+	if sessionID != "" {
+		initializedBody, err := json.Marshal(mcpRequest{JSONRPC: "2.0", Method: "notifications/initialized"})
+		if err != nil {
+			return nil, fmt.Errorf("encoding MCP notifications/initialized: %w", err)
+		}
+		if _, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, string(initializedBody)); err != nil {
+			return nil, fmt.Errorf("MCP notifications/initialized: %w", err)
+		}
+	}
+
+	resp, _, err := c.doMCPRequest(ctx, endpoint, token, sessionID, req.Body)
+	if err != nil {
+		return nil, fmt.Errorf("MCP request: %w", err)
+	}
+	return resp, nil
+}
+
+// doMCPRequest POSTs one raw JSON-RPC body to endpoint and returns the raw
+// response plus any Mcp-Session-Id the server set in its reply.
+func (c *Client) doMCPRequest(ctx context.Context, endpoint, token, sessionID, body string) (*Response, string, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(body))
 	if err != nil {
 		return nil, "", fmt.Errorf("building MCP request: %w", err)
 	}

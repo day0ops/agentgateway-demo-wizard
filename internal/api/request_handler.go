@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/day0ops/agentgateway-demo-wizard/internal/gateway"
 )
@@ -63,7 +64,16 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := s.gatewayClient.Proxy(r.Context(), gwReq)
+	// The MCP Streamable HTTP transport requires an established session for
+	// any non-initialize request - a preset's bare one-shot body needs the
+	// handshake performed first, which the generic Proxy doesn't do.
+	var resp *gateway.Response
+	var err error
+	if strings.HasSuffix(req.Path, "/mcp") {
+		resp, err = s.gatewayClient.ProxyMCP(r.Context(), gwReq)
+	} else {
+		resp, err = s.gatewayClient.Proxy(r.Context(), gwReq)
+	}
 	if err != nil {
 		writeJSONError(w, http.StatusBadGateway, err)
 		return
