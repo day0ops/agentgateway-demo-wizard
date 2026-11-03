@@ -108,3 +108,34 @@ func TestOpsAgentRunRejectsUnknownAgent(t *testing.T) {
 		t.Fatalf("expected 400 for an unknown agent, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestOpsAgentRunSurfacesNonJSONErrorBodyFromAgent is the regression test
+// for a live bug: a real ops-agent backend can reject a request with a
+// plain-text error body (e.g. "authentication failed") rather than JSON.
+// json.Decode on that body used to fail with a confusing "invalid
+// character" message that hid the agent's own error text entirely.
+func TestOpsAgentRunSurfacesNonJSONErrorBodyFromAgent(t *testing.T) {
+	agentServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("authentication failed"))
+	}))
+	defer agentServer.Close()
+
+	s := NewServer(WithConfig(&config.Config{AccountsAgentURL: agentServer.URL + "/run"}))
+
+	reqBody := `{"agent":"accounts","mode":"","query":"what's my balance"}`
+	req := httptest.NewRequest(http.MethodPost, "/secure/ops-agent/run", strings.NewReader(reqBody))
+	req.Header.Set("Authorization", fakeBearerToken("team-alpha"))
+	rec := httptest.NewRecorder()
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "authentication failed") {
+		t.Fatalf("expected the agent's own error text, got: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "invalid character") {
+		t.Fatalf("expected the real error, not a JSON-decode error, got: %s", rec.Body.String())
+	}
+}

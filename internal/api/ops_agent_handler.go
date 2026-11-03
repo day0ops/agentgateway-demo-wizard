@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -89,8 +90,18 @@ func (s *Server) handleOpsAgentRun(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		writeJSONError(w, http.StatusBadGateway, fmt.Errorf("reading agent response: %w", err))
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		writeJSONError(w, http.StatusBadGateway, fmt.Errorf("agent returned status %d: %s", resp.StatusCode, respBody))
+		return
+	}
+
 	var parsed opsAgentRunResponse
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.Unmarshal(respBody, &parsed); err != nil {
 		writeJSONError(w, http.StatusBadGateway, fmt.Errorf("decoding agent response: %w", err))
 		return
 	}
