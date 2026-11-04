@@ -117,10 +117,7 @@ export function VirtualKeyPane() {
                 {key.name} ({key.userId})
               </span>
               <div className="flex gap-2">
-                <button
-                  onClick={() => rotateKey(key.name)}
-                  className={btnChip}
-                >
+                <button onClick={() => rotateKey(key.name)} className={btnChip}>
                   <RefreshCw size={12} />
                   Rotate
                 </button>

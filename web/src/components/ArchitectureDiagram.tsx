@@ -25,7 +25,13 @@ type Hotspot = {
   body: string;
 };
 
-type Tip = { title: string; body: string; left: number; top: number; below: boolean };
+type Tip = {
+  title: string;
+  body: string;
+  left: number;
+  top: number;
+  below: boolean;
+};
 
 // Tooltip copy, grounded in what each element actually does in the demo.
 const TIP = {
@@ -341,8 +347,11 @@ function drawDiagram(ctx: CanvasRenderingContext2D, hotspots: Hotspot[]) {
     label: string,
     opts: { fill?: string; border?: string; labelColor?: string } = {},
   ) {
-    const { fill = c.zoneFill, border = c.border, labelColor = c.subtle } =
-      opts;
+    const {
+      fill = c.zoneFill,
+      border = c.border,
+      labelColor = c.subtle,
+    } = opts;
     rr(x, y, w, h, 16);
     ctx.fillStyle = fill;
     ctx.fill();
