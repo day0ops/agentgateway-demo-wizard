@@ -13,10 +13,7 @@ export default {
       colors: {
         background: token("background"),
         foreground: token("foreground"),
-        card: {
-          DEFAULT: token("card"),
-          foreground: token("card-foreground"),
-        },
+        card: token("card"),
         elevated: token("elevated"),
         muted: {
           DEFAULT: token("muted"),

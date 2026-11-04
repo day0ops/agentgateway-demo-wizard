@@ -15,7 +15,6 @@
     --background: 248 250 252;
     --foreground: 13 21 38;
     --card: 255 255 255;
-    --card-foreground: 13 21 38;
     --elevated: 241 245 249;
 
     --muted: 241 245 249;
@@ -64,7 +63,6 @@
     --background: 10 14 20;
     --foreground: 230 235 242;
     --card: 16 21 29;
-    --card-foreground: 230 235 242;
     --elevated: 22 29 39;
 
     --muted: 22 29 39;
