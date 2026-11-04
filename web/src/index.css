@@ -2,8 +2,121 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens. Each value is space-separated RGB channels so Tailwind can
+ * apply opacity modifiers via rgb(var(--token) / <alpha-value>) - see the
+ * color mapping in tailwind.config.ts. Light is the default; .dark overrides.
+ * One cool-neutral gray family drives both themes; teal is the single accent.
+ */
 @layer base {
+  :root {
+    color-scheme: light;
+
+    --background: 248 250 252;
+    --foreground: 13 21 38;
+    --card: 255 255 255;
+    --card-foreground: 13 21 38;
+    --elevated: 241 245 249;
+
+    --muted: 241 245 249;
+    --muted-foreground: 90 103 122;
+    --subtle-foreground: 139 151 167;
+
+    --border: 226 232 240;
+    --border-strong: 203 213 225;
+    --input: 226 232 240;
+    --ring: 14 154 139;
+
+    --primary: 14 154 139;
+    --primary-hover: 12 127 115;
+    --primary-foreground: 255 255 255;
+
+    --secondary: 241 245 249;
+    --secondary-hover: 226 232 240;
+    --secondary-foreground: 30 41 59;
+
+    /* Low-saturation teal wash for active nav and chips. */
+    --accent: 224 244 241;
+    --accent-foreground: 12 111 100;
+
+    --success: 4 120 87;
+    --success-soft: 236 253 245;
+    --success-border: 167 243 208;
+
+    --warning: 180 83 9;
+    --warning-soft: 255 251 235;
+    --warning-border: 253 230 138;
+
+    --info: 2 132 199;
+    --info-soft: 240 249 255;
+    --info-border: 186 230 253;
+
+    --destructive: 185 28 28;
+    --destructive-soft: 254 242 242;
+    --destructive-border: 254 202 202;
+
+    --shadow-color: 15 23 42;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --background: 10 14 20;
+    --foreground: 230 235 242;
+    --card: 16 21 29;
+    --card-foreground: 230 235 242;
+    --elevated: 22 29 39;
+
+    --muted: 22 29 39;
+    --muted-foreground: 148 163 184;
+    --subtle-foreground: 100 116 139;
+
+    --border: 35 44 56;
+    --border-strong: 48 59 74;
+    --input: 48 59 74;
+    --ring: 45 188 172;
+
+    --primary: 45 188 172;
+    --primary-hover: 69 201 186;
+    --primary-foreground: 4 35 31;
+
+    --secondary: 27 35 46;
+    --secondary-hover: 35 44 56;
+    --secondary-foreground: 226 232 240;
+
+    --accent: 16 33 31;
+    --accent-foreground: 95 214 199;
+
+    --success: 52 211 153;
+    --success-soft: 5 34 28;
+    --success-border: 15 82 73;
+
+    --warning: 251 191 36;
+    --warning-soft: 42 30 5;
+    --warning-border: 90 67 18;
+
+    --info: 56 189 248;
+    --info-soft: 8 27 41;
+    --info-border: 18 68 94;
+
+    --destructive: 248 113 113;
+    --destructive-soft: 42 16 18;
+    --destructive-border: 90 33 34;
+
+    --shadow-color: 0 0 0;
+  }
+
   html {
-    @apply font-sans antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
+    scroll-behavior: smooth;
+  }
+
+  /* One consistent, keyboard-only focus treatment across the app. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    background-color: rgb(var(--primary) / 0.22);
   }
 }
