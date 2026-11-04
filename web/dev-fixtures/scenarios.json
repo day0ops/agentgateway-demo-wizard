@@ -1,0 +1,688 @@
+[
+  {
+    "id": "intro",
+    "title": "Welcome",
+    "teaser": "",
+    "steps": [
+      {
+        "id": "welcome",
+        "title": "Welcome to agentgateway",
+        "explanation": "agentgateway is the single control point every AI call in an organization can flow through - whether that's a chatbot answering a question or an AI agent calling a tool - instead of every team building its own access, safety, and cost controls against each AI provider separately.\n\n- This wizard drives a live agentgateway: every step applies real configuration to a real cluster and sends real requests through it.\n- You'll watch the gateway's policies actually working, not just read about them.\n\nHere's what you'll see:",
+        "diagram": "",
+        "policies": [],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      }
+    ]
+  },
+  {
+    "id": "routing",
+    "title": "One endpoint, many models",
+    "teaser": "Smart model routing with automatic fallback when a backend degrades.",
+    "steps": [
+      {
+        "id": "routing-by-name",
+        "title": "Model routing by name",
+        "explanation": "Acme Corp's teams all call one agentgateway address, but each request can ask for a different AI model by name.\n\n- Here, that's OpenAI's gpt-4o-mini or Anthropic's Claude.\n- The gateway reads which model the request wants and forwards it to the right provider.\n- One address, many models, and no routing logic in the app itself.",
+        "diagram": "sequenceDiagram\n  participant Client\n  participant AGW as agentgateway\n  participant OAI as OpenAI (gpt-4o-mini)\n  participant ANT as Anthropic (Claude)\n  Client-\u003e\u003eAGW: POST /chat/by-name (X-Demo-Model: gpt-4o-mini)\n  AGW-\u003e\u003eOAI: forward\n  OAI--\u003e\u003eClient: response\n  Client-\u003e\u003eAGW: POST /chat/by-name (X-Demo-Model: claude-sonnet-5)\n  AGW-\u003e\u003eANT: forward\n  ANT--\u003e\u003eClient: response",
+        "policies": [
+          {
+            "id": "routing-by-name",
+            "title": "",
+            "readOnly": true
+          }
+        ],
+        "presets": [
+          {
+            "id": "ask-gpt-4o-mini",
+            "title": "Route to OpenAI",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/chat/by-name",
+            "headers": {
+              "X-Demo-Model": "gpt-4o-mini"
+            },
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"What is agentgateway in one sentence?\"}]}",
+            "stream": false
+          },
+          {
+            "id": "ask-claude",
+            "title": "Route to Anthropic",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/chat/by-name",
+            "headers": {
+              "X-Demo-Model": "claude-sonnet-5"
+            },
+            "body": "{\"model\":\"claude-sonnet-5\",\"messages\":[{\"role\":\"user\",\"content\":\"What is agentgateway in one sentence?\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "routing-dynamic",
+        "title": "Dynamic routing",
+        "explanation": "The gateway doesn't have to route by model name - anything in the request can steer it.\n\n- Here, a simple \"tier\" label on the request picks between a fast, cheap model and a premium one.\n- The caller just asks for \"fast\" or \"premium\" and never needs to know which actual model sits behind each tier.",
+        "diagram": "flowchart LR\n  Client --\u003e|\"X-Model-Tier: fast\"| AGW[agentgateway]\n  Client --\u003e|\"X-Model-Tier: premium\"| AGW\n  AGW --\u003e|fast| Fast[gpt-4o-mini]\n  AGW --\u003e|premium| Premium[gpt-4o]",
+        "policies": [
+          {
+            "id": "routing-dynamic",
+            "title": "Dynamic tier routing",
+            "readOnly": true
+          }
+        ],
+        "presets": [
+          {
+            "id": "ask-fast-tier",
+            "title": "Ask as fast tier",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/chat/dynamic",
+            "headers": {
+              "X-Model-Tier": "fast"
+            },
+            "body": "{\"messages\":[{\"role\":\"user\",\"content\":\"Summarize agentgateway in one sentence.\"}]}",
+            "stream": false
+          },
+          {
+            "id": "ask-premium-tier",
+            "title": "Ask as premium tier",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/chat/dynamic",
+            "headers": {
+              "X-Model-Tier": "premium"
+            },
+            "body": "{\"messages\":[{\"role\":\"user\",\"content\":\"Summarize agentgateway in one sentence.\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "routing-fallback",
+        "title": "Automatic fallback",
+        "explanation": "Real traffic has to keep working even when a provider is having a bad day.\n\n- agentgateway ranks the AI providers in priority order.\n- If the preferred one slows down or starts failing, traffic shifts to the next one automatically, in the moment.\n- No retry code in the app, and no one paged to flip a switch by hand.",
+        "diagram": "sequenceDiagram\n  participant Client\n  participant AGW as agentgateway\n  participant Cheap as gpt-4o-mini (priority 100)\n  participant Premium as gpt-4o (priority 50)\n  Client-\u003e\u003eAGW: request\n  AGW-\u003e\u003eCheap: try priority 100 first\n  Cheap--\u003e\u003eAGW: unhealthy / unavailable\n  AGW-\u003e\u003ePremium: fail over automatically\n  Premium--\u003e\u003eClient: response",
+        "policies": [
+          {
+            "id": "routing-fallback",
+            "title": "Priority-tiered failover",
+            "readOnly": true
+          }
+        ],
+        "presets": [
+          {
+            "id": "ask-with-fallback",
+            "title": "Send a request",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/chat/fallback",
+            "headers": {},
+            "body": "{\"messages\":[{\"role\":\"user\",\"content\":\"What is Kubernetes in one sentence?\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "routing-streaming",
+        "title": "Streaming responses",
+        "explanation": "agentgateway speaks OpenAI's API natively, so streaming just works: adding \"stream\": true to the request is all it takes - there's no extra setting to turn on.\n\n- The same by-name route from the first step now sends the answer back piece by piece, as the model writes it.\n- The user starts reading right away instead of waiting for the whole reply to finish.",
+        "diagram": "sequenceDiagram\n  participant Client\n  participant AGW as agentgateway\n  participant OAI as OpenAI\n  Client-\u003e\u003eAGW: POST /chat/by-name (stream: true)\n  AGW-\u003e\u003eOAI: forward as-is\n  OAI--\u003e\u003eAGW: SSE chunk 1\n  AGW--\u003e\u003eClient: data: {...}\n  OAI--\u003e\u003eAGW: SSE chunk 2\n  AGW--\u003e\u003eClient: data: {...}\n  OAI--\u003e\u003eAGW: data: [DONE]\n  AGW--\u003e\u003eClient: data: [DONE]",
+        "policies": [],
+        "presets": [
+          {
+            "id": "ask-streaming",
+            "title": "Ask with streaming",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/chat/by-name",
+            "headers": {
+              "X-Demo-Model": "gpt-4o-mini"
+            },
+            "body": "{\"model\":\"gpt-4o-mini\",\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"Count from 1 to 5.\"}]}",
+            "stream": true
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      }
+    ]
+  },
+  {
+    "id": "auth",
+    "title": "Who's allowed to do what",
+    "teaser": "Four questions every call must answer - enforced live on real banking agents and tools.",
+    "steps": [
+      {
+        "id": "auth-questions",
+        "title": "Four questions every call must answer",
+        "explanation": "Everything after this step is a real AI agent calling a real banking tool on your behalf. Before agentgateway lets any of those calls through, it checks the same four things every time - and logging in only settles the first two.\n\n- **Question 1 - who is this for?** The call has to act for the real customer, not a stand-in (the identity in the token's `sub`).\n- **Question 2 - who is actually doing it?** When one agent hands work to another, every agent in the chain is named, in order (the `act` chain).\n- **Question 3 - is this token meant for this exact service?** Each time the gateway passes a token along, it narrows what that token is good for, so one stolen on its way to the ledger is useless anywhere else (the `aud`).\n- **Question 4 - is this agent allowed to do this one thing, right now?** Decided at the moment of each tool call: the overlap between what the agent *can* do and what you actually asked it to do.\n\nLogging in answers only the first two. agentgateway checks all four, on every single call.",
+        "diagram": "sequenceDiagram\n  participant You\n  participant Agent\n  participant AGW as agentgateway\n  participant MCP as Core Banking MCP\n  You-\u003e\u003eAgent: \"Move $500 from savings to checking.\"\n  Agent-\u003e\u003eAGW: MCP tool call (Bearer JWT)\n  Note over AGW: Question 1 (sub) - who is this on behalf of?\n  Note over AGW: Question 2 (act / act.act) - who is actually acting?\n  Note over AGW: Question 3 (aud) - is this token meant for this service?\n  Note over AGW: Question 4 (per-tool authz) - capability ∩ delegated consent?\n  AGW-\u003e\u003eMCP: forward, only if all four pass\n  MCP--\u003e\u003eYou: result",
+        "policies": [],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "auth-login",
+        "title": "Real login",
+        "explanation": "Every other step in this wizard takes a shortcut to log you in: the wizard itself asks Keycloak (the identity provider) for a token using a fixed demo username and password. That's fine for showing off routing or cost, but it's the wrong way to prove **Question 1** - who a real customer actually is.\n\nThis step does it properly, the way a real app would:\n\n- agentgateway itself - not the wizard - sends you to Keycloak's own hosted login page, and you sign in there.\n- From then on, every call in this pillar carries your real identity, attached by agentgateway as a standard login token - the wizard never handles it.\n- agentgateway quietly renews that login in the background, so your session keeps working without anyone managing it.\n\nIt's the welcome screen's promise made literal: agentgateway is the one point every call flows through - and here, that includes the login itself, not just the banking calls that follow.",
+        "diagram": "sequenceDiagram\n  participant Browser\n  participant AGW as agentgateway (ext-auth)\n  participant KC as Keycloak\n  Browser-\u003e\u003eAGW: GET /secure/login?returnTo=auth\n  AGW-\u003e\u003eAGW: no session yet\n  AGW--\u003e\u003eBrowser: 302 to Keycloak's real hosted login page\n  Browser-\u003e\u003eKC: log in as team-alpha or team-beta\n  KC--\u003e\u003eAGW: authorization code\n  AGW-\u003e\u003eKC: exchange for tokens\n  AGW-\u003e\u003eAGW: bank session (Redis), set session cookie\n  AGW--\u003e\u003eBrowser: 302 back into the wizard at the right pillar\n  Note over AGW: every later call: inject Authorization: Bearer token,\u003cbr/\u003erefreshing transparently before it expires",
+        "policies": [],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": true
+      },
+      {
+        "id": "auth-accounts-impersonation",
+        "title": "Accounts Agent → Core Banking (Impersonation)",
+        "explanation": "The Accounts Agent reads your own balances and recent activity from the Core Banking system. It passes your login along as-is, and agentgateway swaps it for a token scoped to the banking system before forwarding the call - same you, just re-issued for this one backend.\n\n- **Question 1 - who is this for?** Still you (`sub` is unchanged).\n- **Question 2 - who's acting?** Only the gateway, standing in for you directly. No other agent is involved yet, so there's nothing to delegate.\n- **Question 3 - is the token meant for this service?** Yes, and only this one: it's scoped to the banking system (`aud`), so even if it leaked it couldn't be used anywhere else - a token for the ledger only works on the ledger.",
+        "diagram": "sequenceDiagram\n  participant You\n  participant Wizard\n  participant Accounts as Accounts Agent\n  participant AGW as agentgateway\n  participant Bank as Core Banking MCP\n  You-\u003e\u003eWizard: \"What's my balance and recent activity?\"\n  Wizard-\u003e\u003eAccounts: POST /accounts-agent/run (token)\n  Accounts-\u003e\u003eAGW: MCP call (Bearer: your token, unchanged)\n  AGW-\u003e\u003eAGW: token exchange (Impersonation, aud=core-banking)\n  AGW-\u003e\u003eBank: forward with exchanged token\n  Bank--\u003e\u003eAccounts: balances + recent activity\n  Accounts--\u003e\u003eWizard: answer\n  Wizard--\u003e\u003eYou: answer",
+        "policies": [
+          {
+            "id": "auth-accounts-impersonation",
+            "title": "Accounts Agent + Core Banking (standard route)",
+            "readOnly": true
+          }
+        ],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false,
+        "opsAgent": {
+          "agent": "accounts",
+          "mode": "",
+          "defaultPrompt": "What's my balance and recent activity?"
+        }
+      },
+      {
+        "id": "auth-accounts-rbac",
+        "title": "Accounts Agent → Core Banking (MCP tool RBAC)",
+        "explanation": "Same agent, same banking system, but a sharper question: is this user allowed to call this *specific* tool right now?\n\n- **Try it first, before applying anything below.** Listing accounts and reading transactions are open to any logged-in customer - and so, right now, is pulling full account and routing numbers.\n- **Now apply the policy and ask the exact same thing again.** A rule on the banking backend now requires an \"org admin\" mark on your login for that one tool. Yours doesn't have it, so that call is turned down - even though logging in and reaching the backend still work perfectly.\n\nThat's **Question 4**: permission checked at the individual tool, in the moment of the call - not decided once at login.",
+        "diagram": "sequenceDiagram\n  participant Accounts as Accounts Agent\n  participant AGW as agentgateway\n  participant Bank as Core Banking MCP\n  Note over AGW: before Apply - no rule at all\n  Accounts-\u003e\u003eAGW: tools/call get_account_detail (Bearer exchanged token)\n  AGW-\u003e\u003eBank: forward (nothing stops it)\n  Bank--\u003e\u003eAccounts: account + routing numbers\n  Note over AGW: after Apply\n  Accounts-\u003e\u003eAGW: tools/call get_account_detail (same token)\n  AGW-\u003e\u003eAGW: CEL: jwt.is_org_admin == true -\u003e required\n  AGW--\u003e\u003eAccounts: 403 denied - tool-level RBAC",
+        "policies": [
+          {
+            "id": "auth-accounts-rbac",
+            "title": "MCP tool RBAC: admin-only account detail",
+            "readOnly": false
+          }
+        ],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false,
+        "opsAgent": {
+          "agent": "accounts",
+          "mode": "",
+          "defaultPrompt": "What's my full account and routing number?"
+        }
+      },
+      {
+        "id": "auth-transfer-chain",
+        "title": "Transfer Orchestrator → Settlement → Core Banking (Delegation)",
+        "explanation": "Moving money takes more than proving who you are - the bank needs a signed record of every agent that touched the request on its way to the ledger.\n\n- You ask the Transfer Orchestrator to move money. It never touches the ledger itself - it hands the job to the Settlement Agent, stamping its own name on the request as it passes it along.\n- The Settlement Agent does the same, adding its own name, before it finally calls the transfer tool.\n- The request that reaches Core Banking carries the whole signed trail: still *your* money, moved by Settlement, acting for the Orchestrator, acting for you (a nested `act` chain).\n\nThat covers **Question 1** (it's still you throughout), **Question 2** (the trail names exactly which agents acted, and in what order), and **Question 3** (each hand-off is locked to the next service only, so a token grabbed mid-chain is useless anywhere else).",
+        "diagram": "sequenceDiagram\n  participant You\n  participant Wizard\n  participant Orch as Transfer Orchestrator\n  participant STS\n  participant Settle as Settlement Agent\n  participant AGW as agentgateway\n  participant Bank as Core Banking MCP\n  You-\u003e\u003eWizard: \"Move $500 from savings to checking.\"\n  Wizard-\u003e\u003eOrch: POST /transfer-orchestrator-agent/run (token)\n  Orch-\u003e\u003eSTS: exchange (subject=your token, actor=Orchestrator SA)\n  STS--\u003e\u003eOrch: T1 (sub=you, act=transfer-orchestrator-agent)\n  Orch-\u003e\u003eSettle: POST /settlement-agent/run (T1)\n  Settle-\u003e\u003eSTS: exchange (subject=T1, actor=Settlement SA)\n  STS--\u003e\u003eSettle: T2 (sub=you, act=settlement-agent, act.act=transfer-orchestrator-agent)\n  Settle-\u003e\u003eAGW: MCP call transfer (Bearer: T2)\n  AGW-\u003e\u003eBank: forward\n  Bank--\u003e\u003eSettle: transfer confirmed\n  Settle--\u003e\u003eOrch: result + decoded chain\n  Orch--\u003e\u003eWizard: answer + chain\n  Wizard--\u003e\u003eYou: answer + chain",
+        "policies": [
+          {
+            "id": "auth-transfer-chain",
+            "title": "Transfer Orchestrator + Settlement + Core Banking delegation route",
+            "readOnly": true
+          }
+        ],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false,
+        "opsAgent": {
+          "agent": "transfer-orchestrator",
+          "mode": "",
+          "defaultPrompt": "Move $500 from savings to checking."
+        }
+      },
+      {
+        "id": "auth-settlement-rbac",
+        "title": "Settlement → Core Banking (right task, right now)",
+        "explanation": "That signed trail from the last step isn't just for auditing later - it's what the bank uses to decide whether to move the money at all.\n\n- **Try it first, before applying anything.** Run the agent: the proper chained \"move $500\" request goes through. A direct transfer with just your own login - same user, same bank, but no Orchestrator in the trail - also goes through for now, because nothing is stopping it yet.\n- **Now apply the policy.** The transfer tool now insists the request arrive through the Transfer Orchestrator - its name has to be in the signed trail before any money moves.\n- **Run the agent again** and the proper chained path still works, because the Orchestrator really did vouch for it.\n- **Then use the \"direct transfer\" button below** to try the raw, chain-less transfer again - now it's turned down, every time.\n\nReaching the banking system and being properly delegated to are *both* required, and neither is enough on its own. That's **Question 4**: permission judged against the whole chain of who-acted-for-whom, not just who logged in.",
+        "diagram": "sequenceDiagram\n  participant Settle as Settlement Agent (via chain)\n  participant Direct as You (direct call, no chain)\n  participant AGW as agentgateway\n  participant Bank as Core Banking MCP\n  Note over AGW: before Apply - no rule at all\n  Direct-\u003e\u003eAGW: tools/call transfer (your token, no act chain)\n  AGW-\u003e\u003eBank: forward (nothing stops it)\n  Bank--\u003e\u003eDirect: transfer confirmed\n  Note over AGW: after Apply\n  Settle-\u003e\u003eAGW: tools/call transfer (act.act.sub = transfer-orchestrator-agent)\n  AGW-\u003e\u003eAGW: CEL: jwt.act.act.sub == orchestrator SA -\u003e Allow\n  AGW-\u003e\u003eBank: forward\n  Bank--\u003e\u003eSettle: transfer confirmed\n  Direct-\u003e\u003eAGW: tools/call transfer (your token, no act chain)\n  AGW-\u003e\u003eAGW: CEL: jwt.act.act.sub missing -\u003e no match\n  AGW--\u003e\u003eDirect: denied - transfer tool hidden (no delegation chain)",
+        "policies": [
+          {
+            "id": "auth-settlement-rbac",
+            "title": "MCP tool RBAC: transfer requires the delegation chain",
+            "readOnly": false
+          }
+        ],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false,
+        "opsAgent": {
+          "agent": "transfer-orchestrator",
+          "mode": "",
+          "defaultPrompt": "Move $500 from savings to checking."
+        },
+        "directCall": {
+          "title": "Try a direct transfer (no delegation chain)",
+          "path": "/core-banking-delegation/mcp",
+          "tool": "transfer",
+          "arguments": {
+            "amount": 500,
+            "from_account": "savings",
+            "to_account": "checking"
+          }
+        }
+      },
+      {
+        "id": "auth-statements-interactive",
+        "title": "Statements Agent → PayPal (Interactive elicitation)",
+        "explanation": "Some things an agent needs to reach live outside the bank entirely. Here the Statements Agent pulls your history from PayPal's own system (in sandbox mode), on your behalf - but the gateway doesn't have your permission to use PayPal yet.\n\n- Instead of just failing, the gateway hands back a one-time approval link. You open it, approve access once, and from then on the gateway quietly supplies your PayPal credential on every later call.\n- This step uses PayPal, and the next one uses Stripe, because the two connect in genuinely different ways - PayPal fits this \"send the user off to approve it\" style, which is the contrast the next step builds on.\n- Approving PayPal only proves you allowed the connection; it still doesn't decide which Statements tools the agent may call. That's **Question 4** again, enforced exactly like the banking tools earlier.\n\nThe agent itself never sees or stores your PayPal credential.",
+        "diagram": "sequenceDiagram\n  participant You\n  participant Wizard\n  participant Stmt as Statements Agent\n  participant AGW as agentgateway\n  participant STS\n  participant UI as Solo UI\n  participant PayPal\n  You-\u003e\u003eWizard: \"Show my recent PayPal transactions.\"\n  Wizard-\u003e\u003eStmt: POST /statements-agent/run (token)\n  Stmt-\u003e\u003eAGW: MCP call (Bearer: your token)\n  AGW-\u003e\u003eSTS: check for a stored PayPal token\n  STS--\u003e\u003eAGW: none yet - elicitation required\n  AGW--\u003e\u003eStmt: pending + consent URL\n  Stmt--\u003e\u003eWizard: \"open this link to connect PayPal\"\n  You-\u003e\u003eUI: open the link, approve\n  UI-\u003e\u003ePayPal: OAuth consent (sandbox)\n  PayPal--\u003e\u003eSTS: PayPal access token (stored)\n  You-\u003e\u003eWizard: retry\n  Wizard-\u003e\u003eStmt: POST /statements-agent/run (token)\n  Stmt-\u003e\u003eAGW: MCP call (Bearer: your token)\n  AGW-\u003e\u003eSTS: check for a stored PayPal token\n  STS--\u003e\u003eAGW: found - inject it\n  AGW--\u003e\u003eStmt: real PayPal transactions",
+        "policies": [
+          {
+            "id": "auth-statements-interactive",
+            "title": "Statements Agent + PayPal (Interactive elicitation)",
+            "readOnly": true
+          }
+        ],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false,
+        "opsAgent": {
+          "agent": "statements",
+          "mode": "interactive",
+          "defaultPrompt": "Show my recent PayPal transactions."
+        }
+      },
+      {
+        "id": "auth-statements-brokered",
+        "title": "Statements Agent → Stripe (Brokered elicitation)",
+        "explanation": "Same agent, a different outside service (Stripe), and a smoother path to connecting it.\n\n- You already signed in once, back at the login step, and the gateway trusts that - so there's no need to send you off to a separate approval page again.\n- Instead, the gateway handles the Stripe connection inline: it shows its own approval screen, saves the resulting Stripe credential against your identity, and retries the call in the same round trip.\n- Your identity to the bank doesn't change here - you're still you. The only thing being brokered is the extra Stripe credential, saved the same way the PayPal step saved its own.\n\n**Question 4** is unchanged - the agent's tool access is still checked per tool, exactly as before. The contrast is the whole point: PayPal sent you to a separate page because nothing trusted you there yet; Stripe can fold approval right into the gateway because your session already does.",
+        "diagram": "sequenceDiagram\n  participant You\n  participant Wizard\n  participant Stmt as Statements Agent\n  participant AGW as agentgateway (OAuth issuer)\n  participant Stripe\n  You-\u003e\u003eWizard: \"Show my recent Stripe payouts.\"\n  Wizard-\u003e\u003eStmt: POST /statements-agent/run (token)\n  Stmt-\u003e\u003eAGW: MCP call (Bearer: your token)\n  AGW-\u003e\u003eAGW: no Stripe credential banked for you yet\n  AGW--\u003e\u003eYou: gateway-hosted consent screen (inline)\n  You-\u003e\u003eAGW: approve\n  AGW-\u003e\u003eStripe: OAuth consent (sandbox)\n  Stripe--\u003e\u003eAGW: Stripe access token (banked to your identity)\n  AGW-\u003e\u003eStripe: forward with brokered Stripe token\n  Stripe--\u003e\u003eAGW: payouts\n  AGW--\u003e\u003eStmt: real Stripe payouts\n  Stmt--\u003e\u003eWizard: answer\n  Wizard--\u003e\u003eYou: answer",
+        "policies": [
+          {
+            "id": "auth-statements-brokered",
+            "title": "Statements Agent + Stripe (Brokered elicitation)",
+            "readOnly": true
+          }
+        ],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false,
+        "opsAgent": {
+          "agent": "statements",
+          "mode": "brokered",
+          "defaultPrompt": "Show my recent Stripe payouts."
+        }
+      }
+    ]
+  },
+  {
+    "id": "guardrails",
+    "title": "What gets through",
+    "teaser": "Content guardrails that block or mask what shouldn't get through.",
+    "steps": [
+      {
+        "id": "guardrails-prompt-guard",
+        "title": "Not everything should get through",
+        "explanation": "Knowing who's asking says nothing about whether the request itself - or the answer coming back - is safe to send.\n\n- Banned phrases and personal data like Social Security numbers are blocked outright on the way in.\n- The same patterns are hidden on the way back out.",
+        "diagram": "sequenceDiagram\n  participant Client\n  participant AGW as agentgateway\n  participant OAI as OpenAI\n  Client-\u003e\u003eAGW: POST /guardrails/openai (safe prompt)\n  AGW-\u003e\u003eOAI: forward\n  OAI--\u003e\u003eClient: 200 response\n  Client-\u003e\u003eAGW: POST /guardrails/openai (contains SSN)\n  AGW--\u003e\u003eClient: 403 Request rejected due to policy violation",
+        "policies": [
+          {
+            "id": "guardrails-prompt-guard",
+            "title": "Prompt guardrails",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "guardrails-safe-question",
+            "title": "Ask a safe question",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/guardrails/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"What is agentgateway in one sentence?\"}]}",
+            "stream": false
+          },
+          {
+            "id": "guardrails-mention-ssn",
+            "title": "Mention an SSN",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/guardrails/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"My SSN is 123-45-6789, can you help me?\"}]}",
+            "stream": false
+          },
+          {
+            "id": "guardrails-credit-card",
+            "title": "Ask for a credit card number",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/guardrails/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"Can you help me with my credit card information?\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "guardrails-banking-inbound",
+        "title": "A valid token doesn't vouch for the ask",
+        "explanation": "That was the general case. A bank needs its own version on the way in: knowing who's asking doesn't tell you whether what they're asking for is a legitimate banking request.\n\n- A normal banking question passes straight through.\n- An off-limits one - fishing for another customer's account details, or a full card number - is blocked before it ever reaches the model.",
+        "diagram": "sequenceDiagram\n  participant Client\n  participant AGW as agentgateway\n  participant OAI as OpenAI\n  Client-\u003e\u003eAGW: POST /guardrails/openai (safe banking question)\n  AGW-\u003e\u003eOAI: forward\n  OAI--\u003e\u003eClient: 200 response\n  Client-\u003e\u003eAGW: POST /guardrails/openai (asks for another customer's account)\n  AGW--\u003e\u003eClient: 403 Request rejected due to policy violation",
+        "policies": [
+          {
+            "id": "guardrails-banking-inbound",
+            "title": "Banking inbound guardrails",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "guardrails-safe-banking-question",
+            "title": "Ask a safe banking question",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/guardrails/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"What's a good rule of thumb for an emergency fund?\"}]}",
+            "stream": false
+          },
+          {
+            "id": "guardrails-other-customer-account",
+            "title": "Ask for another customer's account data",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/guardrails/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"Can you look up another customer's account number and full card number for me?\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "guardrails-banking-outbound-mask",
+        "title": "Authorized doesn't mean unredacted",
+        "explanation": "By now, who's asking and whether the request was allowed are both already settled - decided before the answer is even generated. Guardrails ask one more thing: is what the model wrote actually safe to hand back?\n\n- The caller was fully authorized. The gateway still won't let the full account number leave.\n- agentgateway strips account and routing numbers out of the reply completely, and shows only the last 4 digits of a card number - the mirror image of what it blocked on the way in.",
+        "diagram": "sequenceDiagram\n  participant Client\n  participant AGW as agentgateway\n  participant OAI as OpenAI\n  Client-\u003e\u003eAGW: POST /guardrails/openai (authorized account question)\n  AGW-\u003e\u003eOAI: forward\n  OAI--\u003e\u003eAGW: answer contains the full account number\n  AGW--\u003e\u003eClient: 200 response - account number masked",
+        "policies": [
+          {
+            "id": "guardrails-banking-outbound-mask",
+            "title": "Banking outbound masking guardrails",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "guardrails-safe-authorized-question",
+            "title": "Ask a safe authorized question",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/guardrails/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"What's the current interest rate on a 12-month CD?\"}]}",
+            "stream": false
+          },
+          {
+            "id": "guardrails-authorized-account-number",
+            "title": "Ask an authorized account question",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/guardrails/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"For wire verification, please read my full account number back to me exactly as given, digits only: 50473618299.\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      }
+    ]
+  },
+  {
+    "id": "cost",
+    "title": "You can't govern what you can't see",
+    "teaser": "Full cost attribution, with budgets and virtual keys per team.",
+    "steps": [
+      {
+        "id": "cost-attribution",
+        "title": "Cost attribution",
+        "explanation": "Once every request is tied to a team, agentgateway can put a price on each one using a built-in price list for each model - no separate billing system needed.\n\n- The calculated cost is written into agentgateway's own request logs, ready to feed a spending dashboard.\n- The raw response below still shows the model's own token usage - the figures the price list turns into a dollar amount.",
+        "diagram": "flowchart LR\n  Client --\u003e|POST /cost/openai| AGW[agentgateway]\n  AGW --\u003e|spec.infrastructure.parametersRef| Params[EnterpriseAgentgatewayParameters]\n  Params --\u003e Catalog[(Model cost catalog)]\n  AGW --\u003e OpenAI[OpenAI gpt-4o-mini]\n  AGW -.-\u003e|llm.cost, agw.ai.usage.cost.total| Logs[(Request logs)]",
+        "policies": [
+          {
+            "id": "cost-attribution",
+            "title": "Model cost catalog",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "ask-priced-route",
+            "title": "Ask through the priced route",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/cost/openai",
+            "headers": {},
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"What is agentgateway in one sentence?\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "cost-budgets",
+        "title": "Budgets and spend limits",
+        "explanation": "Seeing the spend is only half of it - agentgateway can also enforce a hard limit.\n\n- team-alpha and team-beta each call with their own API key and the same deliberately tiny daily budget, set so it's used up almost immediately.\n- team-alpha's budget is in Audit mode: going over is logged, but the request still goes through.\n- team-beta's budget is in Block mode: the request is turned down the instant the budget is exceeded.",
+        "diagram": "sequenceDiagram\n  participant Alpha as team-alpha (API key)\n  participant Beta as team-beta (API key)\n  participant AGW as agentgateway\n  participant OAI as OpenAI\n  Alpha-\u003e\u003eAGW: POST /cost/budgets (Bearer sk-team-alpha-...)\n  AGW-\u003e\u003eAGW: budget 'team-alpha-daily-tokens' exceeded (Audit) - log only\n  AGW-\u003e\u003eOAI: forward\n  OAI--\u003e\u003eAlpha: 200\n  Beta-\u003e\u003eAGW: POST /cost/budgets (Bearer sk-team-beta-...)\n  AGW-\u003e\u003eAGW: budget 'team-beta-daily-tokens' exceeded (Block)\n  AGW--\u003e\u003eBeta: 429",
+        "policies": [
+          {
+            "id": "cost-budgets",
+            "title": "Budgets and virtual keys",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "team-alpha-audit",
+            "title": "team-alpha asks (audit)",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/cost/budgets",
+            "headers": {
+              "Authorization": "Bearer sk-team-alpha-demo-budget"
+            },
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}",
+            "stream": false
+          },
+          {
+            "id": "team-beta-blocked",
+            "title": "team-beta asks (blocked)",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/cost/budgets",
+            "headers": {
+              "Authorization": "Bearer sk-team-beta-demo-budget"
+            },
+            "body": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": true,
+        "loginDemo": false
+      }
+    ]
+  },
+  {
+    "id": "agent",
+    "title": "From models to agents",
+    "teaser": "Governed agent-to-tool calling at the bank's Wealth \u0026 FX desk, through the same control point.",
+    "steps": [
+      {
+        "id": "agent-mcp-server",
+        "title": "Wealth \u0026 FX desk agent",
+        "explanation": "Agents don't just talk to models - they use tools. Here, agentgateway sits in front of two real tool servers behind the bank's Wealth \u0026 FX desk: one looks up stock positions, the other looks up currency exchange rates.\n\nRun the agent and watch:\n\n- the model decide which tool it needs,\n- agentgateway pass that request to the right tool server,\n- the result flow back into the model's final answer.\n\nAll through the same gateway that handled routing, identity, and cost.",
+        "diagram": "sequenceDiagram\n  participant Agent\n  participant AGW as agentgateway\n  participant Model as gpt-4o-mini\n  participant Stock as Wealth Desk MCP\n  participant Currency as FX Desk MCP\n  Agent-\u003e\u003eAGW: POST /agent-chat (prompt)\n  AGW-\u003e\u003eModel: forward\n  Model--\u003e\u003eAGW: tool_call: get_stock_price\n  AGW-\u003e\u003eStock: forward tool call\n  Stock--\u003e\u003eAGW: result\n  AGW-\u003e\u003eModel: forward result\n  Model--\u003e\u003eAgent: final answer",
+        "policies": [
+          {
+            "id": "agent-mcp-server",
+            "title": "MCP servers + agent chat provider",
+            "readOnly": false
+          }
+        ],
+        "presets": [],
+        "agentDemo": true,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "agent-mcp-auth",
+        "title": "MCP authentication",
+        "explanation": "The same Wealth \u0026 FX desk from the last step now demands a valid login before it will even list its tools. An agent reaching for tools gets its identity checked exactly like any other request through the gateway - nothing is open just because it's an agent asking.",
+        "diagram": "sequenceDiagram\n  participant Client as MCP Client\n  participant AGW as agentgateway\n  participant KC as Keycloak\n  Client-\u003e\u003eAGW: tools/list (no token)\n  AGW--\u003e\u003eClient: 401\n  Client-\u003e\u003eKC: password grant\n  KC--\u003e\u003eClient: JWT\n  Client-\u003e\u003eAGW: tools/list (Bearer JWT)\n  AGW-\u003e\u003eKC: validate JWT\n  AGW--\u003e\u003eClient: 200 (tools list)",
+        "policies": [
+          {
+            "id": "agent-mcp-auth",
+            "title": "MCP authentication",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "list-tools-no-token",
+            "title": "List tools (no token)",
+            "identity": "anonymous",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": {},
+            "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+            "stream": false
+          },
+          {
+            "id": "list-tools-team-alpha",
+            "title": "List tools (team-alpha)",
+            "identity": "team-alpha",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": {},
+            "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "agent-token-exchange",
+        "title": "Token exchange (OBO)",
+        "explanation": "Knowing who's calling is one thing - this step lets the gateway then act as that caller against the Wealth \u0026 FX desk, without the app ever juggling a second credential.\n\n- agentgateway trades the caller's own login for a fresh one issued for this backend, using a standard token-exchange handshake with the identity provider.\n- It all happens inside the gateway, and the new token is forwarded to the tool server.",
+        "diagram": "sequenceDiagram\n  participant Client\n  participant AGW as agentgateway\n  participant KC as Keycloak\n  participant MCP as MCP backend\n  Client-\u003e\u003eAGW: tools/list (Bearer JWT)\n  AGW-\u003e\u003eKC: validate via JWKS\n  AGW-\u003e\u003eKC: exchange (RFC 8693 subject_token)\n  KC--\u003e\u003eAGW: exchanged token\n  AGW-\u003e\u003eMCP: forward with exchanged token",
+        "policies": [
+          {
+            "id": "agent-token-exchange",
+            "title": "OAuth token exchange",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "tools-list-token-exchange",
+            "title": "Call MCP as team-alpha",
+            "identity": "team-alpha",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": {},
+            "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      },
+      {
+        "id": "agent-mcp-tool-access",
+        "title": "Tool authZ and progressive disclosure",
+        "explanation": "Being logged in doesn't mean every caller should see every tool.\n\n- team-alpha's login unlocks the full Wealth \u0026 FX desk - both stock and currency.\n- team-beta's login - just as valid - unlocks only the stock tool, not currency.\n\nEach agent is shown exactly the set of tools its identity is allowed to use, and nothing more.",
+        "diagram": "sequenceDiagram\n  participant Alpha as team-alpha\n  participant Beta as team-beta\n  participant AGW as agentgateway\n  Alpha-\u003e\u003eAGW: tools/list (Bearer JWT, team=team-alpha)\n  AGW--\u003e\u003eAlpha: [get_stock_price, get_exchange_rate]\n  Beta-\u003e\u003eAGW: tools/list (Bearer JWT, team=team-beta)\n  AGW--\u003e\u003eBeta: [get_stock_price]",
+        "policies": [
+          {
+            "id": "agent-mcp-tool-access",
+            "title": "Per-team tool access",
+            "readOnly": false
+          }
+        ],
+        "presets": [
+          {
+            "id": "tools-list-team-alpha",
+            "title": "team-alpha tools/list",
+            "identity": "team-alpha",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": {},
+            "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+            "stream": false
+          },
+          {
+            "id": "tools-list-team-beta",
+            "title": "team-beta tools/list",
+            "identity": "team-beta",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": {},
+            "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
+            "stream": false
+          }
+        ],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      }
+    ]
+  },
+  {
+    "id": "wrap",
+    "title": "Wrap-up",
+    "teaser": "",
+    "steps": [
+      {
+        "id": "recap",
+        "title": "One gateway, five guarantees",
+        "explanation": "Every request we just ran - chatbot replies, blocked and masked content, budget-limited calls, and agent tool calls - went through the same agentgateway control point. Five jobs, one gateway:\n\n- Routing to the right model\n- Identity - who's allowed to do what\n- Content safety\n- Cost tracking and limits\n- Governed agent tool access\n\nThey aren't five separate systems to buy, wire together, and maintain - they're all just policies on one gateway.",
+        "diagram": "",
+        "policies": [],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false
+      }
+    ]
+  }
+]
