@@ -99,6 +99,18 @@ func TestListToolsReturnsToolsFromRealServer(t *testing.T) {
 	if len(tools) != 1 || tools[0].Name != "get_stock_price" {
 		t.Fatalf("unexpected tools: %+v", tools)
 	}
+
+	// Verify InputSchema is populated from the server and contains valid JSON.
+	if len(tools[0].InputSchema) == 0 {
+		t.Fatal("InputSchema is empty, expected schema from server")
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(tools[0].InputSchema, &schema); err != nil {
+		t.Fatalf("InputSchema not valid JSON: %v (raw: %s)", err, tools[0].InputSchema)
+	}
+	if schema["type"] != "object" {
+		t.Fatalf("InputSchema type = %v, want object", schema["type"])
+	}
 }
 
 func TestListToolsWithEmptyTokenSendsNoAuthorizationHeader(t *testing.T) {
