@@ -60,6 +60,7 @@ func NewServer(opts ...Option) *Server {
 	s.mux.HandleFunc("POST /api/config/reset", s.handleConfigReset)
 	s.mux.HandleFunc("POST /api/request", s.handleRequest)
 	s.mux.HandleFunc("POST /api/agent/run", s.handleAgentRun)
+	s.mux.HandleFunc("POST /api/toolmode/run", s.handleToolModeRun)
 	s.mux.HandleFunc("POST /secure/ops-agent/run", s.handleOpsAgentRun)
 	s.mux.HandleFunc("POST /secure/direct-call", s.handleSecureDirectCall)
 	s.mux.HandleFunc("GET /secure/login", s.handleSecureLogin)
