@@ -29,7 +29,7 @@ func TestRegistryIncludesPillar4Agent(t *testing.T) {
 	if !agentPillarResult.Steps[0].AgentDemo {
 		t.Fatalf("expected agent-mcp-server.AgentDemo to be true")
 	}
-	if agentPillarResult.Steps[1].AgentDemo || agentPillarResult.Steps[2].AgentDemo || agentPillarResult.Steps[3].AgentDemo {
+	if agentPillarResult.Steps[1].AgentDemo || agentPillarResult.Steps[2].AgentDemo || agentPillarResult.Steps[3].AgentDemo || agentPillarResult.Steps[4].AgentDemo {
 		t.Fatalf("expected only agent-mcp-server to be an agent demo step")
 	}
 }
