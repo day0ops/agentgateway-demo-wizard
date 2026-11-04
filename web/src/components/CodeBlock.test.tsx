@@ -9,11 +9,10 @@ describe("CodeBlock", () => {
     document.documentElement.classList.remove("dark");
   });
 
-  it("uses a light-background container by default", () => {
+  it("uses a themed background container", () => {
     const { container } = render(<CodeBlock language="json" code='{"a": 1}' />);
     const pre = container.querySelector("pre");
-    expect(pre?.className).toContain("bg-slate-50");
-    expect(pre?.className).toContain("dark:bg-slate-950");
+    expect(pre?.className).toContain("bg-elevated");
   });
 
   it("re-renders token colors in the new theme when it toggles", async () => {

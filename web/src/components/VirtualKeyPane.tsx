@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { extractErrorMessage } from "../lib/json";
+import { PaneLabel } from "./PaneLabel";
+import { btnChip, btnPrimary, inputBase } from "../lib/ui";
 
 type CreatedKey = {
   name: string;
@@ -76,72 +78,65 @@ export function VirtualKeyPane() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Virtual Keys
-      </h2>
+      <PaneLabel>Virtual keys</PaneLabel>
 
-      <div className="space-y-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800">
+      <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-card">
         <div className="flex flex-wrap gap-2">
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Key name (e.g. team-gamma)"
-            className="rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
+            className={inputBase}
           />
           <input
             value={form.userId}
             onChange={(e) => setForm({ ...form, userId: e.target.value })}
             placeholder="User id"
-            className="rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
+            className={inputBase}
           />
           <input
             value={form.tokenBudget}
             onChange={(e) => setForm({ ...form, tokenBudget: e.target.value })}
             placeholder="Token budget"
-            className="w-28 rounded border border-slate-200 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
+            className={`${inputBase} w-28`}
           />
-          <button
-            onClick={createKey}
-            className="rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900"
-          >
+          <button onClick={createKey} className={btnPrimary}>
             Create key
           </button>
         </div>
 
-        {error && (
-          <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-        )}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
         {keys.map((key) => (
           <div
             key={key.name}
-            className="space-y-1 rounded-lg border border-slate-200 p-3 text-sm shadow-sm dark:border-zinc-800"
+            className="space-y-2 rounded-lg border border-border bg-elevated p-3 text-sm"
           >
             <div className="flex items-center justify-between">
-              <span className="font-medium">
+              <span className="font-medium text-foreground">
                 {key.name} ({key.userId})
               </span>
               <div className="flex gap-2">
                 <button
                   onClick={() => rotateKey(key.name)}
-                  className="inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
+                  className={btnChip}
                 >
                   <RefreshCw size={12} />
                   Rotate
                 </button>
                 <button
                   onClick={() => sendTestRequest(key)}
-                  className="rounded bg-slate-200 px-2 py-0.5 text-xs transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
+                  className={btnChip}
                 >
                   Send test request
                 </button>
               </div>
             </div>
-            <code className="block overflow-x-auto rounded bg-slate-950 p-2 text-xs text-slate-100">
+            <code className="block overflow-x-auto rounded-md border border-border bg-card p-2 font-mono text-xs text-foreground">
               {key.key}
             </code>
             {testResult[key.name] && (
-              <pre className="overflow-x-auto rounded bg-slate-950 p-2 text-xs text-slate-100">
+              <pre className="overflow-x-auto rounded-md border border-border bg-card p-2 font-mono text-xs text-foreground">
                 {testResult[key.name]}
               </pre>
             )}

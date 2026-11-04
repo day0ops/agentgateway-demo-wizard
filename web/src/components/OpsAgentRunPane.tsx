@@ -3,6 +3,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { extractErrorMessage } from "../lib/json";
 import { markdownComponents } from "../lib/markdown";
+import { PaneLabel } from "./PaneLabel";
+import { btnPrimary, inputBase } from "../lib/ui";
+
+const chainChip =
+  "rounded-md border border-border bg-secondary px-2 py-1 font-mono text-secondary-foreground";
 
 type OpsAgentChain = {
   sub?: string;
@@ -60,34 +65,28 @@ export function OpsAgentRunPane({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Agent
-      </h2>
-      <div className="space-y-3 rounded-lg border border-slate-200 p-4 dark:border-zinc-800">
+      <PaneLabel>Agent</PaneLabel>
+      <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-card">
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           rows={2}
-          className="w-full rounded border border-slate-200 bg-transparent p-2 text-sm dark:border-zinc-700"
+          className={`${inputBase} w-full resize-y`}
         />
-        <button
-          onClick={run}
-          disabled={running}
-          className="rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
-        >
+        <button onClick={run} disabled={running} className={btnPrimary}>
           Run agent
         </button>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm dark:bg-red-950">
+        <div className="rounded-lg border border-destructive bg-destructive-soft p-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
       {result && (
-        <div className="space-y-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-zinc-800">
-          <div>
+        <div className="space-y-3 rounded-xl border border-border bg-card p-4 text-sm shadow-card">
+          <div className="leading-relaxed text-foreground">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={markdownComponents}
@@ -96,31 +95,23 @@ export function OpsAgentRunPane({
             </ReactMarkdown>
           </div>
           {identity && !chain && (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="rounded bg-slate-100 px-2 py-1 dark:bg-zinc-800">
-                identity: {identity}
-              </span>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className={chainChip}>identity: {identity}</span>
             </div>
           )}
           {chain && (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="rounded bg-slate-100 px-2 py-1 dark:bg-zinc-800">
-                sub: {chain.sub}
-              </span>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className={chainChip}>sub: {chain.sub}</span>
               {chain.act && (
                 <>
-                  <span>→</span>
-                  <span className="rounded bg-slate-100 px-2 py-1 dark:bg-zinc-800">
-                    act: {chain.act}
-                  </span>
+                  <span className="text-subtle">→</span>
+                  <span className={chainChip}>act: {chain.act}</span>
                 </>
               )}
               {chain.act_act && (
                 <>
-                  <span>→</span>
-                  <span className="rounded bg-slate-100 px-2 py-1 dark:bg-zinc-800">
-                    act.act: {chain.act_act}
-                  </span>
+                  <span className="text-subtle">→</span>
+                  <span className={chainChip}>act.act: {chain.act_act}</span>
                 </>
               )}
             </div>
