@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { onThemeChange } from "../lib/theme";
 import { PaneLabel } from "./PaneLabel";
 
@@ -7,11 +7,54 @@ import { PaneLabel } from "./PaneLabel";
 // drawn as a pipeline of controls rather than an opaque box. Trust zones,
 // the identity provider, and the delegation identity are made explicit so the
 // welcome screen reads as a security map, not just a topology. Colors are read
-// from the design tokens each render, so it tracks the active theme.
+// from the design tokens each render, so it tracks the active theme. Hovering an
+// element shows a tooltip (hit-tested against regions registered during draw).
 
 // Authored in a fixed coordinate space and scaled to the container width.
 const BASE_W = 1200;
 const BASE_H = 640;
+
+// A hit-testable element, with the tooltip shown on hover. Coordinates are in
+// the fixed BASE space, so they survive scaling.
+type Hotspot = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  title: string;
+  body: string;
+};
+
+type Tip = { title: string; body: string; left: number; top: number; below: boolean };
+
+// Tooltip copy, grounded in what each element actually does in the demo.
+const TIP = {
+  caller:
+    "The calling user or application. Its requests always go to agentgateway with an identity token - never straight to an agent or tool.",
+  idp: "The OIDC identity provider. agentgateway signs users in here, and validates - and exchanges - the tokens it issues for delegation.",
+  authN:
+    "Verifies who is calling before anything else runs: ext-auth redirects to Keycloak over OIDC and validates the returned token.",
+  authZ:
+    "Decides what the identity may do - including per-MCP-tool RBAC and the scopes a delegated call is allowed to use.",
+  guardrails:
+    "Inspects request and response content: blocks banned phrases and masks PII such as SSNs, account, and card numbers.",
+  routing:
+    "Routes each request to the right model or backend, attributes token cost per team, and enforces budgets via virtual keys.",
+  accounts:
+    "Answers account questions by reading Core Banking on the caller's behalf (impersonation).",
+  transfer:
+    "Coordinates a transfer and delegates settlement to the Settlement agent - routed through the gateway, not a direct call.",
+  settlement:
+    "Settles the transfer against Core Banking, permitted only for the right task within the delegation chain.",
+  statements:
+    "Builds statements and reaches the PayPal and Stripe MCPs using interactive and brokered elicitation.",
+  coreBanking:
+    "The bank's internal core system - balances, transfers, settlement - reachable only through the gateway.",
+  paypal:
+    "Third-party payment service reached over the internet. Tool calls go through interactive elicitation.",
+  stripe:
+    "Third-party payment service reached over the internet. Tool calls go through brokered elicitation.",
+};
 
 // Screen-reader equivalent of the drawn diagram.
 const A11Y_LABEL =
@@ -29,6 +72,9 @@ const A11Y_LABEL =
 export function ArchitectureDiagram() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hotspotsRef = useRef<Hotspot[]>([]);
+  const hoveredRef = useRef<Hotspot | null>(null);
+  const [tip, setTip] = useState<Tip | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -58,7 +104,9 @@ export function ArchitectureDiagram() {
         0,
       );
       ctx.clearRect(0, 0, BASE_W, BASE_H);
-      drawDiagram(ctx);
+      const hotspots: Hotspot[] = [];
+      drawDiagram(ctx, hotspots);
+      hotspotsRef.current = hotspots;
     }
 
     render();
@@ -74,6 +122,60 @@ export function ArchitectureDiagram() {
     };
   }, []);
 
+  function handleMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / BASE_W;
+    const scaleY = rect.height / BASE_H;
+    const bx = (e.clientX - rect.left) / scaleX;
+    const by = (e.clientY - rect.top) / scaleY;
+
+    // Topmost (last-registered) matching region wins, so nodes beat the zones
+    // and band they sit inside.
+    const regions = hotspotsRef.current;
+    let found: Hotspot | null = null;
+    for (let i = regions.length - 1; i >= 0; i--) {
+      const r = regions[i];
+      if (bx >= r.x && bx <= r.x + r.w && by >= r.y && by <= r.y + r.h) {
+        found = r;
+        break;
+      }
+    }
+    if (found === hoveredRef.current) return;
+    hoveredRef.current = found;
+    canvas.style.cursor = found ? "pointer" : "default";
+    if (!found) {
+      setTip(null);
+      return;
+    }
+    // Anchor the tooltip to the element (centered, above it - or below when the
+    // element is near the top edge), clamped within the container.
+    const halfW = 132;
+    const centerX = canvas.offsetLeft + (found.x + found.w / 2) * scaleX;
+    const left = Math.max(
+      halfW + 4,
+      Math.min(centerX, container.clientWidth - halfW - 4),
+    );
+    const topEdge = canvas.offsetTop + found.y * scaleY;
+    const bottomEdge = canvas.offsetTop + (found.y + found.h) * scaleY;
+    const below = topEdge < 96;
+    setTip({
+      title: found.title,
+      body: found.body,
+      left,
+      top: below ? bottomEdge + 10 : topEdge - 10,
+      below,
+    });
+  }
+
+  function handleLeave() {
+    hoveredRef.current = null;
+    if (canvasRef.current) canvasRef.current.style.cursor = "default";
+    setTip(null);
+  }
+
   return (
     <div className="px-6 pb-8">
       <div className="mb-3">
@@ -81,20 +183,41 @@ export function ArchitectureDiagram() {
       </div>
       <div
         ref={containerRef}
-        className="rounded-xl border border-border bg-card p-4 shadow-card"
+        className="relative rounded-xl border border-border bg-card p-4 shadow-card"
       >
         <canvas
           ref={canvasRef}
           role="img"
           aria-label={A11Y_LABEL}
+          onMouseMove={handleMove}
+          onMouseLeave={handleLeave}
           className="mx-auto block max-w-full"
         />
+        {tip && (
+          <div
+            className="pointer-events-none absolute z-20 w-64 rounded-lg border border-border bg-card p-3 shadow-elevated"
+            style={{
+              left: tip.left,
+              top: tip.top,
+              transform: tip.below
+                ? "translate(-50%, 0)"
+                : "translate(-50%, -100%)",
+            }}
+          >
+            <div className="text-sm font-semibold text-foreground">
+              {tip.title}
+            </div>
+            <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              {tip.body}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function drawDiagram(ctx: CanvasRenderingContext2D) {
+function drawDiagram(ctx: CanvasRenderingContext2D, hotspots: Hotspot[]) {
   const cs = getComputedStyle(document.documentElement);
   const v = (name: string) => `rgb(${cs.getPropertyValue(name).trim()})`;
   const va = (name: string, a: number) =>
@@ -138,7 +261,6 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
       color?: string;
       align?: CanvasTextAlign;
       family?: string;
-      tracking?: boolean;
     } = {},
   ) {
     const {
@@ -168,6 +290,7 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
       border?: string;
       titleColor?: string;
       titleSize?: number;
+      tip?: string;
     },
   ) {
     const {
@@ -177,6 +300,7 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
       border = c.border,
       titleColor = c.fg,
       titleSize = 15,
+      tip,
     } = opts;
     rr(x, y, w, h, 12);
     ctx.fillStyle = fill;
@@ -205,6 +329,7 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
         color: titleColor,
       });
     }
+    if (tip) hotspots.push({ x, y, w, h, title, body: tip });
   }
 
   // A tinted trust-zone container with a small eyebrow label.
@@ -272,7 +397,7 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
 
   // A pill-backed label that sits legibly on top of an edge.
   function edgeLabel(str: string, x: number, y: number, mono = false) {
-    ctx.font = `${mono ? 500 : 500} 12px ${mono ? MONO : FONT}`;
+    ctx.font = `500 12px ${mono ? MONO : FONT}`;
     const padX = 8;
     const w = ctx.measureText(str).width + padX * 2;
     const h = 22;
@@ -304,11 +429,12 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
   }
 
   // --- Left: caller + identity provider -------------------------------------
-  node(44, 96, 164, 54, { title: "You / app", sub: "caller" });
+  node(44, 96, 164, 54, { title: "You / app", sub: "caller", tip: TIP.caller });
   node(44, 300, 164, 58, {
     title: "Keycloak",
     sub: "identity provider",
     border: c.info,
+    tip: TIP.idp,
   });
 
   // --- Center: the gateway as an enforcement pipeline -----------------------
@@ -339,18 +465,18 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
     color: c.muted,
   });
 
-  const stages: [string, string][] = [
-    ["authN", "ext-auth · OIDC"],
-    ["authZ · RBAC", "identity + tool scopes"],
-    ["guardrails", "PII · prompt content"],
-    ["routing · cost", "budgets · attribution"],
+  const stages: [string, string, string][] = [
+    ["authN", "ext-auth · OIDC", TIP.authN],
+    ["authZ · RBAC", "identity + tool scopes", TIP.authZ],
+    ["guardrails", "PII · prompt content", TIP.guardrails],
+    ["routing · cost", "budgets · attribution", TIP.routing],
   ];
   const stageX = gx + 22;
   const stageW = gw - 44;
   const stageH = 66;
   // Center the four stages as a group so the band isn't top-weighted.
   let sy = gy + 116;
-  for (const [title, sub] of stages) {
+  for (const [title, sub, tip] of stages) {
     rr(stageX, sy, stageW, stageH, 10);
     ctx.fillStyle = c.elevated;
     ctx.fill();
@@ -369,34 +495,35 @@ function drawDiagram(ctx: CanvasRenderingContext2D) {
       size: 11.5,
       color: c.muted,
     });
+    hotspots.push({ x: stageX, y: sy, w: stageW, h: stageH, title, body: tip });
     sy += stageH + 24;
   }
 
   // --- Right-top: agents (workload trust zone) ------------------------------
   zone(676, 64, 480, 232, "Agents · workloads");
   const agents = [
-    ["Accounts", 696, 110],
-    ["Transfer Orchestrator", 926, 110],
-    ["Settlement", 696, 196],
-    ["Statements", 926, 196],
+    ["Accounts", 696, 110, TIP.accounts],
+    ["Transfer Orchestrator", 926, 110, TIP.transfer],
+    ["Settlement", 696, 196, TIP.settlement],
+    ["Statements", 926, 196, TIP.statements],
   ] as const;
-  for (const [name, ax, ay] of agents) {
-    node(ax, ay, 210, 64, { title: name, titleSize: 14 });
+  for (const [name, ax, ay, tip] of agents) {
+    node(ax, ay, 210, 64, { title: name, titleSize: 14, tip });
   }
 
   // --- Right-bottom: MCP backends, split by the internal/external boundary --
   // Core Banking is centered on the same axis (zone center, y=456) as the
   // midpoint of the external PayPal/Stripe pair, so the two zones line up.
   zone(676, 336, 230, 240, "Internal");
-  node(696, 428, 190, 56, { title: "Core Banking MCP" });
+  node(696, 428, 190, 56, { title: "Core Banking MCP", tip: TIP.coreBanking });
 
   zone(926, 336, 230, 240, "External", {
     fill: c.warningSoft,
     border: c.warningLine,
     labelColor: c.warning,
   });
-  node(946, 388, 190, 56, { title: "PayPal MCP" });
-  node(946, 468, 190, 56, { title: "Stripe MCP" });
+  node(946, 388, 190, 56, { title: "PayPal MCP", tip: TIP.paypal });
+  node(946, 468, 190, 56, { title: "Stripe MCP", tip: TIP.stripe });
 
   // --- Edges: every tier connects only to the gateway ----------------------
   // Clean perpendicular connectors into the central band; the gateway is the
