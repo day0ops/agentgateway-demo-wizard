@@ -199,3 +199,20 @@ func TestListToolsSurfacesUnauthenticatedStatus(t *testing.T) {
 		t.Fatalf("expected the 401 status in the error, got: %v", err)
 	}
 }
+
+func TestToolInputSchemaIsJSON(t *testing.T) {
+	// A Tool's InputSchema must be valid JSON (or empty), so the agent loop can
+	// hand it to the model as OpenAI function "parameters" unchanged.
+	tool := Tool{
+		Name:        "get_balance",
+		Description: "Look up an account balance",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"account":{"type":"string"}}}`),
+	}
+	var m map[string]any
+	if err := json.Unmarshal(tool.InputSchema, &m); err != nil {
+		t.Fatalf("InputSchema is not valid JSON: %v", err)
+	}
+	if m["type"] != "object" {
+		t.Fatalf("expected object schema, got %v", m["type"])
+	}
+}

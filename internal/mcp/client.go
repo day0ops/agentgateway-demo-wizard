@@ -8,6 +8,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -30,8 +31,9 @@ func NewClient(baseURL, path string) *Client {
 
 // Tool is one tool an MCP server exposes.
 type Tool struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	InputSchema json.RawMessage `json:"inputSchema,omitempty"`
 }
 
 // ToolResult is what calling a tool returned.
@@ -96,7 +98,13 @@ func (c *Client) ListTools(ctx context.Context, token string) ([]Tool, error) {
 
 	tools := make([]Tool, 0, len(result.Tools))
 	for _, t := range result.Tools {
-		tools = append(tools, Tool{Name: t.Name, Description: t.Description})
+		var schema json.RawMessage
+		if t.InputSchema != nil {
+			if raw, err := json.Marshal(t.InputSchema); err == nil {
+				schema = raw
+			}
+		}
+		tools = append(tools, Tool{Name: t.Name, Description: t.Description, InputSchema: schema})
 	}
 	return tools, nil
 }
