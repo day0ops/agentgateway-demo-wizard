@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { estimateCostFromResponseBody } from "./cost";
+import { estimateCostFromResponseBody, costFromTokens } from "./cost";
+
+describe("costFromTokens", () => {
+  it("prices prompt and completion tokens separately", () => {
+    // 1,000,000 prompt @ 0.15 + 1,000,000 completion @ 0.60 = 0.75
+    expect(costFromTokens("gpt-4o-mini", 1_000_000, 1_000_000)).toBeCloseTo(
+      0.75,
+    );
+  });
+
+  it("returns null for an unknown model", () => {
+    expect(costFromTokens("mystery", 10, 10)).toBeNull();
+  });
+});
 
 describe("estimateCostFromResponseBody", () => {
   it("computes cost from a known model's usage block", () => {

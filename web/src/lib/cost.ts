@@ -10,6 +10,19 @@ const RATES_PER_MILLION_TOKENS: Record<
 
 export type UsageCost = { costUsd: number; model: string } | null;
 
+export function costFromTokens(
+  model: string,
+  promptTokens: number,
+  completionTokens: number,
+): number | null {
+  const rate = RATES_PER_MILLION_TOKENS[model];
+  if (!rate) return null;
+  return (
+    (promptTokens / 1_000_000) * rate.input +
+    (completionTokens / 1_000_000) * rate.output
+  );
+}
+
 // estimateCostFromResponseBody parses an OpenAI-shaped chat completion
 // response body and estimates its cost from the rate table above. Returns
 // null for a body with no parseable usage block (errors, blocked-by-
@@ -36,12 +49,11 @@ export function estimateCostFromResponseBody(body: string): UsageCost {
     return null;
   }
 
-  const rate = RATES_PER_MILLION_TOKENS[model];
-  if (!rate) return null;
-
-  const costUsd =
-    (usage.prompt_tokens / 1_000_000) * rate.input +
-    (usage.completion_tokens / 1_000_000) * rate.output;
-
+  const costUsd = costFromTokens(
+    model,
+    usage.prompt_tokens,
+    usage.completion_tokens,
+  );
+  if (costUsd === null) return null;
   return { costUsd, model };
 }

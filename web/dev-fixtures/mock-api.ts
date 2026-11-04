@@ -145,6 +145,39 @@ export function mockApi(): Plugin {
           });
         }
 
+        if (url === "/api/toolmode/run" && method === "POST") {
+          const byMode: Record<
+            string,
+            { p: number; c: number; hops: number; tools: number }
+          > = {
+            standard: { p: 4200, c: 180, hops: 4, tools: 4 },
+            search: { p: 1400, c: 150, hops: 5, tools: 2 },
+            code: { p: 1100, c: 120, hops: 2, tools: 1 },
+            codesearch: { p: 950, c: 110, hops: 2, tools: 2 },
+          };
+          let body = "";
+          req.on("data", (chunk) => (body += chunk));
+          req.on("end", () => {
+            const mode = (() => {
+              try {
+                return JSON.parse(body).mode as string;
+              } catch {
+                return "standard";
+              }
+            })();
+            const m = byMode[mode] ?? byMode.standard;
+            json(res, {
+              answer:
+                "Your AAPL + MSFT holdings are worth about EUR 18,640 right now.",
+              promptTokens: m.p,
+              completionTokens: m.c,
+              hops: m.hops,
+              toolCalls: m.tools,
+            });
+          });
+          return;
+        }
+
         next();
       });
     },

@@ -28,6 +28,26 @@ export type DirectCallDemo = {
   arguments: Record<string, unknown>;
 };
 
+export type ToolMode = {
+  key: string;
+  label: string;
+  mcpPath: string;
+  description: string;
+};
+
+export type ToolModeDemo = {
+  defaultPrompt: string;
+  modes: ToolMode[];
+};
+
+export type ToolModeResult = {
+  answer: string;
+  promptTokens: number;
+  completionTokens: number;
+  hops: number;
+  toolCalls: number;
+};
+
 export type Step = {
   id: string;
   title: string;
@@ -40,6 +60,7 @@ export type Step = {
   loginDemo: boolean;
   opsAgent?: OpsAgentDemo;
   directCall?: DirectCallDemo;
+  toolModeDemo?: ToolModeDemo;
 };
 
 export type Pillar = {
@@ -65,5 +86,18 @@ export async function fetchScenarios(): Promise<Pillar[]> {
 export async function fetchConfig(): Promise<AppConfig> {
   const res = await fetch("/api/config");
   if (!res.ok) throw new Error(`failed to load config: ${res.status}`);
+  return res.json();
+}
+
+export async function runToolMode(
+  mode: string,
+  prompt: string,
+): Promise<ToolModeResult> {
+  const res = await fetch("/api/toolmode/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, prompt }),
+  });
+  if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

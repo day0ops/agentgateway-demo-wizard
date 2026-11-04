@@ -99,6 +99,18 @@ func TestListToolsReturnsToolsFromRealServer(t *testing.T) {
 	if len(tools) != 1 || tools[0].Name != "get_stock_price" {
 		t.Fatalf("unexpected tools: %+v", tools)
 	}
+
+	// Verify InputSchema is populated from the server and contains valid JSON.
+	if len(tools[0].InputSchema) == 0 {
+		t.Fatal("InputSchema is empty, expected schema from server")
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(tools[0].InputSchema, &schema); err != nil {
+		t.Fatalf("InputSchema not valid JSON: %v (raw: %s)", err, tools[0].InputSchema)
+	}
+	if schema["type"] != "object" {
+		t.Fatalf("InputSchema type = %v, want object", schema["type"])
+	}
 }
 
 func TestListToolsWithEmptyTokenSendsNoAuthorizationHeader(t *testing.T) {
@@ -197,5 +209,22 @@ func TestListToolsSurfacesUnauthenticatedStatus(t *testing.T) {
 		t.Fatal("expected an error for an unauthenticated request")
 	} else if !strings.Contains(err.Error(), "Unauthorized") {
 		t.Fatalf("expected the 401 status in the error, got: %v", err)
+	}
+}
+
+func TestToolInputSchemaIsJSON(t *testing.T) {
+	// A Tool's InputSchema must be valid JSON (or empty), so the agent loop can
+	// hand it to the model as OpenAI function "parameters" unchanged.
+	tool := Tool{
+		Name:        "get_balance",
+		Description: "Look up an account balance",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"account":{"type":"string"}}}`),
+	}
+	var m map[string]any
+	if err := json.Unmarshal(tool.InputSchema, &m); err != nil {
+		t.Fatalf("InputSchema is not valid JSON: %v", err)
+	}
+	if m["type"] != "object" {
+		t.Fatalf("expected object schema, got %v", m["type"])
 	}
 }

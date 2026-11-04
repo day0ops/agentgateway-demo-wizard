@@ -1045,6 +1045,28 @@ func agentPillar() Pillar {
 					},
 				},
 			},
+			{
+				ID:    "tool-modes",
+				Title: "Fewer tokens, same answer",
+				Explanation: "An agent reaches a whole catalog of MCP tools - but how it reaches them changes the cost. agentgateway can expose the same catalog in four modes:\n\n" +
+					"- **Standard** sends every tool's schema and takes one call per turn.\n" +
+					"- **Search** lets the agent discover and load only the tool it needs.\n" +
+					"- **Code** has the agent write one snippet the gateway runs, calling many tools in a single turn.\n" +
+					"- **CodeSearch** combines both.\n\n" +
+					"Run the same question through each and watch the tokens, round-trips, and cost drop for the identical answer.",
+				Diagram:  "",
+				Policies: []Policy{},
+				Presets:  []RequestPreset{},
+				ToolModeDemo: &ToolModeDemo{
+					DefaultPrompt: "What are my AAPL and MSFT holdings worth in EUR right now?",
+					Modes: []ToolMode{
+						{Key: "standard", Label: "Standard", MCPPath: "/mcp-modes/standard", Description: "All tool schemas, one call per turn (baseline)."},
+						{Key: "search", Label: "Search", MCPPath: "/mcp-modes/search", Description: "Discover and load tools on demand."},
+						{Key: "code", Label: "Code", MCPPath: "/mcp-modes/code", Description: "Agent writes code the gateway runs."},
+						{Key: "codesearch", Label: "CodeSearch", MCPPath: "/mcp-modes/codesearch", Description: "Discovery plus code execution."},
+					},
+				},
+			},
 		},
 	}
 }

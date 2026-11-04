@@ -94,6 +94,20 @@ type chatResponse struct {
 	Choices []struct {
 		Message chatMessage `json:"message"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
+}
+
+// RunResult is the outcome of one agent run, including usage for the savings
+// scoreboard.
+type RunResult struct {
+	Answer           string
+	PromptTokens     int
+	CompletionTokens int
+	Hops             int // model turns taken
+	ToolCalls        int // model-visible tool invocations
 }
 
 // Run executes the agent loop, emitting a HopEvent on hops for every model
@@ -101,78 +115,106 @@ type chatResponse struct {
 // always closed before Run returns, so callers can safely range over it.
 func (r *Runner) Run(ctx context.Context, req Request, hops chan<- HopEvent) (string, error) {
 	defer close(hops)
+	tools := toOpenAITools(req.Tools)
+	res, err := r.loop(ctx, req, tools, r.mcpClient, func(e HopEvent) { hops <- e })
+	return res.Answer, err
+}
+
+// RunToolMode runs the loop against a specific MCP route (one toolMode),
+// discovering the exposed tools live, and returns the usage tally. No
+// streaming - the scoreboard only needs the final counts.
+func (r *Runner) RunToolMode(ctx context.Context, req Request, mcpClient *mcp.Client) (RunResult, error) {
+	token, err := r.mcpToken(ctx, req.Identity)
+	if err != nil {
+		return RunResult{}, err
+	}
+	listed, err := mcpClient.ListTools(ctx, token)
+	if err != nil {
+		return RunResult{}, fmt.Errorf("listing tools for mode: %w", err)
+	}
+	specs := make([]ToolSpec, 0, len(listed))
+	for _, t := range listed {
+		params := t.InputSchema
+		if len(params) == 0 {
+			params = json.RawMessage(`{"type":"object","properties":{}}`)
+		}
+		specs = append(specs, ToolSpec{Name: t.Name, Description: t.Description, Parameters: params})
+	}
+	return r.loop(ctx, req, toOpenAITools(specs), mcpClient, nil)
+}
+
+// loop drives the model-plus-tools agent loop shared by Run and RunToolMode.
+// emit may be nil, in which case no HopEvents are sent (RunToolMode's case -
+// the scoreboard only needs the final tally).
+func (r *Runner) loop(ctx context.Context, req Request, tools []openAITool, mcpClient *mcp.Client, emit func(HopEvent)) (RunResult, error) {
+	send := func(e HopEvent) {
+		if emit != nil {
+			emit(e)
+		}
+	}
+	var res RunResult
 
 	mcpToken, err := r.mcpToken(ctx, req.Identity)
 	if err != nil {
-		hops <- HopEvent{Type: "error", Message: err.Error()}
-		return "", err
+		send(HopEvent{Type: "error", Message: err.Error()})
+		return res, err
 	}
 
 	messages := []chatMessage{{Role: "user", Content: req.Prompt}}
-	tools := make([]openAITool, 0, len(req.Tools))
-	for _, t := range req.Tools {
-		tools = append(tools, openAITool{
-			Type:     "function",
-			Function: openAIFunction(t),
-		})
-	}
-
 	for i := 0; i < maxHops; i++ {
-		hops <- HopEvent{Type: "model_call", Message: fmt.Sprintf("Calling the model (hop %d)...", i+1)}
-
-		reply, err := r.callModel(ctx, req.Model, req.Identity, messages, tools)
+		send(HopEvent{Type: "model_call", Message: fmt.Sprintf("Calling the model (hop %d)...", i+1)})
+		reply, pt, ct, err := r.callModel(ctx, req.Model, req.Identity, messages, tools)
 		if err != nil {
-			hops <- HopEvent{Type: "error", Message: err.Error()}
-			return "", err
+			send(HopEvent{Type: "error", Message: err.Error()})
+			return res, err
 		}
+		res.Hops++
+		res.PromptTokens += pt
+		res.CompletionTokens += ct
 
 		if len(reply.ToolCalls) == 0 {
-			hops <- HopEvent{Type: "final", Message: reply.Content}
-			return reply.Content, nil
+			res.Answer = reply.Content
+			send(HopEvent{Type: "final", Message: reply.Content})
+			return res, nil
 		}
-
 		messages = append(messages, *reply)
 
 		for _, call := range reply.ToolCalls {
+			res.ToolCalls++
 			var args map[string]any
 			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 				wrapped := fmt.Errorf("parsing arguments for tool %q: %w", call.Function.Name, err)
-				hops <- HopEvent{Type: "error", Message: wrapped.Error()}
-				return "", wrapped
+				send(HopEvent{Type: "error", Message: wrapped.Error()})
+				return res, wrapped
 			}
-
-			hops <- HopEvent{
-				Type:    "tool_call",
-				Message: fmt.Sprintf("Model requested tool %q", call.Function.Name),
-				Detail:  call.Function.Arguments,
-			}
-
-			result, err := r.mcpClient.CallTool(ctx, mcpToken, call.Function.Name, args)
+			send(HopEvent{Type: "tool_call", Message: fmt.Sprintf("Model requested tool %q", call.Function.Name), Detail: call.Function.Arguments})
+			result, err := mcpClient.CallTool(ctx, mcpToken, call.Function.Name, args)
 			if err != nil {
-				hops <- HopEvent{Type: "error", Message: err.Error()}
-				return "", err
+				send(HopEvent{Type: "error", Message: err.Error()})
+				return res, err
 			}
-
 			resultText := resultToText(result)
-			hops <- HopEvent{
-				Type:    "tool_result",
-				Message: fmt.Sprintf("Tool %q returned a result", call.Function.Name),
-				Detail:  resultText,
-			}
-
+			send(HopEvent{Type: "tool_result", Message: fmt.Sprintf("Tool %q returned a result", call.Function.Name), Detail: resultText})
 			messages = append(messages, chatMessage{Role: "tool", ToolCallID: call.ID, Content: resultText})
 		}
 	}
-
 	runErr := fmt.Errorf("exceeded %d hops without a final answer", maxHops)
-	hops <- HopEvent{Type: "error", Message: runErr.Error()}
-	return "", runErr
+	send(HopEvent{Type: "error", Message: runErr.Error()})
+	return res, runErr
 }
 
-func (r *Runner) callModel(ctx context.Context, model, identity string, messages []chatMessage, tools []openAITool) (*chatMessage, error) {
+func toOpenAITools(specs []ToolSpec) []openAITool {
+	tools := make([]openAITool, 0, len(specs))
+	for _, t := range specs {
+		tools = append(tools, openAITool{Type: "function", Function: openAIFunction(t)})
+	}
+	return tools
+}
+
+func (r *Runner) callModel(ctx context.Context, model, identity string, messages []chatMessage, tools []openAITool) (*chatMessage, int, int, error) {
 	reqBody, err := json.Marshal(chatRequest{Model: model, Messages: messages, Tools: tools})
 	if err != nil {
-		return nil, fmt.Errorf("encoding chat request: %w", err)
+		return nil, 0, 0, fmt.Errorf("encoding chat request: %w", err)
 	}
 
 	resp, err := r.gatewayClient.Proxy(ctx, gateway.Request{
@@ -182,20 +224,20 @@ func (r *Runner) callModel(ctx context.Context, model, identity string, messages
 		Body:     string(reqBody),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("calling model: %w", err)
+		return nil, 0, 0, fmt.Errorf("calling model: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("model call returned status %d: %s", resp.StatusCode, resp.Body)
+		return nil, 0, 0, fmt.Errorf("model call returned status %d: %s", resp.StatusCode, resp.Body)
 	}
 
 	var parsed chatResponse
 	if err := json.Unmarshal([]byte(resp.Body), &parsed); err != nil {
-		return nil, fmt.Errorf("parsing chat response: %w", err)
+		return nil, 0, 0, fmt.Errorf("parsing chat response: %w", err)
 	}
 	if len(parsed.Choices) == 0 {
-		return nil, fmt.Errorf("model returned no choices")
+		return nil, 0, 0, fmt.Errorf("model returned no choices")
 	}
-	return &parsed.Choices[0].Message, nil
+	return &parsed.Choices[0].Message, parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens, nil
 }
 
 func (r *Runner) mcpToken(ctx context.Context, identity string) (string, error) {
