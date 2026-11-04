@@ -140,7 +140,6 @@ func (r *Runner) RunToolMode(ctx context.Context, req Request, mcpClient *mcp.Cl
 		}
 		specs = append(specs, ToolSpec{Name: t.Name, Description: t.Description, Parameters: params})
 	}
-	req.Tools = specs
 	return r.loop(ctx, req, toOpenAITools(specs), mcpClient, nil)
 }
 
