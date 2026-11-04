@@ -1,5 +1,4 @@
 import type { Config } from "tailwindcss";
-import colors from "tailwindcss/colors";
 import defaultTheme from "tailwindcss/defaultTheme";
 
 // Maps a --token (space-separated RGB channels, defined in index.css) to a
@@ -12,11 +11,6 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Transitional alias so legacy brand-* classes become teal while
-        // components migrate to the semantic tokens below. Removed once the
-        // migration completes.
-        brand: colors.teal,
-
         background: token("background"),
         foreground: token("foreground"),
         card: {
