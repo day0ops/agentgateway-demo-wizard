@@ -13,6 +13,7 @@ import { AgentRunPane } from "./components/AgentRunPane";
 import { OpsAgentRunPane } from "./components/OpsAgentRunPane";
 import { DirectCallPane } from "./components/DirectCallPane";
 import { VirtualKeyPane } from "./components/VirtualKeyPane";
+import { ToolModePane } from "./components/ToolModePane";
 import { WelcomeFeatures } from "./components/WelcomeFeatures";
 import { ArchitectureDiagram } from "./components/ArchitectureDiagram";
 import { SecureLoginPane } from "./components/SecureLoginPane";
@@ -207,6 +208,14 @@ export default function App() {
         {activeStep.virtualKeys && (
           <div className="px-6 pb-6">
             <VirtualKeyPane />
+          </div>
+        )}
+        {activeStep.toolModeDemo && (
+          <div className="px-6 pb-6">
+            <ToolModePane
+              key={`${activeStep.id}-toolmode`}
+              demo={activeStep.toolModeDemo}
+            />
           </div>
         )}
       </div>
