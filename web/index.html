@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Agentgateway Demo Console</title>
+    <meta
+      name="description"
+      content="A guided, live console for agentgateway: routing, identity, guardrails, cost attribution, and governed agent-to-tool calls through one gateway."
+    />
+    <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0e14" media="(prefers-color-scheme: dark)" />
     <script>
       (function () {
         var stored = localStorage.getItem("agw-demo-wizard-theme");
@@ -12,6 +18,11 @@
           ? stored === "dark"
           : window.matchMedia("(prefers-color-scheme: dark)").matches;
         if (dark) document.documentElement.classList.add("dark");
+        // Paint the themed background before the stylesheet loads, so a dark
+        // session doesn't flash white on first paint.
+        document.documentElement.style.backgroundColor = dark
+          ? "#0a0e14"
+          : "#f8fafc";
       })();
     </script>
   </head>

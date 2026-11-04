@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, LogIn } from "lucide-react";
+import { PaneLabel } from "./PaneLabel";
+import { btnPrimary, btnSecondary } from "../lib/ui";
 
 type SessionState =
   | { status: "checking" }
@@ -40,28 +42,23 @@ export function SecureLoginPane({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Log in
-      </h2>
-      <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800">
+      <PaneLabel>Log in</PaneLabel>
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-card">
         {session.status === "loggedIn" ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-700 dark:bg-green-950 dark:text-green-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-success-border bg-success-soft px-3 py-1 text-sm font-medium text-success">
             <CheckCircle2 size={14} />
             logged in as {session.identity}
           </span>
         ) : (
           <a
             href={`/secure/login?returnTo=${encodeURIComponent(returnToStepId)}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out hover:bg-brand-700 active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className={btnPrimary}
           >
             <LogIn size={14} />
             Log in
           </a>
         )}
-        <a
-          href="/secure/logout"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
-        >
+        <a href="/secure/logout" className={btnSecondary}>
           Log out
         </a>
       </div>

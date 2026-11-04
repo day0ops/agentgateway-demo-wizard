@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { PaneLabel } from "./PaneLabel";
+import { btnPrimary, inputBase } from "../lib/ui";
 
 type Hop = { type: string; message: string; detail?: string };
 
@@ -72,21 +74,15 @@ export function AgentRunPane({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Agent
-      </h2>
-      <div className="space-y-3 rounded-lg border border-slate-200 p-4 dark:border-zinc-800">
+      <PaneLabel>Agent</PaneLabel>
+      <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-card">
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           rows={2}
-          className="w-full rounded border border-slate-200 bg-transparent p-2 text-sm dark:border-zinc-700"
+          className={`${inputBase} w-full resize-y`}
         />
-        <button
-          onClick={run}
-          disabled={running}
-          className="rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
-        >
+        <button onClick={run} disabled={running} className={btnPrimary}>
           Run agent
         </button>
       </div>
@@ -100,13 +96,13 @@ export function AgentRunPane({
               animate={{ opacity: 1, y: 0 }}
               className={`rounded-lg border p-3 text-sm ${
                 hop.type === "error"
-                  ? "border-red-500 bg-red-50 dark:bg-red-950"
-                  : "border-slate-200 dark:border-zinc-800"
+                  ? "border-destructive bg-destructive-soft"
+                  : "border-border bg-card"
               }`}
             >
-              <div className="font-medium">{hop.message}</div>
+              <div className="font-medium text-foreground">{hop.message}</div>
               {hop.detail && (
-                <pre className="mt-1 overflow-x-auto text-xs text-slate-500">
+                <pre className="mt-1 overflow-x-auto font-mono text-xs text-muted-foreground">
                   {hop.detail}
                 </pre>
               )}

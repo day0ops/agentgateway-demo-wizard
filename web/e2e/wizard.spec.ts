@@ -95,7 +95,9 @@ test("breadcrumb navigation moves between pillars", async ({ page }) => {
 
   await page.getByRole("button", { name: "One endpoint, many models" }).click();
   await expect(page.getByText("Model routing by name")).toBeVisible();
-  await expect(page.getByText("step 1 of 1")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "One endpoint, many models" }),
+  ).toHaveAttribute("aria-current", "step");
 });
 
 test("applying a policy shows the applied state and a revert button", async ({
@@ -113,7 +115,7 @@ test("applying a policy shows the applied state and a revert button", async ({
   await page.getByRole("button", { name: "One endpoint, many models" }).click();
   await page.getByRole("button", { name: "Apply" }).click();
 
-  await expect(page.getByText("● applied")).toBeVisible();
+  await expect(page.getByText("applied", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Revert" })).toBeVisible();
 });
 
@@ -130,7 +132,9 @@ test("sending a request shows the raw response", async ({ page }) => {
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect(page.getByText("200 · 42ms")).toBeVisible();
-  await expect(page.getByText('{"id":"chatcmpl-1"}')).toBeVisible();
+  // The response renders through CodeBlock's syntax highlighter, which splits
+  // the JSON across token spans, so assert on the id value's own token.
+  await expect(page.getByText("chatcmpl-1").first()).toBeVisible();
 });
 
 test("the agent loop streams hops to a final answer", async ({ page }) => {

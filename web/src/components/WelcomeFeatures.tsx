@@ -7,22 +7,22 @@ export function WelcomeFeatures({ pillars }: { pillars: Pillar[] }) {
   if (features.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-3 px-6 pb-6 pt-6 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-x-10 gap-y-px px-6 pb-8 pt-4 sm:grid-cols-2">
       {features.map((pillar, i) => (
-        <div
+        <article
           key={pillar.id}
-          className="flex gap-3 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800"
+          className="group flex items-baseline gap-4 border-t border-border py-4 transition-colors hover:border-border-strong"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-950 dark:text-brand-300">
-            {i + 1}
+          <span className="font-mono text-sm font-semibold tabular-nums text-primary">
+            {String(i + 1).padStart(2, "0")}
           </span>
-          <div>
-            <div className="font-medium">{pillar.title}</div>
-            <p className="mt-1 text-sm text-slate-600 dark:text-zinc-400">
+          <div className="min-w-0">
+            <div className="font-medium text-foreground">{pillar.title}</div>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground text-pretty">
               {pillar.teaser}
             </p>
           </div>
-        </div>
+        </article>
       ))}
     </div>
   );

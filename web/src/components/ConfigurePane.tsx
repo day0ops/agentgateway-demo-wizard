@@ -3,6 +3,8 @@ import { Play, Undo2, Eye, EyeOff } from "lucide-react";
 import type { Policy } from "../lib/api";
 import { StatusBadge } from "./StatusBadge";
 import { CodeBlock } from "./CodeBlock";
+import { PaneLabel } from "./PaneLabel";
+import { btnChip, btnPrimary, btnSecondary } from "../lib/ui";
 
 type PolicyState = {
   status: "idle" | "applying" | "applied" | "error";
@@ -210,22 +212,20 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Configure
-      </h2>
+      <PaneLabel>Configure</PaneLabel>
       {policies.map((policy) => {
         if (policy.readOnly) {
           const vst = viewState[policy.id] ?? idleViewState;
           return (
             <div
               key={policy.id}
-              className="rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800"
+              className="rounded-xl border border-border bg-card p-4 shadow-card"
             >
               <div className="flex items-center justify-between gap-2">
                 {vst.status === "shown" ? (
                   <button
                     onClick={() => hideConfig(policy.id)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
+                    className={btnSecondary}
                   >
                     <EyeOff size={14} />
                     Hide config
@@ -234,22 +234,20 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                   <button
                     onClick={() => viewConfig(policy)}
                     disabled={vst.status === "loading"}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
+                    className={btnPrimary}
                   >
                     <Eye size={14} />
                     View config
                   </button>
                 )}
-                <span className="text-xs text-slate-500">pre-provisioned</span>
+                <span className="text-xs text-subtle">pre-provisioned</span>
               </div>
 
               {vst.status === "error" && (
-                <p className="mt-2 text-sm text-red-700 dark:text-red-300">
-                  {vst.message}
-                </p>
+                <p className="mt-2 text-sm text-destructive">{vst.message}</p>
               )}
               {vst.status === "not-provisioned" && (
-                <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                <p className="mt-2 text-sm text-warning">
                   Not yet provisioned - deploy the field-kit usecase for this
                   demo first.
                 </p>
@@ -261,9 +259,9 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                   .map((r) => (
                     <div
                       key={r.name}
-                      className="mt-3 overflow-hidden rounded border border-slate-200 dark:border-zinc-800"
+                      className="mt-3 overflow-hidden rounded-lg border border-border"
                     >
-                      <div className="border-b border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs text-slate-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+                      <div className="border-b border-border bg-elevated px-3 py-1.5 font-mono text-xs text-muted-foreground">
                         {r.name}
                       </div>
                       <CodeBlock code={r.yaml ?? ""} />
@@ -282,10 +280,10 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
         return (
           <div
             key={policy.id}
-            className={`rounded-xl border p-4 shadow-sm ${
+            className={`rounded-xl border p-4 shadow-card ${
               st.status === "error"
-                ? "border-red-500 bg-red-50 dark:bg-red-950"
-                : "border-slate-200 dark:border-zinc-800"
+                ? "border-destructive bg-destructive-soft"
+                : "border-border bg-card"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
@@ -293,7 +291,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                 {canRevert ? (
                   <button
                     onClick={() => revert(policy)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
+                    className={btnSecondary}
                   >
                     <Undo2 size={14} />
                     Revert
@@ -302,16 +300,13 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
                   <button
                     onClick={() => apply(policy)}
                     disabled={st.status === "applying"}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
+                    className={btnPrimary}
                   >
                     <Play size={14} />
                     Apply
                   </button>
                 )}
-                <button
-                  onClick={() => toggleYaml(policy)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 transition-colors active:scale-[0.97] hover:bg-brand-100 dark:border-brand-900 dark:bg-brand-950 dark:text-brand-300 dark:hover:bg-brand-900"
-                >
+                <button onClick={() => toggleYaml(policy)} className={btnChip}>
                   <span
                     className={`transition-transform ${st.showYaml ? "rotate-90" : ""}`}
                   >
@@ -324,9 +319,7 @@ export function ConfigurePane({ policies }: { policies: Policy[] }) {
             </div>
 
             {st.status === "error" && (
-              <p className="mt-2 text-sm text-red-700 dark:text-red-300">
-                {st.message}
-              </p>
+              <p className="mt-2 text-sm text-destructive">{st.message}</p>
             )}
 
             {st.showYaml && st.yaml && (

@@ -1,0 +1,6 @@
+{
+  "gatewayHost": "agw.demo.local",
+  "keycloakHost": "keycloak.demo.local",
+  "missing": [],
+  "version": "preview"
+}

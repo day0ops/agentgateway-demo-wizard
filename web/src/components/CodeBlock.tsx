@@ -26,7 +26,7 @@ export function CodeBlock({
       language={language}
       style={theme === "dark" ? vscDarkPlus : oneLight}
       wrapLongLines
-      className="rounded bg-slate-50 text-xs dark:bg-slate-950"
+      className="rounded-lg bg-elevated text-xs"
       customStyle={{ background: "transparent", margin: 0, padding: "0.75rem" }}
       codeTagProps={{ style: { fontFamily: "inherit" } }}
     >

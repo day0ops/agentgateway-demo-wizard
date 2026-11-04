@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Send } from "lucide-react";
 import type { DirectCallDemo } from "../lib/api";
 import { interpretToolCall, type DirectCallOutcome } from "../lib/mcp";
+import { btnSecondary } from "../lib/ui";
 
 type ResultState =
   | { status: "idle" }
@@ -42,55 +43,53 @@ export function DirectCallPane({ config }: { config: DirectCallDemo }) {
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-slate-200 p-4 dark:border-zinc-800">
+    <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-card">
       <button
         onClick={send}
         disabled={result.status === "sending"}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-200 px-3 py-1 text-sm shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-800"
+        className={btnSecondary}
       >
         <Send size={14} />
         {config.title}
       </button>
 
       {result.status === "error" && (
-        <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm dark:bg-red-950">
+        <div className="rounded-lg border border-destructive bg-destructive-soft p-3 text-sm text-destructive">
           {result.message}
         </div>
       )}
 
       {result.status === "done" && result.outcome.kind === "success" && (
-        <div className="space-y-1 rounded-lg border border-green-500 bg-green-50 p-3 text-sm dark:bg-green-950">
-          <div className="font-medium text-green-800 dark:text-green-300">
+        <div className="space-y-1 rounded-lg border border-success-border bg-success-soft p-3 text-sm">
+          <div className="font-medium text-success">
             Allowed - the transfer went through
           </div>
-          <pre className="whitespace-pre-wrap font-mono text-xs text-green-900 dark:text-green-200">
+          <pre className="whitespace-pre-wrap font-mono text-xs text-foreground">
             {result.outcome.text}
           </pre>
         </div>
       )}
 
       {result.status === "done" && result.outcome.kind === "denied" && (
-        <div className="space-y-1 rounded-lg border border-amber-500 bg-amber-50 p-3 text-sm dark:bg-amber-950">
-          <div className="font-medium text-amber-800 dark:text-amber-300">
-            Denied by policy
-          </div>
-          <div className="text-amber-900 dark:text-amber-200">
+        <div className="space-y-1 rounded-lg border border-warning-border bg-warning-soft p-3 text-sm">
+          <div className="font-medium text-warning">Denied by policy</div>
+          <div className="text-foreground">
             The{" "}
-            <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-900">
+            <code className="rounded bg-warning/15 px-1 py-0.5 font-mono text-xs text-warning">
               {config.tool}
             </code>{" "}
             tool isn't available to this direct, non-delegated call - the
             gateway hides it unless the request arrives through the proper
             delegation chain.
           </div>
-          <div className="font-mono text-xs text-amber-700 dark:text-amber-400">
+          <div className="font-mono text-xs text-warning">
             {result.outcome.detail}
           </div>
         </div>
       )}
 
       {result.status === "done" && result.outcome.kind === "error" && (
-        <div className="rounded-lg border border-red-500 bg-red-50 p-3 text-sm dark:bg-red-950">
+        <div className="rounded-lg border border-destructive bg-destructive-soft p-3 text-sm text-destructive">
           {result.outcome.detail}
         </div>
       )}

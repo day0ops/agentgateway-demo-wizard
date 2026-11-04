@@ -7,7 +7,7 @@ export const markdownComponents = {
       {...props}
       target="_blank"
       rel="noreferrer"
-      className="text-brand-600 underline dark:text-brand-400"
+      className="font-medium text-primary underline decoration-primary/40 underline-offset-2 transition-colors hover:decoration-primary"
     />
   ),
   ul: ({ ...props }) => <ul {...props} className="list-disc space-y-1 pl-5" />,
@@ -18,7 +18,7 @@ export const markdownComponents = {
   code: ({ ...props }) => (
     <code
       {...props}
-      className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-zinc-800"
+      className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-foreground"
     />
   ),
 };

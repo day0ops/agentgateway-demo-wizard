@@ -3,6 +3,8 @@ import { Send } from "lucide-react";
 import type { RequestPreset } from "../lib/api";
 import { prettyPrintJson } from "../lib/json";
 import { CodeBlock } from "./CodeBlock";
+import { PaneLabel } from "./PaneLabel";
+import { btnPrimary, btnSecondary } from "../lib/ui";
 
 type RequestState = {
   method: string;
@@ -14,11 +16,11 @@ type RequestState = {
 };
 
 const methodBadgeClassName: Record<string, string> = {
-  GET: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-400",
-  POST: "bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-400",
+  GET: "border border-info-border bg-info-soft text-info",
+  POST: "border border-accent bg-accent text-accent-foreground",
 };
 const defaultMethodBadgeClassName =
-  "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400";
+  "border border-border bg-secondary text-muted-foreground";
 
 type ResultState =
   | { status: "idle" }
@@ -134,17 +136,15 @@ export function DriveRequestPane({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Request &amp; Response
-      </h2>
+      <PaneLabel>Request &amp; response</PaneLabel>
 
-      <div className="space-y-4 rounded-xl border border-slate-200 p-4 shadow-sm dark:border-zinc-800">
+      <div className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-card">
         <div className="flex flex-wrap gap-2">
           {presets.map((preset) => (
             <button
               key={preset.id}
               onClick={() => loadPreset(preset)}
-              className="rounded bg-slate-100 px-3 py-1 text-sm transition-transform duration-150 ease-out active:scale-[0.97] dark:bg-zinc-800"
+              className={btnSecondary}
             >
               {preset.title}
             </button>
@@ -153,50 +153,44 @@ export function DriveRequestPane({
 
         {request && (
           <div className="space-y-2">
-            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-zinc-800">
-              <div className="flex flex-wrap items-center gap-2 bg-slate-50 px-3 py-2 dark:bg-zinc-900">
+            <div className="overflow-hidden rounded-lg border border-border">
+              <div className="flex flex-wrap items-center gap-2 bg-elevated px-3 py-2">
                 <span
-                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${
                     methodBadgeClassName[request.method] ??
                     defaultMethodBadgeClassName
                   }`}
                 >
                   {request.method}
                 </span>
-                <span className="font-mono text-xs text-slate-700 dark:text-zinc-300">
+                <span className="font-mono text-xs text-foreground">
                   {request.path}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-subtle">
                   as {request.identity}
                 </span>
               </div>
               {Object.keys(request.headers).length > 0 && (
-                <div className="border-t border-slate-200 px-3 py-2 dark:border-zinc-800">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                <div className="border-t border-border px-3 py-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-subtle">
                     Headers
                   </div>
-                  <div className="mt-1 divide-y divide-slate-200 dark:divide-zinc-800">
+                  <div className="mt-1 divide-y divide-border">
                     {Object.entries(request.headers).map(([name, value]) => (
                       <div
                         key={name}
                         className="flex gap-2 py-1.5 font-mono text-xs"
                       >
-                        <span className="text-brand-600 dark:text-brand-400">
-                          {name}
-                        </span>
-                        <span className="text-slate-300 dark:text-zinc-600">
-                          :
-                        </span>
-                        <span className="text-slate-700 dark:text-zinc-300">
-                          {value}
-                        </span>
+                        <span className="text-primary">{name}</span>
+                        <span className="text-subtle">:</span>
+                        <span className="text-foreground">{value}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              <div className="border-t border-slate-200 px-3 py-2 dark:border-zinc-800">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <div className="border-t border-border px-3 py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-subtle">
                   Body
                 </div>
                 <textarea
@@ -205,7 +199,7 @@ export function DriveRequestPane({
                     setRequest({ ...request, body: e.target.value })
                   }
                   rows={Math.min(20, request.body.split("\n").length + 1)}
-                  className="mt-1 w-full resize-y rounded bg-slate-50 p-3 font-mono text-xs text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+                  className="mt-1 w-full resize-y rounded-lg border border-input bg-elevated p-3 font-mono text-xs text-foreground"
                   spellCheck={false}
                 />
               </div>
@@ -213,7 +207,7 @@ export function DriveRequestPane({
             <button
               onClick={send}
               disabled={result.status === "sending"}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 px-3 py-1 text-sm text-white shadow-sm transition-transform duration-150 ease-out active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 dark:bg-zinc-100 dark:text-zinc-900"
+              className={btnPrimary}
             >
               <Send size={14} />
               Send
@@ -222,21 +216,21 @@ export function DriveRequestPane({
         )}
 
         {result.status === "error" && (
-          <p className="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+          <p className="rounded-lg border border-destructive bg-destructive-soft p-3 text-sm text-destructive">
             {result.message}
           </p>
         )}
 
         {result.status === "streaming" && (
-          <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-zinc-800">
-            <div className="text-xs text-slate-500">streaming...</div>
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="text-xs text-muted-foreground">streaming...</div>
             <CodeBlock language="json" code={result.body} />
           </div>
         )}
 
         {result.status === "done" && (
-          <div className="space-y-2 border-t border-slate-200 pt-4 dark:border-zinc-800">
-            <div className="text-xs text-slate-500">
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="text-xs tabular-nums text-muted-foreground">
               {result.statusCode} · {result.latencyMs}ms
             </div>
             <CodeBlock language="json" code={prettyPrintJson(result.body)} />

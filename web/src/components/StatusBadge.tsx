@@ -15,25 +15,23 @@ const CONFIG: Record<
   applied: {
     icon: CheckCircle2,
     label: "applied",
-    className:
-      "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400",
+    className: "border border-success-border bg-success-soft text-success",
   },
   applying: {
     icon: Loader2,
     label: "applying",
-    className:
-      "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400",
+    className: "border border-border bg-secondary text-muted-foreground",
   },
   error: {
     icon: AlertCircle,
     label: "error",
-    className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+    className:
+      "border border-destructive-border bg-destructive-soft text-destructive",
   },
   idle: {
     icon: Circle,
     label: "not applied",
-    className:
-      "bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400",
+    className: "border border-border bg-secondary text-muted-foreground",
   },
 };
 

@@ -75,7 +75,10 @@ describe("ExplanationBand", () => {
 
     await waitFor(() =>
       expect(mermaid.initialize).toHaveBeenLastCalledWith(
-        expect.objectContaining({ theme: "default" }),
+        expect.objectContaining({
+          theme: "base",
+          themeVariables: expect.objectContaining({ background: "#ffffff" }),
+        }),
       ),
     );
 
@@ -85,7 +88,10 @@ describe("ExplanationBand", () => {
 
     await waitFor(() =>
       expect(mermaid.initialize).toHaveBeenLastCalledWith(
-        expect.objectContaining({ theme: "dark" }),
+        expect.objectContaining({
+          theme: "base",
+          themeVariables: expect.objectContaining({ darkMode: true }),
+        }),
       ),
     );
   });

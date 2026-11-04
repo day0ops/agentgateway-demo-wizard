@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Waypoints } from "lucide-react";
 import { fetchConfig, fetchScenarios, type Pillar } from "./lib/api";
 import { initTheme } from "./lib/theme";
 import { estimateCostFromResponseBody } from "./lib/cost";
@@ -71,7 +71,7 @@ export default function App() {
   // Additive: surfaced whenever env vars are missing, loaded or not, since it
   // never blocks the wizard from being usable.
   const missingEnvBanner = missingEnvVars.length > 0 && (
-    <div className="border-y border-amber-300 bg-amber-50 px-6 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <div className="border-y border-warning-border bg-warning-soft px-6 py-2 text-sm text-warning">
       Missing environment variables: {missingEnvVars.join(", ")} - some demo
       steps will fail until these are set.
     </div>
@@ -79,11 +79,13 @@ export default function App() {
 
   if (pillars.length === 0) {
     return (
-      <div className="min-h-screen bg-white text-slate-900 dark:bg-zinc-950 dark:text-zinc-100">
-        <h1 className="p-6 text-xl font-semibold">Agentgateway Demo Console</h1>
+      <div className="min-h-dvh bg-background text-foreground">
+        <h1 className="p-6 text-xl font-semibold tracking-tight">
+          Agentgateway Demo Console
+        </h1>
         {missingEnvBanner}
         {scenariosError && (
-          <p className="px-6 pb-6 text-sm text-red-700 dark:text-red-300">
+          <p className="px-6 pb-6 text-sm text-destructive">
             Failed to load the demo script: {scenariosError}
           </p>
         )}
@@ -125,12 +127,18 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-white text-slate-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <div className="shrink-0 shadow-sm">
-        <header className="flex items-center justify-between bg-brand-50/70 px-6 py-3 dark:bg-zinc-900/60">
-          <h1 className="text-xl font-bold tracking-tight text-brand-700 dark:text-brand-300">
-            Agentgateway Demo Console
-          </h1>
+    <div className="flex h-dvh flex-col bg-background text-foreground">
+      <div className="z-10 shrink-0 shadow-card">
+        <header className="flex items-center justify-between border-b border-border bg-card px-6 py-3">
+          <div className="flex items-center gap-3">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+              <Waypoints size={18} strokeWidth={2.25} />
+            </span>
+            <h1 className="text-lg font-semibold tracking-tight text-foreground">
+              Agentgateway{" "}
+              <span className="text-muted-foreground">Demo Console</span>
+            </h1>
+          </div>
           <div className="flex items-center gap-3">
             <CostTicker
               totalCostUsd={totalCostUsd}
@@ -203,22 +211,22 @@ export default function App() {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex shrink-0 items-center justify-between border-t border-border bg-card px-6 py-3">
         <button
           onClick={previousStep}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 transition-colors hover:text-brand-600 hover:underline dark:hover:text-brand-400"
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <ChevronLeft size={14} />
           previous
         </button>
         {version && (
-          <span className="text-xs text-slate-400 dark:text-zinc-600">
+          <span className="font-mono text-xs tabular-nums text-subtle">
             {version}
           </span>
         )}
         <button
           onClick={nextStep}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 transition-colors hover:text-brand-600 hover:underline dark:hover:text-brand-400"
+          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           next
           <ChevronRight size={14} />
