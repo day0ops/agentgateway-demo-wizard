@@ -58,6 +58,40 @@ const scenarios = [
     ],
   },
   {
+    id: "modes",
+    title: "Smarter tool calls",
+    steps: [
+      {
+        id: "tool-modes",
+        title: "Fewer tokens, same answer",
+        explanation:
+          "Run the same question through different tool modes and watch the cost drop.",
+        diagram: "",
+        policies: [],
+        presets: [],
+        agentDemo: false,
+        toolModeDemo: {
+          defaultPrompt:
+            "What are my AAPL and MSFT holdings worth in EUR right now?",
+          modes: [
+            {
+              key: "standard",
+              label: "Standard",
+              mcpPath: "/mcp-modes/standard",
+              description: "All tool schemas, one call per turn (baseline).",
+            },
+            {
+              key: "code",
+              label: "Code",
+              mcpPath: "/mcp-modes/code",
+              description: "Agent writes code the gateway runs.",
+            },
+          ],
+        },
+      },
+    ],
+  },
+  {
     id: "wrap",
     title: "Wrap-up",
     steps: [
@@ -153,4 +187,28 @@ test("the agent loop streams hops to a final answer", async ({ page }) => {
   await page.getByRole("button", { name: "Run agent" }).click();
 
   await expect(page.getByText("AAPL is trading at $150.")).toBeVisible();
+});
+
+test("the tool-mode scoreboard shows a positive saving for a cheaper mode", async ({
+  page,
+}) => {
+  await page.route("**/api/toolmode/run", async (route) => {
+    const mode = JSON.parse(route.request().postData() || "{}").mode;
+    const p = mode === "standard" ? 4000 : 1000;
+    await route.fulfill({
+      json: {
+        answer: "ans",
+        promptTokens: p,
+        completionTokens: 100,
+        hops: 2,
+        toolCalls: 1,
+      },
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Smarter tool calls" }).click();
+  await page.getByRole("button", { name: "Run comparison" }).click();
+
+  await expect(page.getByTestId("saved-code")).toContainText("%");
 });
