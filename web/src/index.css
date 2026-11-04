@@ -120,3 +120,15 @@
     background-color: rgb(var(--primary) / 0.22);
   }
 }
+
+@layer utilities {
+  /* Horizontal overflow regions (e.g. the pillar breadcrumb) scroll instead
+     of wrapping, without a visible scrollbar stealing vertical space. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

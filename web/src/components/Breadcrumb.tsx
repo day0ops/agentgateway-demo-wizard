@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   Sparkles,
   Route,
@@ -36,47 +37,90 @@ export function Breadcrumb({
   const activePillar = pillars[activePillarIndex];
   const stepCount = activePillar?.steps.length ?? 0;
 
+  const scrollRef = useRef<HTMLOListElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+  // Fade the scroll edges only when there's more to see on that side, so the
+  // pillar list reads as scrollable without clipping a title mid-word.
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [activePillarIndex]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () =>
+      setEdges({
+        left: el.scrollLeft > 4,
+        right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+      });
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [pillars.length]);
+
   return (
-    <nav className="flex items-center justify-between border-b-2 border-brand-200 bg-brand-50/70 px-6 py-3 dark:border-brand-900/60 dark:bg-zinc-900/60">
-      <ol className="flex items-center gap-2 text-sm">
-        {pillars.map((pillar, index) => {
-          const Icon = PILLAR_ICONS[pillar.id];
-          const isActive = index === activePillarIndex;
-          return (
-            <li key={pillar.id} className="flex items-center gap-2">
-              {index > 0 && (
-                <span className="text-brand-300 dark:text-brand-800">-</span>
-              )}
-              <button
-                onClick={() => onSelectPillar(index)}
-                className={
-                  isActive
-                    ? "inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 font-semibold text-brand-700 shadow-sm dark:bg-zinc-800 dark:text-brand-300"
-                    : "inline-flex items-center gap-1.5 text-slate-500 transition-colors hover:text-brand-600 dark:hover:text-brand-300"
-                }
-              >
-                {Icon && <Icon size={14} />}
-                {pillar.title}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+    <nav className="flex items-center gap-4 border-b border-border bg-card px-6 py-2.5">
+      <div className="relative min-w-0 flex-1">
+        {/* Horizontal scroll rather than wrap, so long titles never push the
+            step progress onto a second line. */}
+        <ol
+          ref={scrollRef}
+          className="no-scrollbar flex items-center gap-0.5 overflow-x-auto"
+        >
+          {pillars.map((pillar, index) => {
+            const Icon = PILLAR_ICONS[pillar.id];
+            const isActive = index === activePillarIndex;
+            return (
+              <li key={pillar.id} className="flex shrink-0 items-center">
+                {index > 0 && (
+                  <span aria-hidden className="px-1 text-sm text-border-strong">
+                    ·
+                  </span>
+                )}
+                <button
+                  ref={isActive ? activeRef : undefined}
+                  onClick={() => onSelectPillar(index)}
+                  aria-current={isActive ? "step" : undefined}
+                  className={
+                    isActive
+                      ? "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-3 py-1 text-sm font-semibold text-accent-foreground"
+                      : "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  }
+                >
+                  {Icon && <Icon size={14} className="shrink-0" />}
+                  {pillar.title}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+        {edges.left && (
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent" />
+        )}
+        {edges.right && (
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent" />
+        )}
+      </div>
       {stepCount > 1 && (
-        <div className="flex items-center gap-3">
-          <div data-testid="step-segments" className="flex gap-1.5">
+        <div className="flex shrink-0 items-center gap-3">
+          <div data-testid="step-segments" className="flex gap-1">
             {Array.from({ length: stepCount }, (_, i) => (
               <div
                 key={i}
-                className={`h-1.5 w-6 rounded-full transition-colors ${
-                  i <= activeStepIndex
-                    ? "bg-brand-600 dark:bg-brand-400"
-                    : "bg-brand-100 dark:bg-brand-950"
+                className={`h-1.5 w-5 rounded-full transition-colors ${
+                  i <= activeStepIndex ? "bg-primary" : "bg-border-strong"
                 }`}
               />
             ))}
           </div>
-          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+          <span className="whitespace-nowrap text-xs font-medium tabular-nums text-muted-foreground">
             step {activeStepIndex + 1} of {stepCount}
           </span>
         </div>
