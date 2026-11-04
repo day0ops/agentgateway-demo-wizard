@@ -80,6 +80,95 @@ func TestRunCallsToolThenReturnsFinalAnswer(t *testing.T) {
 	}
 }
 
+// newFakeGateway returns a *gateway.Client backed by an httptest.Server that
+// replies to every Proxy call with the next body in bodies, in order, always
+// with status 200 - a stand-in for agentgateway's chat completions endpoint.
+func newFakeGateway(t *testing.T, bodies ...string) *gateway.Client {
+	t.Helper()
+	var i int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if i >= len(bodies) {
+			t.Fatalf("unexpected extra gateway call %d (only %d bodies queued)", i+1, len(bodies))
+		}
+		body := bodies[i]
+		i++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	return gateway.NewClient("http://unused", server.URL, "test-password")
+}
+
+// newFakeMCP returns an *mcp.Client backed by a real, spec-compliant MCP
+// server (built with the same SDK the client wraps) exposing one
+// "get_balance" tool whose call always returns resultJSON's content blocks.
+func newFakeMCP(t *testing.T, resultJSON string) *mcp.Client {
+	t.Helper()
+	var result struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal([]byte(resultJSON), &result); err != nil {
+		t.Fatalf("newFakeMCP: invalid result JSON: %v", err)
+	}
+
+	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "0.0.1"}, nil)
+	mcpServer.AddTool(&sdkmcp.Tool{
+		Name:        "get_balance",
+		Description: "look up an account balance",
+		InputSchema: &jsonschema.Schema{Type: "object"},
+	}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		content := make([]sdkmcp.Content, 0, len(result.Content))
+		for _, c := range result.Content {
+			content = append(content, &sdkmcp.TextContent{Text: c.Text})
+		}
+		return &sdkmcp.CallToolResult{Content: content}, nil
+	})
+	mcpHandler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return mcpServer }, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", mcpHandler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	return mcp.NewClient(server.URL, "/mcp")
+}
+
+// TestRunToolModeTalliesUsageAndCounts drives one tool call then a final
+// answer, each model response carrying a usage block, and asserts
+// RunToolMode discovers the tool live and tallies tokens, hops, and tool
+// calls correctly.
+func TestRunToolModeTalliesUsageAndCounts(t *testing.T) {
+	// Model turn 1 asks for a tool; turn 2 answers. Each carries usage.
+	gw := newFakeGateway(t,
+		`{"model":"gpt-4o-mini","usage":{"prompt_tokens":100,"completion_tokens":20},`+
+			`"choices":[{"message":{"role":"assistant","tool_calls":[`+
+			`{"id":"c1","type":"function","function":{"name":"get_balance","arguments":"{}"}}]}}]}`,
+		`{"model":"gpt-4o-mini","usage":{"prompt_tokens":60,"completion_tokens":8},`+
+			`"choices":[{"message":{"role":"assistant","content":"Your balance is $10."}}]}`,
+	)
+	mcpClient := newFakeMCP(t, `{"content":[{"type":"text","text":"10"}]}`)
+	r := NewRunner(gw, mcpClient, "/agent-chat")
+
+	got, err := r.RunToolMode(context.Background(),
+		Request{Identity: "anonymous", Prompt: "balance?", Model: "gpt-4o-mini"}, mcpClient)
+	if err != nil {
+		t.Fatalf("RunToolMode: %v", err)
+	}
+	if got.Answer != "Your balance is $10." {
+		t.Fatalf("answer = %q", got.Answer)
+	}
+	if got.PromptTokens != 160 || got.CompletionTokens != 28 {
+		t.Fatalf("tokens = %d/%d, want 160/28", got.PromptTokens, got.CompletionTokens)
+	}
+	if got.Hops != 2 || got.ToolCalls != 1 {
+		t.Fatalf("hops/toolCalls = %d/%d, want 2/1", got.Hops, got.ToolCalls)
+	}
+}
+
 func TestRunSurfacesModelErrorAsErrorHop(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/openai/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
