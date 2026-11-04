@@ -64,3 +64,28 @@ func TestRegistryJSONNeverContainsNullPoliciesOrPresets(t *testing.T) {
 		t.Errorf("marshaled registry JSON contains \"presets\":null, which crashes the frontend's .map() call:\n%s", got)
 	}
 }
+
+func TestToolModeStepExists(t *testing.T) {
+	var tmd *ToolModeDemo
+	for _, p := range Registry() {
+		for _, s := range p.Steps {
+			if s.ToolModeDemo != nil {
+				tmd = s.ToolModeDemo
+			}
+		}
+	}
+	if tmd == nil {
+		t.Fatal("no step defines ToolModeDemo")
+	}
+	if tmd.DefaultPrompt == "" {
+		t.Fatal("ToolModeDemo.DefaultPrompt is empty")
+	}
+	if len(tmd.Modes) != 4 || tmd.Modes[0].Key != "standard" {
+		t.Fatalf("want 4 modes with standard first, got %+v", tmd.Modes)
+	}
+	for _, m := range tmd.Modes {
+		if m.MCPPath == "" || m.Label == "" {
+			t.Fatalf("mode %q missing label/path", m.Key)
+		}
+	}
+}

@@ -15,11 +15,11 @@ func TestRegistryIncludesPillar4Agent(t *testing.T) {
 	if agentPillarResult.ID != "agent" {
 		t.Fatalf("expected pillar[5].ID 'agent', got %q", agentPillarResult.ID)
 	}
-	if len(agentPillarResult.Steps) != 4 {
-		t.Fatalf("expected 4 agent steps, got %d", len(agentPillarResult.Steps))
+	if len(agentPillarResult.Steps) != 5 {
+		t.Fatalf("expected 5 agent steps, got %d", len(agentPillarResult.Steps))
 	}
 
-	wantStepIDs := []string{"agent-mcp-server", "agent-mcp-auth", "agent-token-exchange", "agent-mcp-tool-access"}
+	wantStepIDs := []string{"agent-mcp-server", "agent-mcp-auth", "agent-token-exchange", "agent-mcp-tool-access", "tool-modes"}
 	for i, want := range wantStepIDs {
 		if agentPillarResult.Steps[i].ID != want {
 			t.Fatalf("expected step[%d].ID %q, got %q", i, want, agentPillarResult.Steps[i].ID)

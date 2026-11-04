@@ -43,6 +43,9 @@ type Step struct {
 	// DirectCall marks a step with an additional raw, non-delegated MCP tool
 	// call button alongside its OpsAgent pane - see DirectCallDemo.
 	DirectCall *DirectCallDemo `json:"directCall,omitempty"`
+	// ToolModeDemo marks the step that compares agentgateway's MCP toolModes
+	// (Standard/Search/Code/CodeSearch) and shows the token/cost savings.
+	ToolModeDemo *ToolModeDemo `json:"toolModeDemo,omitempty"`
 }
 
 // OpsAgentDemo configures the pane for a step that calls a real external
@@ -70,6 +73,21 @@ type DirectCallDemo struct {
 	Path      string         `json:"path"`
 	Tool      string         `json:"tool"`
 	Arguments map[string]any `json:"arguments"`
+}
+
+// ToolModeDemo configures the tool-mode comparison step.
+type ToolModeDemo struct {
+	DefaultPrompt string     `json:"defaultPrompt"`
+	Modes         []ToolMode `json:"modes"`
+}
+
+// ToolMode is one row of the comparison. MCPPath is the gateway route whose
+// backend sets the corresponding toolMode. Modes[0] is the Standard baseline.
+type ToolMode struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	MCPPath     string `json:"mcpPath"`
+	Description string `json:"description"`
 }
 
 // Policy is one clickops Configure-pane card: a named group of manifests the
