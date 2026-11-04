@@ -12,6 +12,10 @@ if (!globalThis.ResizeObserver) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+// jsdom has no canvas 2d context; return null quietly so the ArchitectureDiagram
+// render path short-circuits instead of logging a "Not implemented" error.
+HTMLCanvasElement.prototype.getContext = (() =>
+  null) as typeof HTMLCanvasElement.prototype.getContext;
 
 if (!window.matchMedia) {
   window.matchMedia = ((query: string) =>

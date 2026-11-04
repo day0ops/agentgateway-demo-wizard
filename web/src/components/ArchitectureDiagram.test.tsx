@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { ArchitectureDiagram } from "./ArchitectureDiagram";
 
 describe("ArchitectureDiagram", () => {
-  it("renders the architecture diagram image", () => {
+  it("renders an accessible architecture image", () => {
     render(<ArchitectureDiagram />);
 
-    const img = screen.getByAltText(/agentgateway/i);
-    expect(img).toHaveAttribute("src", "/diagrams/agents-mcp-architecture.svg");
+    const img = screen.getByRole("img", { name: /agentgateway/i });
+    expect(img.tagName).toBe("CANVAS");
   });
 });
