@@ -6,12 +6,32 @@ import * as api from "../lib/api";
 const demo = {
   defaultPrompt: "q?",
   modes: [
-    { key: "standard", label: "Standard", mcpPath: "/a", description: "" },
-    { key: "code", label: "Code", mcpPath: "/b", description: "" },
+    {
+      key: "standard",
+      label: "Standard",
+      mcpPath: "/a",
+      description: "All tool schemas, one call per turn.",
+    },
+    {
+      key: "code",
+      label: "Code",
+      mcpPath: "/b",
+      description: "Agent writes code the gateway runs.",
+    },
   ],
 };
 
 describe("ToolModePane", () => {
+  it("shows each mode's description", () => {
+    render(<ToolModePane demo={demo} />);
+    expect(
+      screen.getByText("All tool schemas, one call per turn."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Agent writes code the gateway runs."),
+    ).toBeInTheDocument();
+  });
+
   it("shows savings vs the Standard baseline", async () => {
     vi.spyOn(api, "runToolMode").mockImplementation(async (mode) => ({
       answer: "ans",

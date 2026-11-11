@@ -95,8 +95,11 @@ export function ToolModePane({ demo }: { demo: ToolModeDemo }) {
                 const row = rows[m.key] ?? { status: "idle" };
                 return (
                   <tr key={m.key}>
-                    <td className="px-3 py-2 font-medium text-foreground">
-                      {m.label}
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-foreground">
+                        {m.label}
+                      </div>
+                      <div className="text-xs text-subtle">{m.description}</div>
                     </td>
                     {row.status === "done" ? (
                       <>
