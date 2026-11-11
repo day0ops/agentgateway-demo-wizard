@@ -11,6 +11,7 @@ import (
 	"github.com/day0ops/agentgateway-demo-wizard/internal/config"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/gateway"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/k8s"
+	"github.com/day0ops/agentgateway-demo-wizard/internal/mcp"
 	"github.com/day0ops/agentgateway-demo-wizard/internal/scenarios"
 )
 
@@ -28,6 +29,10 @@ type Server struct {
 	agentRunner            *agent.Runner
 	agentTools             []agent.ToolSpec
 	version                string
+	// mcpClientFactory builds the MCP client a tool-mode run talks to for a
+	// given route. Defaulted below to the real gateway; overridden in tests
+	// so the handler's success path can run against a fake MCP server.
+	mcpClientFactory func(path string) *mcp.Client
 }
 
 // Option configures a Server at construction time.
@@ -49,6 +54,11 @@ func NewServer(opts ...Option) *Server {
 
 	for _, opt := range opts {
 		opt(s)
+	}
+	if s.mcpClientFactory == nil {
+		s.mcpClientFactory = func(path string) *mcp.Client {
+			return mcp.NewClient("https://"+s.cfg.GatewayHost, path)
+		}
 	}
 
 	s.mux.HandleFunc("GET /healthz", s.handleHealthz)

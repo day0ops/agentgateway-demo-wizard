@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/day0ops/agentgateway-demo-wizard/internal/agent"
-	"github.com/day0ops/agentgateway-demo-wizard/internal/mcp"
 )
 
 type toolModeRunRequest struct {
@@ -55,7 +54,7 @@ func (s *Server) handleToolModeRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mcpClient := mcp.NewClient("https://"+s.cfg.GatewayHost, path)
+	mcpClient := s.mcpClientFactory(path)
 	res, err := s.agentRunner.RunToolMode(r.Context(), agent.Request{
 		Identity: "anonymous",
 		Prompt:   req.Prompt,
