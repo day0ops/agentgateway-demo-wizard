@@ -42,12 +42,19 @@ export type ToolModeDemo = {
   modes: ToolMode[];
 };
 
+export type ToolInvocation = {
+  name: string;
+  arguments: string;
+};
+
 export type ToolModeResult = {
   answer: string;
   promptTokens: number;
   completionTokens: number;
   hops: number;
   toolCalls: number;
+  toolsExposed: string[];
+  toolInvocations: ToolInvocation[];
 };
 
 export type Step = {
