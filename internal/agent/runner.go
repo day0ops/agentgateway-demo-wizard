@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -17,6 +18,12 @@ import (
 )
 
 const maxHops = 5
+
+// ErrModeUnavailable wraps a RunToolMode failure that happened while listing
+// the mode's tools - most often because the gateway route backing that
+// toolMode isn't provisioned yet. Callers distinguish it with errors.Is to
+// show a clearer message than a mid-run model or tool-call failure.
+var ErrModeUnavailable = errors.New("tool mode unavailable")
 
 // ToolSpec is one tool the model is allowed to call, described in OpenAI's
 // function-calling schema. The wizard's demo content supplies a fixed list -
@@ -108,6 +115,22 @@ type RunResult struct {
 	CompletionTokens int
 	Hops             int // model turns taken
 	ToolCalls        int // model-visible tool invocations
+	// ToolsExposed names every tool the mode's catalog offered the model,
+	// regardless of whether any were called - the "what this mode could
+	// reach" half of the scoreboard's detail view.
+	ToolsExposed []string
+	// ToolInvocations is every tool call the model actually made, in order,
+	// with its raw (unparsed) arguments - for Code/CodeSearch this is where
+	// the model's generated code shows up, as the arguments to run_code.
+	// Never assumes a tool's argument schema; always the raw JSON the model
+	// sent.
+	ToolInvocations []ToolInvocation
+}
+
+// ToolInvocation is one tool call the model made during a run.
+type ToolInvocation struct {
+	Name      string
+	Arguments string // raw JSON, as the model sent it
 }
 
 // Run executes the agent loop, emitting a HopEvent on hops for every model
@@ -130,17 +153,21 @@ func (r *Runner) RunToolMode(ctx context.Context, req Request, mcpClient *mcp.Cl
 	}
 	listed, err := mcpClient.ListTools(ctx, token)
 	if err != nil {
-		return RunResult{}, fmt.Errorf("listing tools for mode: %w", err)
+		return RunResult{}, fmt.Errorf("%w: listing tools for mode: %w", ErrModeUnavailable, err)
 	}
 	specs := make([]ToolSpec, 0, len(listed))
+	names := make([]string, 0, len(listed))
 	for _, t := range listed {
 		params := t.InputSchema
 		if len(params) == 0 {
 			params = json.RawMessage(`{"type":"object","properties":{}}`)
 		}
 		specs = append(specs, ToolSpec{Name: t.Name, Description: t.Description, Parameters: params})
+		names = append(names, t.Name)
 	}
-	return r.loop(ctx, req, toOpenAITools(specs), mcpClient, nil)
+	res, err := r.loop(ctx, req, toOpenAITools(specs), mcpClient, nil)
+	res.ToolsExposed = names
+	return res, err
 }
 
 // loop drives the model-plus-tools agent loop shared by Run and RunToolMode.
@@ -152,7 +179,9 @@ func (r *Runner) loop(ctx context.Context, req Request, tools []openAITool, mcpC
 			emit(e)
 		}
 	}
-	var res RunResult
+	// Non-nil so a run with zero tool calls still marshals as [] rather than
+	// null, matching the rest of the registry's no-null-slices convention.
+	res := RunResult{ToolInvocations: []ToolInvocation{}}
 
 	mcpToken, err := r.mcpToken(ctx, req.Identity)
 	if err != nil {
@@ -188,6 +217,7 @@ func (r *Runner) loop(ctx context.Context, req Request, tools []openAITool, mcpC
 				return res, wrapped
 			}
 			send(HopEvent{Type: "tool_call", Message: fmt.Sprintf("Model requested tool %q", call.Function.Name), Detail: call.Function.Arguments})
+			res.ToolInvocations = append(res.ToolInvocations, ToolInvocation{Name: call.Function.Name, Arguments: call.Function.Arguments})
 			result, err := mcpClient.CallTool(ctx, mcpToken, call.Function.Name, args)
 			if err != nil {
 				send(HopEvent{Type: "error", Message: err.Error()})

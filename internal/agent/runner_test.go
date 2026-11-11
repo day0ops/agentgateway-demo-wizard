@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -166,6 +167,62 @@ func TestRunToolModeTalliesUsageAndCounts(t *testing.T) {
 	}
 	if got.Hops != 2 || got.ToolCalls != 1 {
 		t.Fatalf("hops/toolCalls = %d/%d, want 2/1", got.Hops, got.ToolCalls)
+	}
+	if len(got.ToolsExposed) != 1 || got.ToolsExposed[0] != "get_balance" {
+		t.Fatalf("ToolsExposed = %v, want [get_balance]", got.ToolsExposed)
+	}
+	if len(got.ToolInvocations) != 1 || got.ToolInvocations[0].Name != "get_balance" || got.ToolInvocations[0].Arguments != "{}" {
+		t.Fatalf("ToolInvocations = %+v, want one get_balance call with arguments \"{}\"", got.ToolInvocations)
+	}
+}
+
+// TestRunToolModeReportsNoInvocationsAsEmptySlice ensures a mode that answers
+// without calling any tool still marshals ToolInvocations/ToolsExposed as `[]`
+// rather than `null`, matching the rest of the registry's no-null-slices
+// convention.
+func TestRunToolModeReportsNoInvocationsAsEmptySlice(t *testing.T) {
+	gw := newFakeGateway(t,
+		`{"choices":[{"message":{"role":"assistant","content":"no tools needed"}}]}`,
+	)
+	mcpClient := newFakeMCP(t, `{"content":[{"type":"text","text":"unused"}]}`)
+	r := NewRunner(gw, mcpClient, "/agent-chat")
+
+	got, err := r.RunToolMode(context.Background(),
+		Request{Identity: "anonymous", Prompt: "hi", Model: "gpt-4o-mini"}, mcpClient)
+	if err != nil {
+		t.Fatalf("RunToolMode: %v", err)
+	}
+	if got.ToolInvocations == nil {
+		t.Fatal("ToolInvocations is nil, want a non-nil empty slice")
+	}
+	if len(got.ToolInvocations) != 0 {
+		t.Fatalf("ToolInvocations = %+v, want empty", got.ToolInvocations)
+	}
+	if len(got.ToolsExposed) != 1 || got.ToolsExposed[0] != "get_balance" {
+		t.Fatalf("ToolsExposed = %v, want [get_balance] (the catalog this mode offered)", got.ToolsExposed)
+	}
+}
+
+// TestRunToolModeWrapsListToolsFailureWithSentinel asserts a mode whose MCP
+// route can't even be listed (the shape a not-yet-provisioned gateway route
+// takes) is reported via the ErrModeUnavailable sentinel, so callers can
+// distinguish "this mode isn't reachable at all" from a mid-run failure.
+func TestRunToolModeWrapsListToolsFailureWithSentinel(t *testing.T) {
+	gw := newFakeGateway(t) // no model call expected: listing fails first
+	badServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer badServer.Close()
+	mcpClient := mcp.NewClient(badServer.URL, "/not-a-real-route")
+
+	r := NewRunner(gw, mcpClient, "/agent-chat")
+	_, err := r.RunToolMode(context.Background(),
+		Request{Identity: "anonymous", Prompt: "balance?", Model: "gpt-4o-mini"}, mcpClient)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !errors.Is(err, ErrModeUnavailable) {
+		t.Fatalf("expected errors.Is(err, ErrModeUnavailable), got: %v", err)
 	}
 }
 

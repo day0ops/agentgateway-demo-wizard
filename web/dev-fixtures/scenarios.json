@@ -580,7 +580,9 @@
             "identity": "anonymous",
             "method": "POST",
             "path": "/mcp",
-            "headers": {},
+            "headers": {
+              "Accept": "application/json, text/event-stream"
+            },
             "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
             "stream": false
           },
@@ -590,7 +592,9 @@
             "identity": "team-alpha",
             "method": "POST",
             "path": "/mcp",
-            "headers": {},
+            "headers": {
+              "Accept": "application/json, text/event-stream"
+            },
             "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
             "stream": false
           }
@@ -618,7 +622,9 @@
             "identity": "team-alpha",
             "method": "POST",
             "path": "/mcp",
-            "headers": {},
+            "headers": {
+              "Accept": "application/json, text/event-stream"
+            },
             "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
             "stream": false
           }
@@ -646,7 +652,9 @@
             "identity": "team-alpha",
             "method": "POST",
             "path": "/mcp",
-            "headers": {},
+            "headers": {
+              "Accept": "application/json, text/event-stream"
+            },
             "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
             "stream": false
           },
@@ -656,7 +664,9 @@
             "identity": "team-beta",
             "method": "POST",
             "path": "/mcp",
-            "headers": {},
+            "headers": {
+              "Accept": "application/json, text/event-stream"
+            },
             "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}",
             "stream": false
           }
@@ -664,6 +674,46 @@
         "agentDemo": false,
         "virtualKeys": false,
         "loginDemo": false
+      },
+      {
+        "id": "tool-modes",
+        "title": "Fewer tokens, same answer",
+        "explanation": "An agent reaches a whole catalog of MCP tools - but how it reaches them changes the cost. agentgateway can expose the same catalog in four modes:\n\n- **Standard** sends every tool's schema and takes one call per turn.\n- **Search** lets the agent discover and load only the tool it needs.\n- **Code** has the agent write one snippet the gateway runs, calling many tools in a single turn.\n- **CodeSearch** combines both.\n\nRun the same question through each and watch the tokens, round-trips, and cost drop for the identical answer.",
+        "diagram": "",
+        "policies": [],
+        "presets": [],
+        "agentDemo": false,
+        "virtualKeys": false,
+        "loginDemo": false,
+        "toolModeDemo": {
+          "defaultPrompt": "What are my AAPL and MSFT holdings worth in EUR right now?",
+          "modes": [
+            {
+              "key": "standard",
+              "label": "Standard",
+              "mcpPath": "/mcp-modes/standard",
+              "description": "All tool schemas, one call per turn (baseline)."
+            },
+            {
+              "key": "search",
+              "label": "Search",
+              "mcpPath": "/mcp-modes/search",
+              "description": "Discover and load tools on demand."
+            },
+            {
+              "key": "code",
+              "label": "Code",
+              "mcpPath": "/mcp-modes/code",
+              "description": "Agent writes code the gateway runs."
+            },
+            {
+              "key": "codesearch",
+              "label": "CodeSearch",
+              "mcpPath": "/mcp-modes/codesearch",
+              "description": "Discovery plus code execution."
+            }
+          ]
+        }
       }
     ]
   },

@@ -146,14 +146,75 @@ export function mockApi(): Plugin {
         }
 
         if (url === "/api/toolmode/run" && method === "POST") {
-          const byMode: Record<
-            string,
-            { p: number; c: number; hops: number; tools: number }
-          > = {
-            standard: { p: 4200, c: 180, hops: 4, tools: 4 },
-            search: { p: 1400, c: 150, hops: 5, tools: 2 },
-            code: { p: 1100, c: 120, hops: 2, tools: 1 },
-            codesearch: { p: 950, c: 110, hops: 2, tools: 2 },
+          type ToolModeFixture = {
+            p: number;
+            c: number;
+            hops: number;
+            toolsExposed: string[];
+            toolInvocations: { name: string; arguments: string }[];
+          };
+          // Single-quoted JS string literals here so JSON.stringify doesn't
+          // have to backslash-escape embedded double quotes - keeps the raw
+          // JSON argument readable in the preview.
+          const RUN_CODE_SNIPPET = JSON.stringify({
+            code: [
+              "const holdings = await tools.get_holdings();",
+              "const aapl = await tools.get_stock_price({ symbol: 'AAPL' });",
+              "const msft = await tools.get_stock_price({ symbol: 'MSFT' });",
+              "const rate = await tools.get_exchange_rate({ from: 'USD', to: 'EUR' });",
+              "return (holdings.AAPL * aapl + holdings.MSFT * msft) * rate;",
+            ].join("\n"),
+          });
+          const byMode: Record<string, ToolModeFixture> = {
+            standard: {
+              p: 4200,
+              c: 180,
+              hops: 4,
+              toolsExposed: [
+                "get_holdings",
+                "get_stock_price",
+                "get_exchange_rate",
+                "get_account_balance",
+              ],
+              toolInvocations: [
+                { name: "get_holdings", arguments: "{}" },
+                { name: "get_stock_price", arguments: '{"symbol":"AAPL"}' },
+                { name: "get_stock_price", arguments: '{"symbol":"MSFT"}' },
+                {
+                  name: "get_exchange_rate",
+                  arguments: '{"from":"USD","to":"EUR"}',
+                },
+              ],
+            },
+            search: {
+              p: 1400,
+              c: 150,
+              hops: 5,
+              toolsExposed: ["get_tool", "invoke_tool"],
+              toolInvocations: [
+                { name: "get_tool", arguments: '{"name":"get_holdings"}' },
+                { name: "invoke_tool", arguments: '{"name":"get_holdings","arguments":{}}' },
+                { name: "get_tool", arguments: '{"name":"get_stock_price"}' },
+              ],
+            },
+            code: {
+              p: 1100,
+              c: 120,
+              hops: 2,
+              toolsExposed: ["run_code"],
+              toolInvocations: [
+                { name: "run_code", arguments: RUN_CODE_SNIPPET },
+              ],
+            },
+            codesearch: {
+              p: 950,
+              c: 110,
+              hops: 2,
+              toolsExposed: ["get_tool", "run_code"],
+              toolInvocations: [
+                { name: "run_code", arguments: RUN_CODE_SNIPPET },
+              ],
+            },
           };
           let body = "";
           req.on("data", (chunk) => (body += chunk));
@@ -172,7 +233,9 @@ export function mockApi(): Plugin {
               promptTokens: m.p,
               completionTokens: m.c,
               hops: m.hops,
-              toolCalls: m.tools,
+              toolCalls: m.toolInvocations.length,
+              toolsExposed: m.toolsExposed,
+              toolInvocations: m.toolInvocations,
             });
           });
           return;

@@ -1,3 +1,5 @@
+import { extractErrorMessage } from "./json";
+
 export type Policy = {
   id: string;
   title: string;
@@ -40,12 +42,19 @@ export type ToolModeDemo = {
   modes: ToolMode[];
 };
 
+export type ToolInvocation = {
+  name: string;
+  arguments: string;
+};
+
 export type ToolModeResult = {
   answer: string;
   promptTokens: number;
   completionTokens: number;
   hops: number;
   toolCalls: number;
+  toolsExposed: string[];
+  toolInvocations: ToolInvocation[];
 };
 
 export type Step = {
@@ -98,6 +107,6 @@ export async function runToolMode(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode, prompt }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await extractErrorMessage(res));
   return res.json();
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { ToolModeDemo, ToolModeResult } from "../lib/api";
 import { runToolMode } from "../lib/api";
 import { costFromTokens } from "../lib/cost";
@@ -17,9 +17,19 @@ export function ToolModePane({ demo }: { demo: ToolModeDemo }) {
   const [prompt, setPrompt] = useState(demo.defaultPrompt);
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [running, setRunning] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  function toggleExpanded(key: string) {
+    setExpanded((e) => ({ ...e, [key]: !e[key] }));
+  }
+
+  // Found by key, not position: a future reorder of demo.modes must not
+  // silently change which row the savings are computed against.
+  const baselineMode =
+    demo.modes.find((m) => m.key === "standard") ?? demo.modes[0];
 
   const baseline = (() => {
-    const r = rows[demo.modes[0].key];
+    const r = rows[baselineMode.key];
     return r && r.status === "done" ? r.result : null;
   })();
 
@@ -51,7 +61,7 @@ export function ToolModePane({ demo }: { demo: ToolModeDemo }) {
   }
 
   function saved(key: string, res: ToolModeResult): string {
-    if (!baseline || key === demo.modes[0].key) return "-";
+    if (!baseline || key === baselineMode.key) return "-";
     const base = tokens(baseline);
     if (base === 0) return "-";
     const pct = Math.round((1 - tokens(res) / base) * 100);
@@ -88,49 +98,111 @@ export function ToolModePane({ demo }: { demo: ToolModeDemo }) {
             <tbody className="divide-y divide-border">
               {demo.modes.map((m) => {
                 const row = rows[m.key] ?? { status: "idle" };
+                const result = row.status === "done" ? row.result : null;
+                const isExpanded = !!result && !!expanded[m.key];
                 return (
-                  <tr key={m.key}>
-                    <td className="px-3 py-2 font-medium text-foreground">
-                      {m.label}
-                    </td>
-                    {row.status === "done" ? (
-                      <>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                          {row.result.hops}
-                        </td>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                          {tokens(row.result).toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                          $
-                          {(
-                            costFromTokens(
-                              MODEL,
-                              row.result.promptTokens,
-                              row.result.completionTokens,
-                            ) ?? 0
-                          ).toFixed(4)}
-                        </td>
+                  <Fragment key={m.key}>
+                    <tr>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          {result && (
+                            <button
+                              onClick={() => toggleExpanded(m.key)}
+                              aria-expanded={isExpanded}
+                              aria-label={`${isExpanded ? "Hide" : "Show"} what ${m.label} did`}
+                              className="shrink-0 text-subtle hover:text-foreground"
+                            >
+                              <span
+                                className={`inline-block transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                              >
+                                ›
+                              </span>
+                            </button>
+                          )}
+                          <div>
+                            <div className="font-medium text-foreground">
+                              {m.label}
+                            </div>
+                            <div className="text-xs text-subtle">
+                              {m.description}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      {row.status === "done" ? (
+                        <>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            {row.result.hops}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            {tokens(row.result).toLocaleString()}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            $
+                            {(
+                              costFromTokens(
+                                MODEL,
+                                row.result.promptTokens,
+                                row.result.completionTokens,
+                              ) ?? 0
+                            ).toFixed(4)}
+                          </td>
+                          <td
+                            data-testid={`saved-${m.key}`}
+                            className="px-3 py-2 font-medium tabular-nums text-primary"
+                          >
+                            {saved(m.key, row.result)}
+                          </td>
+                        </>
+                      ) : row.status === "error" ? (
                         <td
-                          data-testid={`saved-${m.key}`}
-                          className="px-3 py-2 font-medium tabular-nums text-primary"
+                          colSpan={4}
+                          className="px-3 py-2 text-sm text-destructive"
                         >
-                          {saved(m.key, row.result)}
+                          {row.message}
                         </td>
-                      </>
-                    ) : row.status === "error" ? (
-                      <td
-                        colSpan={4}
-                        className="px-3 py-2 text-sm text-destructive"
-                      >
-                        {row.message}
-                      </td>
-                    ) : (
-                      <td colSpan={4} className="px-3 py-2 text-xs text-subtle">
-                        {row.status === "running" ? "running..." : "not run"}
-                      </td>
+                      ) : (
+                        <td
+                          colSpan={4}
+                          className="px-3 py-2 text-xs text-subtle"
+                        >
+                          {row.status === "running" ? "running..." : "not run"}
+                        </td>
+                      )}
+                    </tr>
+                    {result && expanded[m.key] && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="space-y-2 border-t border-border bg-elevated px-3 py-3 text-xs"
+                        >
+                          <div>
+                            <span className="font-medium text-foreground">
+                              Tools exposed:{" "}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {(result.toolsExposed ?? []).join(", ") || "none"}
+                            </span>
+                          </div>
+                          {(result.toolInvocations ?? []).length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="font-medium text-foreground">
+                                What it called:
+                              </div>
+                              {result.toolInvocations.map((inv, i) => (
+                                <pre
+                                  key={i}
+                                  className="overflow-x-auto rounded-md border border-border bg-card p-2 font-mono text-[11px] text-muted-foreground"
+                                >
+                                  {inv.name}({inv.arguments})
+                                </pre>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </Fragment>
                 );
               })}
             </tbody>
