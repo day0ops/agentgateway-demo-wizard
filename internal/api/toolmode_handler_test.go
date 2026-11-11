@@ -105,3 +105,41 @@ func TestToolModeRunSucceeds(t *testing.T) {
 		t.Fatalf("hops/toolCalls = %d/%d, want 2/1", got.Hops, got.ToolCalls)
 	}
 }
+
+// TestToolModeRunReturnsFriendlyMessageWhenModeUnavailable asserts a mode
+// whose MCP route can't be listed (standing in for a not-yet-provisioned
+// field-kit toolMode usecase) gets a clear, actionable message instead of a
+// raw wrapped connection error - and that the body is the package's usual
+// {"error": "..."} JSON shape, not plain text.
+func TestToolModeRunReturnsFriendlyMessageWhenModeUnavailable(t *testing.T) {
+	badServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer badServer.Close()
+
+	gatewayClient := gateway.NewClient("http://unused", "http://unused", "test-password")
+	mcpClient := mcp.NewClient(badServer.URL, "/not-a-real-route")
+	runner := agent.NewRunner(gatewayClient, mcpClient, "/agent-chat")
+
+	srv := NewServer(
+		WithScenarios(scenarios.Registry()),
+		WithConfig(&config.Config{GatewayHost: "unused"}),
+		WithAgent(runner, nil),
+	)
+	srv.mcpClientFactory = func(path string) *mcp.Client { return mcpClient }
+
+	req := httptest.NewRequest(http.MethodPost, "/api/toolmode/run", strings.NewReader(`{"mode":"standard","prompt":"hi"}`))
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", rec.Code)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decoding error body: %v (body: %s)", err, rec.Body.String())
+	}
+	if !strings.Contains(body["error"], "toolMode usecase") {
+		t.Fatalf("expected a friendly message mentioning the toolMode usecase, got: %q", body["error"])
+	}
+}
