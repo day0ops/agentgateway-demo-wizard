@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -166,6 +167,29 @@ func TestRunToolModeTalliesUsageAndCounts(t *testing.T) {
 	}
 	if got.Hops != 2 || got.ToolCalls != 1 {
 		t.Fatalf("hops/toolCalls = %d/%d, want 2/1", got.Hops, got.ToolCalls)
+	}
+}
+
+// TestRunToolModeWrapsListToolsFailureWithSentinel asserts a mode whose MCP
+// route can't even be listed (the shape a not-yet-provisioned gateway route
+// takes) is reported via the ErrModeUnavailable sentinel, so callers can
+// distinguish "this mode isn't reachable at all" from a mid-run failure.
+func TestRunToolModeWrapsListToolsFailureWithSentinel(t *testing.T) {
+	gw := newFakeGateway(t) // no model call expected: listing fails first
+	badServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer badServer.Close()
+	mcpClient := mcp.NewClient(badServer.URL, "/not-a-real-route")
+
+	r := NewRunner(gw, mcpClient, "/agent-chat")
+	_, err := r.RunToolMode(context.Background(),
+		Request{Identity: "anonymous", Prompt: "balance?", Model: "gpt-4o-mini"}, mcpClient)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !errors.Is(err, ErrModeUnavailable) {
+		t.Fatalf("expected errors.Is(err, ErrModeUnavailable), got: %v", err)
 	}
 }
 

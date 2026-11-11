@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -17,6 +18,12 @@ import (
 )
 
 const maxHops = 5
+
+// ErrModeUnavailable wraps a RunToolMode failure that happened while listing
+// the mode's tools - most often because the gateway route backing that
+// toolMode isn't provisioned yet. Callers distinguish it with errors.Is to
+// show a clearer message than a mid-run model or tool-call failure.
+var ErrModeUnavailable = errors.New("tool mode unavailable")
 
 // ToolSpec is one tool the model is allowed to call, described in OpenAI's
 // function-calling schema. The wizard's demo content supplies a fixed list -
@@ -130,7 +137,7 @@ func (r *Runner) RunToolMode(ctx context.Context, req Request, mcpClient *mcp.Cl
 	}
 	listed, err := mcpClient.ListTools(ctx, token)
 	if err != nil {
-		return RunResult{}, fmt.Errorf("listing tools for mode: %w", err)
+		return RunResult{}, fmt.Errorf("%w: listing tools for mode: %w", ErrModeUnavailable, err)
 	}
 	specs := make([]ToolSpec, 0, len(listed))
 	for _, t := range listed {
