@@ -153,12 +153,15 @@ export function mockApi(): Plugin {
             toolsExposed: string[];
             toolInvocations: { name: string; arguments: string }[];
           };
+          // Single-quoted JS string literals here so JSON.stringify doesn't
+          // have to backslash-escape embedded double quotes - keeps the raw
+          // JSON argument readable in the preview.
           const RUN_CODE_SNIPPET = JSON.stringify({
             code: [
               "const holdings = await tools.get_holdings();",
-              'const aapl = await tools.get_stock_price({ symbol: "AAPL" });',
-              'const msft = await tools.get_stock_price({ symbol: "MSFT" });',
-              'const rate = await tools.get_exchange_rate({ from: "USD", to: "EUR" });',
+              "const aapl = await tools.get_stock_price({ symbol: 'AAPL' });",
+              "const msft = await tools.get_stock_price({ symbol: 'MSFT' });",
+              "const rate = await tools.get_exchange_rate({ from: 'USD', to: 'EUR' });",
               "return (holdings.AAPL * aapl + holdings.MSFT * msft) * rate;",
             ].join("\n"),
           });
