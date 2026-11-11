@@ -18,8 +18,13 @@ export function ToolModePane({ demo }: { demo: ToolModeDemo }) {
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [running, setRunning] = useState(false);
 
+  // Found by key, not position: a future reorder of demo.modes must not
+  // silently change which row the savings are computed against.
+  const baselineMode =
+    demo.modes.find((m) => m.key === "standard") ?? demo.modes[0];
+
   const baseline = (() => {
-    const r = rows[demo.modes[0].key];
+    const r = rows[baselineMode.key];
     return r && r.status === "done" ? r.result : null;
   })();
 
@@ -51,7 +56,7 @@ export function ToolModePane({ demo }: { demo: ToolModeDemo }) {
   }
 
   function saved(key: string, res: ToolModeResult): string {
-    if (!baseline || key === demo.modes[0].key) return "-";
+    if (!baseline || key === baselineMode.key) return "-";
     const base = tokens(baseline);
     if (base === 0) return "-";
     const pct = Math.round((1 - tokens(res) / base) * 100);

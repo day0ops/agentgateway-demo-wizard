@@ -1,3 +1,5 @@
+import { extractErrorMessage } from "./json";
+
 export type Policy = {
   id: string;
   title: string;
@@ -98,6 +100,6 @@ export async function runToolMode(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mode, prompt }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await extractErrorMessage(res));
   return res.json();
 }
