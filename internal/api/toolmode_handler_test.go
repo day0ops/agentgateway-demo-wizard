@@ -104,6 +104,12 @@ func TestToolModeRunSucceeds(t *testing.T) {
 	if got.Hops != 2 || got.ToolCalls != 1 {
 		t.Fatalf("hops/toolCalls = %d/%d, want 2/1", got.Hops, got.ToolCalls)
 	}
+	if len(got.ToolsExposed) != 1 || got.ToolsExposed[0] != "get_balance" {
+		t.Fatalf("toolsExposed = %v, want [get_balance]", got.ToolsExposed)
+	}
+	if len(got.ToolInvocations) != 1 || got.ToolInvocations[0].Name != "get_balance" || got.ToolInvocations[0].Arguments != "{}" {
+		t.Fatalf("toolInvocations = %+v, want one get_balance call with arguments \"{}\"", got.ToolInvocations)
+	}
 }
 
 // TestToolModeRunReturnsFriendlyMessageWhenModeUnavailable asserts a mode

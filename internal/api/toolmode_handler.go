@@ -20,11 +20,21 @@ type toolModeRunRequest struct {
 }
 
 type toolModeRunResponse struct {
-	Answer           string `json:"answer"`
-	PromptTokens     int    `json:"promptTokens"`
-	CompletionTokens int    `json:"completionTokens"`
-	Hops             int    `json:"hops"`
-	ToolCalls        int    `json:"toolCalls"`
+	Answer           string              `json:"answer"`
+	PromptTokens     int                 `json:"promptTokens"`
+	CompletionTokens int                 `json:"completionTokens"`
+	Hops             int                 `json:"hops"`
+	ToolCalls        int                 `json:"toolCalls"`
+	ToolsExposed     []string            `json:"toolsExposed"`
+	ToolInvocations  []toolInvocationDTO `json:"toolInvocations"`
+}
+
+// toolInvocationDTO is one tool call the model made, with its raw (unparsed)
+// arguments - for Code/CodeSearch this is where the model's generated code
+// shows up, as the arguments to run_code.
+type toolInvocationDTO struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 // modePath resolves a mode key to its gateway MCP route from the scenario
@@ -76,11 +86,17 @@ func (s *Server) handleToolModeRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	invocations := make([]toolInvocationDTO, 0, len(res.ToolInvocations))
+	for _, inv := range res.ToolInvocations {
+		invocations = append(invocations, toolInvocationDTO{Name: inv.Name, Arguments: inv.Arguments})
+	}
 	writeJSON(w, http.StatusOK, toolModeRunResponse{
 		Answer:           res.Answer,
 		PromptTokens:     res.PromptTokens,
 		CompletionTokens: res.CompletionTokens,
 		Hops:             res.Hops,
 		ToolCalls:        res.ToolCalls,
+		ToolsExposed:     res.ToolsExposed,
+		ToolInvocations:  invocations,
 	})
 }
