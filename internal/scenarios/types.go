@@ -56,9 +56,8 @@ type OpsAgentDemo struct {
 	// "transfer-orchestrator", or "statements".
 	Agent string `json:"agent"`
 	// Mode is forwarded to the agent as-is. The Statements Agent branches on
-	// it ("interactive" targets PayPal, anything else targets Stripe via
-	// Brokered); the other banking agents don't branch on mode and leave it
-	// empty.
+	// it ("interactive" targets PayPal); the other banking agents don't
+	// branch on mode and leave it empty.
 	Mode          string `json:"mode"`
 	DefaultPrompt string `json:"defaultPrompt"`
 }
