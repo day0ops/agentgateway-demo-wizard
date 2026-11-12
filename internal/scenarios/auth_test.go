@@ -13,7 +13,6 @@ var wantAuthStepIDs = []string{
 	"auth-transfer-chain",
 	"auth-settlement-rbac",
 	"auth-statements-interactive",
-	"auth-statements-brokered",
 }
 
 func TestAuthPillarStepIDsInOrder(t *testing.T) {
@@ -81,7 +80,6 @@ func TestAuthAgentStepsDriveTheRightOpsAgent(t *testing.T) {
 		"auth-transfer-chain":         "transfer-orchestrator",
 		"auth-settlement-rbac":        "transfer-orchestrator",
 		"auth-statements-interactive": "statements",
-		"auth-statements-brokered":    "statements",
 	}
 
 	auth := authPillar()
@@ -102,14 +100,13 @@ func TestAuthAgentStepsDriveTheRightOpsAgent(t *testing.T) {
 	}
 }
 
-// TestStatementsStepsSetModeToSelectTheRightProvider enforces that the two
-// Statements Agent steps carry the Mode the agent needs to pick the right
-// upstream (Stripe only ever supports Brokered, so Interactive targets
-// PayPal instead - see the agent's build_agent() in ops-agents).
+// TestStatementsStepsSetModeToSelectTheRightProvider enforces that the
+// Statements Agent step carries the Mode the agent needs to pick the right
+// upstream ("interactive" targets PayPal - see the agent's build_agent() in
+// ops-agents).
 func TestStatementsStepsSetModeToSelectTheRightProvider(t *testing.T) {
 	wantMode := map[string]string{
 		"auth-statements-interactive": "interactive",
-		"auth-statements-brokered":    "brokered",
 	}
 
 	auth := authPillar()
@@ -131,7 +128,6 @@ var wantViewRefNames = map[string][]string{
 	"auth-accounts-impersonation": {"core-banking-standard", "oauth-token-exchange-core-banking-standard"},
 	"auth-transfer-chain":         {"transfer-orchestrator-agent", "settlement-agent", "core-banking-delegation", "obo-token-exchange-core-banking-delegation"},
 	"auth-statements-interactive": {"mcp-paypal", "elicitation-backend-paypal-mcp-backend"},
-	"auth-statements-brokered":    {"mcp-stripe-brokered", "elicitation-backend-stripe-mcp-brokered-backend"},
 }
 
 // policyViewRefNames are the ViewRef names that point at an
@@ -142,10 +138,9 @@ var wantViewRefNames = map[string][]string{
 // not whatever policyName the usecase config happens to set - every policy
 // goes through that merge/rename pipeline regardless of contributor count.
 var policyViewRefNames = map[string]bool{
-	"oauth-token-exchange-core-banking-standard":      true,
-	"obo-token-exchange-core-banking-delegation":      true,
-	"elicitation-backend-paypal-mcp-backend":          true,
-	"elicitation-backend-stripe-mcp-brokered-backend": true,
+	"oauth-token-exchange-core-banking-standard": true,
+	"obo-token-exchange-core-banking-delegation": true,
+	"elicitation-backend-paypal-mcp-backend":     true,
 }
 
 func TestAuthAgentStepsAreReadOnlyAndNeverApply(t *testing.T) {
@@ -197,7 +192,6 @@ func TestAuthExplanationsNameTheQuestionsTheyAnswer(t *testing.T) {
 		"auth-transfer-chain":         {"Question 1", "Question 2", "Question 3"},
 		"auth-settlement-rbac":        {"Question 4"},
 		"auth-statements-interactive": {"Question 4"},
-		"auth-statements-brokered":    {"Question 4"},
 	}
 
 	auth := authPillar()

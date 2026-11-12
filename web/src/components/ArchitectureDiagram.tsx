@@ -53,13 +53,11 @@ const TIP = {
   settlement:
     "Settles the transfer against Core Banking, permitted only for the right task within the delegation chain.",
   statements:
-    "Builds statements and reaches the PayPal and Stripe MCPs using interactive and brokered elicitation.",
+    "Builds statements and reaches the PayPal MCP using interactive elicitation.",
   coreBanking:
     "The bank's internal core system - balances, transfers, settlement - reachable only through the gateway.",
   paypal:
     "Third-party payment service reached over the internet. Tool calls go through interactive elicitation.",
-  stripe:
-    "Third-party payment service reached over the internet. Tool calls go through brokered elicitation.",
 };
 
 // Screen-reader equivalent of the drawn diagram.
@@ -70,7 +68,7 @@ const A11Y_LABEL =
   "four banking agents - Accounts, Transfer Orchestrator, Settlement, and " +
   "Statements - reach it, and agent-to-tool and agent-to-agent delegation calls " +
   "re-enter it before reaching the MCP backends: the internal Core Banking MCP " +
-  "and the external, third-party PayPal and Stripe MCP servers. agentgateway " +
+  "and the external, third-party PayPal MCP server. agentgateway " +
   "verifies and " +
   "exchanges identity tokens with the Keycloak identity provider, carrying the " +
   "delegation chain sub, act, act.act.";
@@ -521,8 +519,8 @@ function drawDiagram(ctx: CanvasRenderingContext2D, hotspots: Hotspot[]) {
   }
 
   // --- Right-bottom: MCP backends, split by the internal/external boundary --
-  // Core Banking is centered on the same axis (zone center, y=456) as the
-  // midpoint of the external PayPal/Stripe pair, so the two zones line up.
+  // Core Banking and PayPal each sit centered in their zone (zone center,
+  // y=456), so the two zones line up.
   zone(676, 336, 230, 240, "Internal");
   node(696, 428, 190, 56, { title: "Core Banking MCP", tip: TIP.coreBanking });
 
@@ -531,8 +529,7 @@ function drawDiagram(ctx: CanvasRenderingContext2D, hotspots: Hotspot[]) {
     border: c.warningLine,
     labelColor: c.warning,
   });
-  node(946, 388, 190, 56, { title: "PayPal MCP", tip: TIP.paypal });
-  node(946, 468, 190, 56, { title: "Stripe MCP", tip: TIP.stripe });
+  node(946, 428, 190, 56, { title: "PayPal MCP", tip: TIP.paypal });
 
   // --- Edges: every tier connects only to the gateway ----------------------
   // Clean perpendicular connectors into the central band; the gateway is the

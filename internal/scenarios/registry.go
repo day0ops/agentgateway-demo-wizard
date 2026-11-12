@@ -15,9 +15,9 @@ var routingBackendGVR = schema.GroupVersionResource{
 
 // opsAgentHTTPRouteGVR identifies the HTTPRoutes the banking usecase creates
 // for the agent containers (accounts-agent, transfer-orchestrator-agent,
-// settlement-agent, statements-agent) and the Core Banking / PayPal / Stripe
-// MCP routes (core-banking-standard, core-banking-delegation, mcp-paypal,
-// mcp-stripe-brokered). These objects are pre-provisioned by the
+// settlement-agent, statements-agent) and the Core Banking / PayPal
+// MCP routes (core-banking-standard, core-banking-delegation, mcp-paypal).
+// These objects are pre-provisioned by the
 // agentgateway-field-kit usecase, not by this repo.
 var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
 	Group:    "gateway.networking.k8s.io",
@@ -27,7 +27,7 @@ var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
 
 // opsAgentPolicyGVR identifies the enterpriseagentgateway.solo.io Policy CRD
 // the auth pillar's read-only steps display alongside their HTTPRoute - MCP
-// tool-level RBAC policies and PayPal/Stripe elicitation policies. These
+// tool-level RBAC policies and PayPal elicitation policies. These
 // objects are pre-provisioned by the agentgateway-field-kit ops-agents
 // usecase, not by this repo.
 var opsAgentPolicyGVR = schema.GroupVersionResource{
@@ -547,9 +547,6 @@ func authPillar() Pillar {
 					"- Instead of just failing, the gateway hands back a one-time approval link. You open " +
 					"it, approve access once, and from then on the gateway quietly supplies your PayPal " +
 					"credential on every later call.\n" +
-					"- This step uses PayPal, and the next one uses Stripe, because the two connect in " +
-					"genuinely different ways - PayPal fits this \"send the user off to approve it\" " +
-					"style, which is the contrast the next step builds on.\n" +
 					"- Approving PayPal only proves you allowed the connection; it still doesn't decide " +
 					"which Statements tools the agent may call. That's **Question 4** again, enforced " +
 					"exactly like the banking tools earlier.\n\n" +
@@ -593,59 +590,6 @@ func authPillar() Pillar {
 					Agent:         "statements",
 					Mode:          "interactive",
 					DefaultPrompt: "Show my recent PayPal transactions.",
-				},
-			},
-			{
-				ID:    "auth-statements-brokered",
-				Title: "Statements Agent → Stripe (Brokered elicitation)",
-				Explanation: "Same agent, a different outside service (Stripe), and a smoother path to " +
-					"connecting it.\n\n" +
-					"- You already signed in once, back at the login step, and the gateway trusts that - " +
-					"so there's no need to send you off to a separate approval page again.\n" +
-					"- Instead, the gateway handles the Stripe connection inline: it shows its own " +
-					"approval screen, saves the resulting Stripe credential against your identity, and " +
-					"retries the call in the same round trip.\n" +
-					"- Your identity to the bank doesn't change here - you're still you. The only thing " +
-					"being brokered is the extra Stripe credential, saved the same way the PayPal step " +
-					"saved its own.\n\n" +
-					"**Question 4** is unchanged - the agent's tool access is still checked per tool, " +
-					"exactly as before. The contrast is the whole point: PayPal sent you to a separate " +
-					"page because nothing trusted you there yet; Stripe can fold approval right into the " +
-					"gateway because your session already does.",
-				Diagram: "sequenceDiagram\n" +
-					"  participant You\n" +
-					"  participant Wizard\n" +
-					"  participant Stmt as Statements Agent\n" +
-					"  participant AGW as agentgateway (OAuth issuer)\n" +
-					"  participant Stripe\n" +
-					"  You->>Wizard: \"Show my recent Stripe payouts.\"\n" +
-					"  Wizard->>Stmt: POST /statements-agent/run (token)\n" +
-					"  Stmt->>AGW: MCP call (Bearer: your token)\n" +
-					"  AGW->>AGW: no Stripe credential banked for you yet\n" +
-					"  AGW-->>You: gateway-hosted consent screen (inline)\n" +
-					"  You->>AGW: approve\n" +
-					"  AGW->>Stripe: OAuth consent (sandbox)\n" +
-					"  Stripe-->>AGW: Stripe access token (banked to your identity)\n" +
-					"  AGW->>Stripe: forward with brokered Stripe token\n" +
-					"  Stripe-->>AGW: payouts\n" +
-					"  AGW-->>Stmt: real Stripe payouts\n" +
-					"  Stmt-->>Wizard: answer\n" +
-					"  Wizard-->>You: answer",
-				Policies: []Policy{
-					{
-						ID:       "auth-statements-brokered",
-						Title:    "Statements Agent + Stripe (Brokered elicitation)",
-						ReadOnly: true,
-						ViewRefs: []ViewRef{
-							{GVR: opsAgentHTTPRouteGVR, Name: "mcp-stripe-brokered"},
-							{GVR: opsAgentPolicyGVR, Name: "elicitation-backend-stripe-mcp-brokered-backend"},
-						},
-					},
-				},
-				OpsAgent: &OpsAgentDemo{
-					Agent:         "statements",
-					Mode:          "brokered",
-					DefaultPrompt: "Show my recent Stripe payouts.",
 				},
 			},
 		},

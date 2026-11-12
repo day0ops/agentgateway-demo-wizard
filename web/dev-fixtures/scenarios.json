@@ -288,7 +288,7 @@
       {
         "id": "auth-statements-interactive",
         "title": "Statements Agent → PayPal (Interactive elicitation)",
-        "explanation": "Some things an agent needs to reach live outside the bank entirely. Here the Statements Agent pulls your history from PayPal's own system (in sandbox mode), on your behalf - but the gateway doesn't have your permission to use PayPal yet.\n\n- Instead of just failing, the gateway hands back a one-time approval link. You open it, approve access once, and from then on the gateway quietly supplies your PayPal credential on every later call.\n- This step uses PayPal, and the next one uses Stripe, because the two connect in genuinely different ways - PayPal fits this \"send the user off to approve it\" style, which is the contrast the next step builds on.\n- Approving PayPal only proves you allowed the connection; it still doesn't decide which Statements tools the agent may call. That's **Question 4** again, enforced exactly like the banking tools earlier.\n\nThe agent itself never sees or stores your PayPal credential.",
+        "explanation": "Some things an agent needs to reach live outside the bank entirely. Here the Statements Agent pulls your history from PayPal's own system (in sandbox mode), on your behalf - but the gateway doesn't have your permission to use PayPal yet.\n\n- Instead of just failing, the gateway hands back a one-time approval link. You open it, approve access once, and from then on the gateway quietly supplies your PayPal credential on every later call.\n- Approving PayPal only proves you allowed the connection; it still doesn't decide which Statements tools the agent may call. That's **Question 4** again, enforced exactly like the banking tools earlier.\n\nThe agent itself never sees or stores your PayPal credential.",
         "diagram": "sequenceDiagram\n  participant You\n  participant Wizard\n  participant Stmt as Statements Agent\n  participant AGW as agentgateway\n  participant STS\n  participant UI as Solo UI\n  participant PayPal\n  You-\u003e\u003eWizard: \"Show my recent PayPal transactions.\"\n  Wizard-\u003e\u003eStmt: POST /statements-agent/run (token)\n  Stmt-\u003e\u003eAGW: MCP call (Bearer: your token)\n  AGW-\u003e\u003eSTS: check for a stored PayPal token\n  STS--\u003e\u003eAGW: none yet - elicitation required\n  AGW--\u003e\u003eStmt: pending + consent URL\n  Stmt--\u003e\u003eWizard: \"open this link to connect PayPal\"\n  You-\u003e\u003eUI: open the link, approve\n  UI-\u003e\u003ePayPal: OAuth consent (sandbox)\n  PayPal--\u003e\u003eSTS: PayPal access token (stored)\n  You-\u003e\u003eWizard: retry\n  Wizard-\u003e\u003eStmt: POST /statements-agent/run (token)\n  Stmt-\u003e\u003eAGW: MCP call (Bearer: your token)\n  AGW-\u003e\u003eSTS: check for a stored PayPal token\n  STS--\u003e\u003eAGW: found - inject it\n  AGW--\u003e\u003eStmt: real PayPal transactions",
         "policies": [
           {
@@ -305,28 +305,6 @@
           "agent": "statements",
           "mode": "interactive",
           "defaultPrompt": "Show my recent PayPal transactions."
-        }
-      },
-      {
-        "id": "auth-statements-brokered",
-        "title": "Statements Agent → Stripe (Brokered elicitation)",
-        "explanation": "Same agent, a different outside service (Stripe), and a smoother path to connecting it.\n\n- You already signed in once, back at the login step, and the gateway trusts that - so there's no need to send you off to a separate approval page again.\n- Instead, the gateway handles the Stripe connection inline: it shows its own approval screen, saves the resulting Stripe credential against your identity, and retries the call in the same round trip.\n- Your identity to the bank doesn't change here - you're still you. The only thing being brokered is the extra Stripe credential, saved the same way the PayPal step saved its own.\n\n**Question 4** is unchanged - the agent's tool access is still checked per tool, exactly as before. The contrast is the whole point: PayPal sent you to a separate page because nothing trusted you there yet; Stripe can fold approval right into the gateway because your session already does.",
-        "diagram": "sequenceDiagram\n  participant You\n  participant Wizard\n  participant Stmt as Statements Agent\n  participant AGW as agentgateway (OAuth issuer)\n  participant Stripe\n  You-\u003e\u003eWizard: \"Show my recent Stripe payouts.\"\n  Wizard-\u003e\u003eStmt: POST /statements-agent/run (token)\n  Stmt-\u003e\u003eAGW: MCP call (Bearer: your token)\n  AGW-\u003e\u003eAGW: no Stripe credential banked for you yet\n  AGW--\u003e\u003eYou: gateway-hosted consent screen (inline)\n  You-\u003e\u003eAGW: approve\n  AGW-\u003e\u003eStripe: OAuth consent (sandbox)\n  Stripe--\u003e\u003eAGW: Stripe access token (banked to your identity)\n  AGW-\u003e\u003eStripe: forward with brokered Stripe token\n  Stripe--\u003e\u003eAGW: payouts\n  AGW--\u003e\u003eStmt: real Stripe payouts\n  Stmt--\u003e\u003eWizard: answer\n  Wizard--\u003e\u003eYou: answer",
-        "policies": [
-          {
-            "id": "auth-statements-brokered",
-            "title": "Statements Agent + Stripe (Brokered elicitation)",
-            "readOnly": true
-          }
-        ],
-        "presets": [],
-        "agentDemo": false,
-        "virtualKeys": false,
-        "loginDemo": false,
-        "opsAgent": {
-          "agent": "statements",
-          "mode": "brokered",
-          "defaultPrompt": "Show my recent Stripe payouts."
         }
       }
     ]
