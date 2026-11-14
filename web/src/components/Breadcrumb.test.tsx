@@ -39,6 +39,7 @@ describe("Breadcrumb", () => {
         activePillarIndex={0}
         activeStepIndex={0}
         onSelectPillar={() => {}}
+        onSelectStep={() => {}}
       />,
     );
     expect(screen.queryByText(/step \d+ of \d+/)).not.toBeInTheDocument();
@@ -51,6 +52,7 @@ describe("Breadcrumb", () => {
         activePillarIndex={1}
         activeStepIndex={0}
         onSelectPillar={() => {}}
+        onSelectStep={() => {}}
       />,
     );
     expect(screen.getByText("step 1 of 2")).toBeInTheDocument();
@@ -64,10 +66,28 @@ describe("Breadcrumb", () => {
         activePillarIndex={0}
         activeStepIndex={0}
         onSelectPillar={onSelectPillar}
+        onSelectStep={() => {}}
       />,
     );
     fireEvent.click(screen.getByText("Routing"));
     expect(onSelectPillar).toHaveBeenCalledWith(1);
+  });
+
+  it("calls onSelectStep with the clicked step index", () => {
+    const onSelectStep = vi.fn();
+    render(
+      <Breadcrumb
+        pillars={pillars}
+        activePillarIndex={1}
+        activeStepIndex={0}
+        onSelectPillar={() => {}}
+        onSelectStep={onSelectStep}
+      />,
+    );
+    const segments = screen.getByTestId("step-segments")
+      .children as HTMLCollectionOf<HTMLButtonElement>;
+    fireEvent.click(segments[1]);
+    expect(onSelectStep).toHaveBeenCalledWith(1);
   });
 
   it("renders one progress segment per step in the active pillar", () => {
@@ -77,6 +97,7 @@ describe("Breadcrumb", () => {
         activePillarIndex={1}
         activeStepIndex={0}
         onSelectPillar={() => {}}
+        onSelectStep={() => {}}
       />,
     );
     const segments = screen.getByTestId("step-segments").children;
@@ -90,6 +111,7 @@ describe("Breadcrumb", () => {
         activePillarIndex={1}
         activeStepIndex={1}
         onSelectPillar={() => {}}
+        onSelectStep={() => {}}
       />,
     );
     const segments = screen.getByTestId("step-segments").children;
@@ -102,6 +124,7 @@ describe("Breadcrumb", () => {
         activePillarIndex={0}
         activeStepIndex={0}
         onSelectPillar={() => {}}
+        onSelectStep={() => {}}
       />,
     );
     expect(screen.queryByTestId("step-segments")).not.toBeInTheDocument();
