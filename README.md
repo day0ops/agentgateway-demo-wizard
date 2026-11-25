@@ -26,7 +26,7 @@ It pushes its own curated set of enterprise agentgateway CRD manifests to the cl
 Provisioned ahead of the call, by `agentgateway-field-kit` - this repo provisions none of it:
 
 - A Kubernetes cluster with **enterprise agentgateway** installed, including the shared `Gateway` resource.
-- **Keycloak**, reachable at the host in `KEYCLOAK_HOST`, with the `agw-dev` realm provisioned via field-kit's `keycloak` addon. That addon seeds, among others: the public `agw-client-public` client (password grant enabled by the addon's own default, even though the profile only declares the `authorization-code` flow), the `agw-token-exchange` confidential client (secret `agw-token-exchange-secret`, Standard Token Exchange already enabled) the agent pillar's token-exchange step uses, and the demo identities the wizard authenticates as - `user1` (team_id `team-alpha`) and `user2` (team_id `team-beta`), both under the realm's shared `defaultPassword`. Set `DEMO_USER_PASSWORD` to whatever that profile's `defaultPassword` is (field-kit no longer hardcodes it either).
+- **Keycloak**, reachable at the host in `KEYCLOAK_HOST`, with the `agw-dev` realm provisioned via field-kit's `keycloak` addon. That addon seeds, among others: the public `agw-client-public` client (password grant enabled by the addon's own default, even though the profile only declares the `authorization-code` flow), the `agw-token-exchange` confidential client (secret `agw-token-exchange-secret`, Standard Token Exchange already enabled) the agent pillar's token-exchange step uses, and the demo identities the wizard authenticates as - `user1` (team_id `team-alpha`) and `user2` (team_id `team-beta`), both under the realm's shared `defaultPassword`. Set `AGW_DEMO_WIZARD_USER_PASSWORD` to whatever that profile's `defaultPassword` is (field-kit no longer hardcodes it either).
 - Network access from wherever the wizard runs to both the gateway and Keycloak hosts, and to the Kubernetes API server.
 
 ## Environment variables
@@ -37,7 +37,7 @@ Provisioned ahead of the call, by `agentgateway-field-kit` - this repo provision
 | `KEYCLOAK_HOST`                      | yes      | Keycloak hostname the wizard authenticates against                                                                               |
 | `OPENAI_API_KEY`                     | yes      | used by every OpenAI-backed demo step                                                                                            |
 | `OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET` | yes      | Keycloak client secret for the agent pillar's token-exchange step (`agw-token-exchange` client, Standard Token Exchange enabled) |
-| `DEMO_USER_PASSWORD`                 | yes      | shared password for the `user1`/`user2` demo identities, matching field-kit's realm `defaultPassword` - not hardcoded            |
+| `AGW_DEMO_WIZARD_USER_PASSWORD`      | yes      | shared password for the `user1`/`user2` demo identities, matching field-kit's realm `defaultPassword` - not hardcoded            |
 | `STOCK_SERVER_MCP_IMAGE`             | no       | overrides the stock-lookup MCP server image                                                                                      |
 | `CURRENCY_SERVER_MCP_IMAGE`          | no       | overrides the currency-lookup MCP server image                                                                                   |
 | `WIZARD_ADDR`                        | no       | address the wizard listens on (default `:8080`)                                                                                  |
@@ -64,7 +64,7 @@ export AGW_HOST=agentgateway.demo.example.com
 export KEYCLOAK_HOST=keycloak.demo.example.com
 export OPENAI_API_KEY=sk-...
 export OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET=agw-token-exchange-secret
-export DEMO_USER_PASSWORD=Password1!
+export AGW_DEMO_WIZARD_USER_PASSWORD=Password1!
 
 make build
 make run              # serves on :8080
