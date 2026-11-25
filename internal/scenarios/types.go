@@ -44,7 +44,9 @@ type Step struct {
 	// call button alongside its OpsAgent pane - see DirectCallDemo.
 	DirectCall *DirectCallDemo `json:"directCall,omitempty"`
 	// ToolModeDemo marks the step that compares agentgateway's MCP toolModes
-	// (Standard/Search/Code/CodeSearch) and shows the token/cost savings.
+	// (Standard/Search - Code/CodeSearch are omitted, their generated code
+	// isn't deterministic enough for a repeatable demo) and shows the
+	// token/cost savings.
 	ToolModeDemo *ToolModeDemo `json:"toolModeDemo,omitempty"`
 }
 

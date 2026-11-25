@@ -80,8 +80,8 @@ func TestToolModeStepExists(t *testing.T) {
 	if tmd.DefaultPrompt == "" {
 		t.Fatal("ToolModeDemo.DefaultPrompt is empty")
 	}
-	if len(tmd.Modes) != 4 || tmd.Modes[0].Key != "standard" {
-		t.Fatalf("want 4 modes with standard first, got %+v", tmd.Modes)
+	if len(tmd.Modes) != 2 || tmd.Modes[0].Key != "standard" {
+		t.Fatalf("want 2 modes with standard first, got %+v", tmd.Modes)
 	}
 	for _, m := range tmd.Modes {
 		if m.MCPPath == "" || m.Label == "" {
