@@ -150,6 +150,7 @@ func (c *Client) ProxyWithToken(ctx context.Context, req Request, token string) 
 		return nil, fmt.Errorf("building gateway request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json, text/event-stream")
 	for k, v := range req.Headers {
 		httpReq.Header.Set(k, v)
 	}

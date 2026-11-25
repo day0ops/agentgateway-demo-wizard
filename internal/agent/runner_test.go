@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -296,5 +298,141 @@ func TestRunSurfacesMalformedToolArgumentsAsErrorHop(t *testing.T) {
 	}
 	if !sawError {
 		t.Fatalf("expected an error hop event")
+	}
+}
+
+// TestRunFeedsBackAProtocolDenialInsteadOfAborting reproduces the live
+// behaviour where agentgateway's progressive disclosure makes a
+// policy-hidden tool look "unknown" to the MCP client: CallTool returns a Go
+// error, but it must not abort the whole run - the model needs a clear
+// instruction fed back as a tool message so it states the denial plainly
+// instead of quietly giving up a few hops later.
+func TestRunFeedsBackAProtocolDenialInsteadOfAborting(t *testing.T) {
+	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "0.0.1"}, nil)
+	mcpServer.AddTool(&sdkmcp.Tool{
+		Name:        "transfer",
+		Description: "move money",
+		InputSchema: &jsonschema.Schema{Type: "object"},
+	}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		return &sdkmcp.CallToolResult{
+			IsError: true,
+			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "unknown resource: transfer"}},
+		}, nil
+	})
+	mcpHandler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server { return mcpServer }, nil)
+
+	var chatBodies []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/openai/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		chatBodies = append(chatBodies, string(body))
+		w.Header().Set("Content-Type", "application/json")
+		if len(chatBodies) == 1 {
+			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","tool_calls":[{"id":"call_1","type":"function","function":{"name":"transfer","arguments":"{}"}}]}}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"That transfer was denied by policy."}}]}`))
+	})
+	mux.Handle("/mcp", mcpHandler)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	gatewayClient := gateway.NewClient("http://unused", server.URL, "test-password")
+	mcpClient := mcp.NewClient(server.URL, "/mcp")
+	runner := NewRunner(gatewayClient, mcpClient, "/openai/v1/chat/completions")
+
+	hops := make(chan HopEvent, 16)
+	answer, err := runner.Run(context.Background(), Request{
+		Identity: "anonymous",
+		Prompt:   "Move $500 directly",
+		Model:    "gpt-4o-mini",
+		Tools: []ToolSpec{
+			{Name: "transfer", Description: "move money", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)},
+		},
+	}, hops)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if answer != "That transfer was denied by policy." {
+		t.Fatalf("unexpected answer: %q", answer)
+	}
+
+	var sawErrorHop, sawDeniedToolResult bool
+	for event := range hops {
+		if event.Type == "error" {
+			sawErrorHop = true
+		}
+		if event.Type == "tool_result" && strings.Contains(event.Message, "denied by policy") {
+			sawDeniedToolResult = true
+		}
+	}
+	if sawErrorHop {
+		t.Fatalf("expected the denied tool call not to abort the run with an error hop")
+	}
+	if !sawDeniedToolResult {
+		t.Fatalf("expected a tool_result hop reporting the denial")
+	}
+
+	if len(chatBodies) != 2 {
+		t.Fatalf("expected 2 model calls, got %d", len(chatBodies))
+	}
+	if !strings.Contains(chatBodies[1], denialGuidance) {
+		t.Fatalf("expected the tool message fed back to the model to carry denialGuidance, got: %s", chatBodies[1])
+	}
+	if !strings.Contains(chatBodies[1], "unknown resource: transfer") {
+		t.Fatalf("expected the tool message to still carry the raw denial detail, got: %s", chatBodies[1])
+	}
+}
+
+// TestRunFlagsAnAuthorizationRefusalInASuccessfulToolResult reproduces a
+// backend tool that enforces its own authorization and answers with an
+// ordinary, non-error MCP result whose text just happens to say the call
+// wasn't allowed. The model needs the same denialGuidance appended so it
+// states that plainly rather than treating the refusal as data to work
+// around across more hops.
+func TestRunFlagsAnAuthorizationRefusalInASuccessfulToolResult(t *testing.T) {
+	mcpClient := newFakeMCP(t, `{"content":[{"type":"text","text":"You are not authorized to view full account numbers for this tool."}]}`)
+
+	var chatBodies []string
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		chatBodies = append(chatBodies, string(body))
+		w.Header().Set("Content-Type", "application/json")
+		if len(chatBodies) == 1 {
+			_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","tool_calls":[` +
+				`{"id":"c1","type":"function","function":{"name":"get_balance","arguments":"{}"}}]}}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"That's not permitted for your account."}}]}`))
+	}))
+	defer gatewayServer.Close()
+
+	gatewayClient := gateway.NewClient("http://unused", gatewayServer.URL, "test-password")
+	runner := NewRunner(gatewayClient, mcpClient, "/agent-chat")
+
+	hops := make(chan HopEvent, 16)
+	answer, err := runner.Run(context.Background(), Request{
+		Identity: "anonymous",
+		Prompt:   "What's my full account number?",
+		Model:    "gpt-4o-mini",
+		Tools: []ToolSpec{
+			{Name: "get_balance", Description: "look up an account balance", Parameters: json.RawMessage(`{"type":"object","properties":{}}`)},
+		},
+	}, hops)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if answer != "That's not permitted for your account." {
+		t.Fatalf("unexpected answer: %q", answer)
+	}
+
+	if len(chatBodies) != 2 {
+		t.Fatalf("expected 2 model calls, got %d", len(chatBodies))
+	}
+	if !strings.Contains(chatBodies[1], denialGuidance) {
+		t.Fatalf("expected the tool message fed back to the model to carry denialGuidance, got: %s", chatBodies[1])
+	}
+	if !strings.Contains(chatBodies[1], "not authorized to view full account numbers") {
+		t.Fatalf("expected the tool message to still carry the original refusal text, got: %s", chatBodies[1])
 	}
 }

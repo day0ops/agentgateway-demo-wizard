@@ -53,7 +53,7 @@ func Load() *Config {
 		StockMCPImage:                  envOrDefault("STOCK_SERVER_MCP_IMAGE", defaultStockMCPImage),
 		CurrencyMCPImage:               envOrDefault("CURRENCY_SERVER_MCP_IMAGE", defaultCurrencyMCPImage),
 		OAuthTokenExchangeClientSecret: os.Getenv("OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET"),
-		DemoUserPassword:               os.Getenv("DEMO_USER_PASSWORD"),
+		DemoUserPassword:               os.Getenv("AGW_DEMO_WIZARD_USER_PASSWORD"),
 		STSHost:                        envOrDefault("STS_HOST", defaultSTSHost),
 		STSPort:                        envOrDefault("STS_PORT", defaultSTSPort),
 		AccountsAgentURL:               envOrDefault("ACCOUNTS_AGENT_URL", defaultAgentGatewayInternalURL+"/accounts-agent/run"),
@@ -79,7 +79,7 @@ func (c *Config) Missing() []string {
 		missing = append(missing, "OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET")
 	}
 	if c.DemoUserPassword == "" {
-		missing = append(missing, "DEMO_USER_PASSWORD")
+		missing = append(missing, "AGW_DEMO_WIZARD_USER_PASSWORD")
 	}
 	return missing
 }

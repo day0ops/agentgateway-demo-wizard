@@ -2,8 +2,8 @@
 // so the UI can tell three things apart: the call succeeded, it was denied by a
 // gateway policy, or it genuinely errored. agentgateway enforces MCP tool RBAC
 // by hiding the tool (progressive disclosure), so a denied call comes back as a
-// JSON-RPC "Unknown tool" error rather than an HTTP 403 - without this mapping
-// the UI would just show that raw, confusing error.
+// JSON-RPC "unknown resource" error on HTTP 400 rather than an HTTP 403 -
+// without this mapping the UI would just show that raw, confusing error.
 
 export type DirectCallOutcome =
   | { kind: "success"; text: string }
@@ -11,7 +11,7 @@ export type DirectCallOutcome =
   | { kind: "error"; detail: string };
 
 const DENIAL_PATTERN =
-  /unknown tool|not authorized|unauthorized|forbidden|permission|denied|not permitted/i;
+  /unknown (tool|resource)|not authorized|unauthorized|forbidden|permission|denied|not permitted/i;
 
 // The body may be SSE-framed ("event: message\ndata: {...}\n\n") or plain JSON.
 function parseJsonRpc(body: string): Record<string, unknown> | null {

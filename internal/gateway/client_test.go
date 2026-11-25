@@ -188,6 +188,29 @@ func TestProxyWithTokenEmptyTokenOmitsAuthorizationHeader(t *testing.T) {
 	}
 }
 
+// TestProxyWithTokenSetsAcceptHeader reproduces a live 406 from agentgateway's
+// chat-completions route ("client must accept both application/json and
+// text/event-stream") seen from the agent runner's model calls, which go
+// through Proxy/ProxyWithToken. doMCPRequest already sets this header for the
+// MCP handshake paths; the plain chat-completions path must match.
+func TestProxyWithTokenSetsAcceptHeader(t *testing.T) {
+	var gotAccept string
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccept = r.Header.Get("Accept")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer gatewayServer.Close()
+
+	client := NewClient("http://unused", gatewayServer.URL, "test-password")
+
+	if _, err := client.ProxyWithToken(context.Background(), Request{Path: "/agent-chat", Body: "{}"}, ""); err != nil {
+		t.Fatalf("ProxyWithToken: %v", err)
+	}
+	if gotAccept != "application/json, text/event-stream" {
+		t.Fatalf("expected Accept header \"application/json, text/event-stream\", got %q", gotAccept)
+	}
+}
+
 func TestProxyMCPToolCallPerformsTheThreeStepHandshake(t *testing.T) {
 	var sawSessionIDs []string
 	var sawMethods []string

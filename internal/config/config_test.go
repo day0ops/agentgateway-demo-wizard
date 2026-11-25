@@ -7,7 +7,7 @@ func TestLoadAndMissing(t *testing.T) {
 	t.Setenv("KEYCLOAK_HOST", "")
 	t.Setenv("OPENAI_API_KEY", "sk-test")
 	t.Setenv("OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET", "")
-	t.Setenv("DEMO_USER_PASSWORD", "")
+	t.Setenv("AGW_DEMO_WIZARD_USER_PASSWORD", "")
 
 	cfg := Load()
 
@@ -16,7 +16,7 @@ func TestLoadAndMissing(t *testing.T) {
 	}
 
 	missing := cfg.Missing()
-	want := []string{"KEYCLOAK_HOST", "OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET", "DEMO_USER_PASSWORD"}
+	want := []string{"KEYCLOAK_HOST", "OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET", "AGW_DEMO_WIZARD_USER_PASSWORD"}
 	if len(missing) != len(want) {
 		t.Fatalf("expected %v, got %v", want, missing)
 	}
@@ -59,7 +59,7 @@ func TestMissingAllConfigured(t *testing.T) {
 	t.Setenv("KEYCLOAK_HOST", "keycloak.demo.example.com")
 	t.Setenv("OPENAI_API_KEY", "sk-test")
 	t.Setenv("OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET", "sk-test-exchange-secret")
-	t.Setenv("DEMO_USER_PASSWORD", "test-demo-password")
+	t.Setenv("AGW_DEMO_WIZARD_USER_PASSWORD", "test-demo-password")
 
 	cfg := Load()
 	missing := cfg.Missing()
