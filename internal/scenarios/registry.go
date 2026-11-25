@@ -1003,6 +1003,7 @@ func agentPillar() Pillar {
 				Presets:  []RequestPreset{},
 				ToolModeDemo: &ToolModeDemo{
 					DefaultPrompt: "What are my AAPL and MSFT holdings worth in EUR right now?",
+					ChatPath:      "/mcp-modes/chat",
 					Modes: []ToolMode{
 						{Key: "standard", Label: "Standard", MCPPath: "/mcp-modes/standard", Description: "All tool schemas, one call per turn (baseline)."},
 						{Key: "search", Label: "Search", MCPPath: "/mcp-modes/search", Description: "Discover and load tools on demand."},

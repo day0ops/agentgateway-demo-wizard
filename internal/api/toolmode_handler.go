@@ -37,9 +37,10 @@ type toolInvocationDTO struct {
 	Arguments string `json:"arguments"`
 }
 
-// modePath resolves a mode key to its gateway MCP route from the scenario
-// registry, so the client can never request an arbitrary path.
-func (s *Server) modePath(mode string) (string, bool) {
+// modeConfig resolves a mode key to its gateway MCP route and the tool-modes
+// step's own chat-completions route, both from the scenario registry, so the
+// client can never request an arbitrary path.
+func (s *Server) modeConfig(mode string) (mcpPath, chatPath string, ok bool) {
 	for _, p := range s.scenarios {
 		for _, step := range p.Steps {
 			if step.ToolModeDemo == nil {
@@ -47,12 +48,12 @@ func (s *Server) modePath(mode string) (string, bool) {
 			}
 			for _, m := range step.ToolModeDemo.Modes {
 				if m.Key == mode {
-					return m.MCPPath, true
+					return m.MCPPath, step.ToolModeDemo.ChatPath, true
 				}
 			}
 		}
 	}
-	return "", false
+	return "", "", false
 }
 
 func (s *Server) handleToolModeRun(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +62,7 @@ func (s *Server) handleToolModeRun(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	path, ok := s.modePath(req.Mode)
+	mcpPath, chatPath, ok := s.modeConfig(req.Mode)
 	if !ok {
 		http.Error(w, "unknown mode", http.StatusBadRequest)
 		return
@@ -71,11 +72,12 @@ func (s *Server) handleToolModeRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mcpClient := s.mcpClientFactory(path)
+	mcpClient := s.mcpClientFactory(mcpPath)
 	res, err := s.agentRunner.RunToolMode(r.Context(), agent.Request{
 		Identity: "anonymous",
 		Prompt:   req.Prompt,
 		Model:    "gpt-4o-mini",
+		ChatPath: chatPath,
 	}, mcpClient)
 	if err != nil {
 		if errors.Is(err, agent.ErrModeUnavailable) {

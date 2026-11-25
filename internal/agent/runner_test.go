@@ -178,6 +178,35 @@ func TestRunToolModeTalliesUsageAndCounts(t *testing.T) {
 	}
 }
 
+// TestRunToolModeUsesRequestChatPathOverride guards against the tool-modes
+// 406: its model calls must reach a route that's always provisioned,
+// independent of whether a presenter has applied (or reverted) Agents step
+// 1's own clickops /agent-chat route. Request.ChatPath must win over the
+// Runner's default chatPath, not silently fall back to it.
+func TestRunToolModeUsesRequestChatPathOverride(t *testing.T) {
+	var gotPath string
+	gatewayServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
+	}))
+	defer gatewayServer.Close()
+
+	gatewayClient := gateway.NewClient("http://unused", gatewayServer.URL, "test-password")
+	mcpClient := newFakeMCP(t, `{"content":[{"type":"text","text":"10"}]}`)
+	r := NewRunner(gatewayClient, mcpClient, "/agent-chat")
+
+	_, err := r.RunToolMode(context.Background(),
+		Request{Identity: "anonymous", Prompt: "balance?", Model: "gpt-4o-mini", ChatPath: "/mcp-modes/chat"},
+		mcpClient)
+	if err != nil {
+		t.Fatalf("RunToolMode: %v", err)
+	}
+	if gotPath != "/mcp-modes/chat" {
+		t.Fatalf("model call path = %q, want /mcp-modes/chat (Request.ChatPath must override the Runner's default)", gotPath)
+	}
+}
+
 // TestRunToolModeReportsNoInvocationsAsEmptySlice ensures a mode that answers
 // without calling any tool still marshals ToolInvocations/ToolsExposed as `[]`
 // rather than `null`, matching the rest of the registry's no-null-slices
