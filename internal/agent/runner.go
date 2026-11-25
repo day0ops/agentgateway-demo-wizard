@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/day0ops/agentgateway-demo-wizard/internal/gateway"
@@ -18,6 +19,16 @@ import (
 )
 
 const maxHops = 5
+
+// denialPattern matches the phrasing agentgateway's MCP tool RBAC uses when
+// it hides or rejects a tool call the caller's identity isn't allowed -
+// kept in sync with web/src/lib/mcp.ts's DENIAL_PATTERN. Without this, a
+// denied tool call reads to the model as an unexplained failure: it retries
+// or rephrases across hops and eventually gives up with a vague, confusing
+// answer instead of plainly telling the user the action was denied.
+var denialPattern = regexp.MustCompile(`(?i)unknown (tool|resource)|not authorized|unauthorized|forbidden|permission|denied|not permitted`)
+
+const denialGuidance = "This tool call was denied by the gateway's access policy, not a transient failure. Tell the user plainly that this specific action is not permitted for their account - do not retry this exact call."
 
 // ErrModeUnavailable wraps a RunToolMode failure that happened while listing
 // the mode's tools - most often because the gateway route backing that
@@ -220,12 +231,29 @@ func (r *Runner) loop(ctx context.Context, req Request, tools []openAITool, mcpC
 			res.ToolInvocations = append(res.ToolInvocations, ToolInvocation{Name: call.Function.Name, Arguments: call.Function.Arguments})
 			result, err := mcpClient.CallTool(ctx, mcpToken, call.Function.Name, args)
 			if err != nil {
-				send(HopEvent{Type: "error", Message: err.Error()})
-				return res, err
+				// A protocol-level denial (e.g. agentgateway's progressive
+				// disclosure makes a hidden tool look "unknown") still ends the
+				// call, but the model needs an explicit instruction to say so
+				// instead of retrying or going quiet.
+				if !denialPattern.MatchString(err.Error()) {
+					send(HopEvent{Type: "error", Message: err.Error()})
+					return res, err
+				}
+				send(HopEvent{Type: "tool_result", Message: fmt.Sprintf("Tool %q was denied by policy", call.Function.Name), Detail: err.Error()})
+				messages = append(messages, chatMessage{Role: "tool", ToolCallID: call.ID, Content: denialGuidance + " (" + err.Error() + ")"})
+				continue
 			}
 			resultText := resultToText(result)
 			send(HopEvent{Type: "tool_result", Message: fmt.Sprintf("Tool %q returned a result", call.Function.Name), Detail: resultText})
-			messages = append(messages, chatMessage{Role: "tool", ToolCallID: call.ID, Content: resultText})
+			toolContent := resultText
+			// A tool can also enforce its own authorization and answer with an
+			// ordinary, non-error result whose text just happens to say the
+			// call wasn't allowed - same fix applies so the model states that
+			// plainly instead of treating it as any other answer to work around.
+			if denialPattern.MatchString(resultText) {
+				toolContent = resultText + "\n\n" + denialGuidance
+			}
+			messages = append(messages, chatMessage{Role: "tool", ToolCallID: call.ID, Content: toolContent})
 		}
 	}
 	runErr := fmt.Errorf("exceeded %d hops without a final answer", maxHops)
