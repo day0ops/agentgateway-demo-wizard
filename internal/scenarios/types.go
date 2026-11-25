@@ -74,9 +74,14 @@ type DirectCallDemo struct {
 	Arguments map[string]any `json:"arguments"`
 }
 
-// ToolModeDemo configures the tool-mode comparison step.
+// ToolModeDemo configures the tool-mode comparison step. ChatPath is its own
+// pre-provisioned model route, independent of the Agents pillar's /agent-chat
+// - that route only exists after a presenter clicks Apply on Agents step 1,
+// and is removed by Revert/Reset, which left every tool mode 406ing whenever
+// a session reached this step without applying that unrelated one first.
 type ToolModeDemo struct {
 	DefaultPrompt string     `json:"defaultPrompt"`
+	ChatPath      string     `json:"chatPath"`
 	Modes         []ToolMode `json:"modes"`
 }
 

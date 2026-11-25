@@ -60,7 +60,9 @@ func TestToolModeRunSucceeds(t *testing.T) {
 
 	var chatCalls int
 	mux := http.NewServeMux()
-	mux.HandleFunc("/agent-chat", func(w http.ResponseWriter, r *http.Request) {
+	// The tool-modes step's own ChatPath (see scenarios.Registry()), independent
+	// of the Agents pillar's clickops-applied /agent-chat route.
+	mux.HandleFunc("/mcp-modes/chat", func(w http.ResponseWriter, r *http.Request) {
 		chatCalls++
 		w.Header().Set("Content-Type", "application/json")
 		if chatCalls == 1 {

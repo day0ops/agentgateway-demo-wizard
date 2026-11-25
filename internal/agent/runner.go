@@ -58,6 +58,12 @@ type Request struct {
 	Prompt   string
 	Model    string
 	Tools    []ToolSpec
+	// ChatPath overrides the Runner's default chat-completions path for this
+	// run - used by RunToolMode, whose model calls must reach a route that's
+	// always provisioned, independent of whatever policy state Run()'s own
+	// shared chatPath happens to be in (e.g. a clickops-applied route that a
+	// presenter may not have applied, or may have reverted).
+	ChatPath string
 }
 
 // Runner drives the agent loop against a specific gateway chat path.
@@ -194,6 +200,11 @@ func (r *Runner) loop(ctx context.Context, req Request, tools []openAITool, mcpC
 	// null, matching the rest of the registry's no-null-slices convention.
 	res := RunResult{ToolInvocations: []ToolInvocation{}}
 
+	chatPath := r.chatPath
+	if req.ChatPath != "" {
+		chatPath = req.ChatPath
+	}
+
 	mcpToken, err := r.mcpToken(ctx, req.Identity)
 	if err != nil {
 		send(HopEvent{Type: "error", Message: err.Error()})
@@ -203,7 +214,7 @@ func (r *Runner) loop(ctx context.Context, req Request, tools []openAITool, mcpC
 	messages := []chatMessage{{Role: "user", Content: req.Prompt}}
 	for i := 0; i < maxHops; i++ {
 		send(HopEvent{Type: "model_call", Message: fmt.Sprintf("Calling the model (hop %d)...", i+1)})
-		reply, pt, ct, err := r.callModel(ctx, req.Model, req.Identity, messages, tools)
+		reply, pt, ct, err := r.callModel(ctx, req.Model, req.Identity, chatPath, messages, tools)
 		if err != nil {
 			send(HopEvent{Type: "error", Message: err.Error()})
 			return res, err
@@ -269,7 +280,7 @@ func toOpenAITools(specs []ToolSpec) []openAITool {
 	return tools
 }
 
-func (r *Runner) callModel(ctx context.Context, model, identity string, messages []chatMessage, tools []openAITool) (*chatMessage, int, int, error) {
+func (r *Runner) callModel(ctx context.Context, model, identity, chatPath string, messages []chatMessage, tools []openAITool) (*chatMessage, int, int, error) {
 	reqBody, err := json.Marshal(chatRequest{Model: model, Messages: messages, Tools: tools})
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("encoding chat request: %w", err)
@@ -278,7 +289,7 @@ func (r *Runner) callModel(ctx context.Context, model, identity string, messages
 	resp, err := r.gatewayClient.Proxy(ctx, gateway.Request{
 		Identity: identity,
 		Method:   http.MethodPost,
-		Path:     r.chatPath,
+		Path:     chatPath,
 		Body:     string(reqBody),
 	})
 	if err != nil {
