@@ -38,6 +38,20 @@ describe("interpretToolCall", () => {
     expect(interpretToolCall(403, "").kind).toBe("denied");
   });
 
+  it("treats the live gateway's HTTP 400 'unknown resource' denial as a policy denial", () => {
+    // Verified live against the real gateway: a hidden tool comes back as
+    // HTTP 400 with an "unknown resource" message, not 403 or "unknown tool".
+    const body = sse({
+      jsonrpc: "2.0",
+      id: 2,
+      error: { code: -32602, message: "unknown resource: transfer" },
+    });
+    const out = interpretToolCall(400, body);
+    if (out.kind !== "denied")
+      throw new Error(`expected denied, got ${out.kind}`);
+    expect(out.detail).toContain("unknown resource: transfer");
+  });
+
   it("surfaces a genuine error as an error, not a denial", () => {
     const body = sse({
       jsonrpc: "2.0",
