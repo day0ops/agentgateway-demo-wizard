@@ -23,6 +23,21 @@ const (
 	// cluster/namespace, so it reaches the ops-agents containers through the
 	// same gateway a browser would use externally.
 	defaultAgentGatewayInternalURL = "http://agentgateway-gw.agentgateway-system.svc.cluster.local:8080"
+	// defaultTenantsGatewayInternalURL is the dedicated tenants Gateway's own
+	// in-cluster Service DNS name (Gateway "agentgateway-tenants",
+	// agentgateway-field-kit's demo-wizard usecase) - internal-only, like
+	// defaultAgentGatewayInternalURL, so it only needs a default, never a
+	// "missing" check.
+	defaultTenantsGatewayInternalURL = "http://agentgateway-tenants.agentgateway-system.svc.cluster.local:8080"
+	// defaultTenantAcmeClientSecret/defaultTenantGlobexClientSecret/
+	// defaultTenantInitechClientSecret match the fixed client-credentials
+	// secrets agentgateway-field-kit's keycloak addon seeds for each tenant
+	// org realm - fixed, already-public-in-this-repo demo values, not
+	// secrets requiring setup, so they only need defaults, never a
+	// "missing" check.
+	defaultTenantAcmeClientSecret    = "acme-team-eng-secret"
+	defaultTenantGlobexClientSecret  = "globex-team-sales-secret"
+	defaultTenantInitechClientSecret = "initech-team-dev-secret"
 )
 
 // Config holds the wizard's runtime configuration.
@@ -40,6 +55,10 @@ type Config struct {
 	AccountsAgentURL               string
 	TransferOrchestratorAgentURL   string
 	StatementsAgentURL             string
+	TenantsGatewayInternalURL      string
+	TenantAcmeClientSecret         string
+	TenantGlobexClientSecret       string
+	TenantInitechClientSecret      string
 }
 
 // Load reads configuration from environment variables. It never errors:
@@ -62,6 +81,10 @@ func Load() *Config {
 		AccountsAgentURL:               envOrDefault("ACCOUNTS_AGENT_URL", defaultAgentGatewayInternalURL+"/accounts-agent/run"),
 		TransferOrchestratorAgentURL:   envOrDefault("TRANSFER_ORCHESTRATOR_AGENT_URL", defaultAgentGatewayInternalURL+"/transfer-orchestrator-agent/run"),
 		StatementsAgentURL:             envOrDefault("STATEMENTS_AGENT_URL", defaultAgentGatewayInternalURL+"/statements-agent/run"),
+		TenantsGatewayInternalURL:      envOrDefault("TENANTS_GATEWAY_INTERNAL_URL", defaultTenantsGatewayInternalURL),
+		TenantAcmeClientSecret:         envOrDefault("TENANT_ACME_CLIENT_SECRET", defaultTenantAcmeClientSecret),
+		TenantGlobexClientSecret:       envOrDefault("TENANT_GLOBEX_CLIENT_SECRET", defaultTenantGlobexClientSecret),
+		TenantInitechClientSecret:      envOrDefault("TENANT_INITECH_CLIENT_SECRET", defaultTenantInitechClientSecret),
 	}
 }
 
