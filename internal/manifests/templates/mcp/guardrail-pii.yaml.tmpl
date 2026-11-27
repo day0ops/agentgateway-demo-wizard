@@ -1,0 +1,226 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-guardrails-pii-stock-server
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-guardrails-pii-stock-server
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+    app: mcp-guardrails-pii-stock-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-guardrails-pii-stock-server
+  template:
+    metadata:
+      labels:
+        app: mcp-guardrails-pii-stock-server
+    spec:
+      serviceAccountName: mcp-guardrails-pii-stock-server
+      containers:
+        - name: server
+          image: {{ .StockMCPImage }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-guardrails-pii-stock-server
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  selector:
+    app: mcp-guardrails-pii-stock-server
+  ports:
+    - port: 80
+      targetPort: 8000
+      appProtocol: kgateway.dev/mcp
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: mcp-guardrails-pii-stock-backend
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  mcp:
+    targets:
+      - name: stock
+        static:
+          host: mcp-guardrails-pii-stock-server.{{ .Namespace }}.svc.cluster.local
+          port: 80
+          protocol: StreamableHTTP
+          path: /mcp
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBackend
+metadata:
+  name: mcp-guardrails-pii-backend
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  entMcp:
+    targets:
+      - name: customer-lookup
+        custom:
+          description: |-
+            Look up a stock price alongside the on-file customer contact for demo purposes.
+          inputSchema:
+            type: object
+            additionalProperties: false
+            required: [symbol]
+            properties:
+              symbol:
+                type: string
+                description: "Stock ticker symbol, e.g. AAPL"
+          steps:
+            - name: price
+              mcp:
+                backendRef:
+                  group: enterpriseagentgateway.solo.io
+                  kind: EnterpriseAgentgatewayBackend
+                  name: mcp-guardrails-pii-stock-backend
+                  target: stock
+                tool: get_stock_price
+                arguments: '{"symbol": input.symbol}'
+          output: |-
+            input.symbol + " price: " + string(output.price.result)
+            + ". Customer on file: Jane Doe, email jane.doe@example.com, phone 555-123-4567."
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mcp-guardrails-pii
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  parentRefs:
+    - name: {{ .GatewayName }}
+      namespace: {{ .GatewayNS }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /mcp-guardrails/pii
+      backendRefs:
+        - name: mcp-guardrails-pii-backend
+          namespace: {{ .Namespace }}
+          group: enterpriseagentgateway.solo.io
+          kind: EnterpriseAgentgatewayBackend
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-guardrails-pii-guard
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-guardrails-pii-guard
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+    app: mcp-guardrails-pii-guard
+spec:
+  selector:
+    app: mcp-guardrails-pii-guard
+  ports:
+    - port: 4445
+      targetPort: 4445
+      appProtocol: kubernetes.io/h2c
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-guardrails-pii-guard
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+    app: mcp-guardrails-pii-guard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-guardrails-pii-guard
+  template:
+    metadata:
+      labels:
+        app: mcp-guardrails-pii-guard
+    spec:
+      serviceAccountName: mcp-guardrails-pii-guard
+      containers:
+        - name: server
+          image: {{ .ExtMCPGuardrailImage }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4445
+          env:
+            - name: PORT
+              value: "4445"
+            - name: DENIED_TOOLS
+              value: ""
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+          readinessProbe:
+            tcpSocket:
+              port: 4445
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 4445
+            initialDelaySeconds: 5
+            periodSeconds: 30
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: mcp-guardrails-pii-policy
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agentgateway-demo-wizard
+spec:
+  targetRefs:
+    - group: enterpriseagentgateway.solo.io
+      kind: EnterpriseAgentgatewayBackend
+      name: mcp-guardrails-pii-backend
+  backend:
+    mcp:
+      guardrails:
+        processors:
+          - remote:
+              backendRef:
+                name: mcp-guardrails-pii-guard
+                port: 4445
+              failureMode: FailClosed
+            methods:
+              tools/call: Response

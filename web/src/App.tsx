@@ -108,6 +108,10 @@ export default function App() {
     setActiveStepIndex(0);
   }
 
+  function selectStep(index: number) {
+    setActiveStepIndex(index);
+  }
+
   function nextStep() {
     if (activeStepIndex < activePillar.steps.length - 1) {
       setActiveStepIndex(activeStepIndex + 1);
@@ -154,6 +158,7 @@ export default function App() {
           activePillarIndex={activePillarIndex}
           activeStepIndex={activeStepIndex}
           onSelectPillar={selectPillar}
+          onSelectStep={selectStep}
         />
       </div>
 

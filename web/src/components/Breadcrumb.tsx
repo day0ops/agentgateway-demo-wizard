@@ -26,6 +26,7 @@ type BreadcrumbProps = {
   activePillarIndex: number;
   activeStepIndex: number;
   onSelectPillar: (pillarIndex: number) => void;
+  onSelectStep: (stepIndex: number) => void;
 };
 
 export function Breadcrumb({
@@ -33,6 +34,7 @@ export function Breadcrumb({
   activePillarIndex,
   activeStepIndex,
   onSelectPillar,
+  onSelectStep,
 }: BreadcrumbProps) {
   const activePillar = pillars[activePillarIndex];
   const stepCount = activePillar?.steps.length ?? 0;
@@ -112,10 +114,15 @@ export function Breadcrumb({
         <div className="flex shrink-0 items-center gap-3">
           <div data-testid="step-segments" className="flex gap-1">
             {Array.from({ length: stepCount }, (_, i) => (
-              <div
+              <button
                 key={i}
-                className={`h-1.5 w-5 rounded-full transition-colors ${
-                  i <= activeStepIndex ? "bg-primary" : "bg-border-strong"
+                onClick={() => onSelectStep(i)}
+                aria-label={`Go to step ${i + 1}: ${activePillar.steps[i].title}`}
+                aria-current={i === activeStepIndex ? "step" : undefined}
+                className={`h-1.5 w-5 rounded-full transition hover:scale-y-150 ${
+                  i <= activeStepIndex
+                    ? "bg-primary hover:bg-primary-hover"
+                    : "bg-border-strong hover:bg-muted-foreground"
                 }`}
               />
             ))}

@@ -25,6 +25,7 @@ type Params struct {
 	OpenAIKey                      string
 	StockMCPImage                  string
 	CurrencyMCPImage               string
+	ExtMCPGuardrailImage           string
 	OAuthTokenExchangeClientSecret string
 	STSHost                        string
 	STSPort                        string

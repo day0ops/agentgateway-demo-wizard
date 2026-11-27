@@ -30,6 +30,7 @@ func TestLoadAndMissing(t *testing.T) {
 func TestLoadDefaultsMCPImagesWhenUnset(t *testing.T) {
 	t.Setenv("STOCK_SERVER_MCP_IMAGE", "")
 	t.Setenv("CURRENCY_SERVER_MCP_IMAGE", "")
+	t.Setenv("EXT_MCP_GUARDRAIL_IMAGE", "")
 
 	cfg := Load()
 
@@ -39,6 +40,9 @@ func TestLoadDefaultsMCPImagesWhenUnset(t *testing.T) {
 	if cfg.CurrencyMCPImage != defaultCurrencyMCPImage {
 		t.Fatalf("expected the default currency MCP image, got %q", cfg.CurrencyMCPImage)
 	}
+	if cfg.ExtMCPGuardrailImage != defaultExtMCPGuardrailImage {
+		t.Fatalf("expected the default ext-mcp-guardrail image, got %q", cfg.ExtMCPGuardrailImage)
+	}
 	if len(cfg.Missing()) == 0 {
 		t.Fatalf("expected other required env vars to still be reported missing in this test")
 	}
@@ -46,11 +50,15 @@ func TestLoadDefaultsMCPImagesWhenUnset(t *testing.T) {
 
 func TestLoadRespectsMCPImageOverride(t *testing.T) {
 	t.Setenv("STOCK_SERVER_MCP_IMAGE", "my-registry.example.com/stock-server-mcp:custom")
+	t.Setenv("EXT_MCP_GUARDRAIL_IMAGE", "my-registry.example.com/ext-mcp-guardrail:custom")
 
 	cfg := Load()
 
 	if cfg.StockMCPImage != "my-registry.example.com/stock-server-mcp:custom" {
 		t.Fatalf("expected the overridden image, got %q", cfg.StockMCPImage)
+	}
+	if cfg.ExtMCPGuardrailImage != "my-registry.example.com/ext-mcp-guardrail:custom" {
+		t.Fatalf("expected the overridden ext-mcp-guardrail image, got %q", cfg.ExtMCPGuardrailImage)
 	}
 }
 
