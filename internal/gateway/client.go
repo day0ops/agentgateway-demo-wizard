@@ -38,24 +38,65 @@ var demoUsers = map[string]string{
 	"team-beta":  "user2",
 }
 
+// tenantIdentities maps the multi-tenant isolation pillar's fixed tenant
+// identities to the Keycloak org realm and client-credentials client ID
+// seeded for each by field-kit's keycloak addon (config.realms[].clients).
+// Unlike demoUsers, these authenticate via client-credentials grant rather
+// than a real end-user login, so there is no per-tenant username/password -
+// see Client.tenantClientSecrets for the per-tenant secret.
+var tenantIdentities = map[string]struct{ realm, clientID string }{
+	"org-acme":    {"org-acme", "acme-team-eng"},
+	"org-globex":  {"org-globex", "globex-team-sales"},
+	"org-initech": {"org-initech", "initech-team-dev"},
+}
+
 // Client acquires tokens and proxies requests to a live agentgateway/Keycloak pair.
 type Client struct {
-	httpClient       *http.Client
-	keycloakBaseURL  string
-	gatewayBaseURL   string
-	demoUserPassword string
+	httpClient            *http.Client
+	keycloakBaseURL       string
+	gatewayBaseURL        string
+	demoUserPassword      string
+	tenantsGatewayBaseURL string
+	tenantClientSecrets   map[string]string
+}
+
+// Option configures optional Client behavior not covered by NewClient's
+// required parameters.
+type Option func(*Client)
+
+// WithTenantsGatewayBaseURL configures the base URL ProxyTenant forwards
+// requests to - a separate, dedicated Gateway from the shared gatewayBaseURL.
+func WithTenantsGatewayBaseURL(url string) Option {
+	return func(c *Client) {
+		c.tenantsGatewayBaseURL = strings.TrimRight(url, "/")
+	}
+}
+
+// WithTenantClientSecrets configures the client-credentials secret for each
+// tenant identity. Keys are tenant identities (e.g. "org-acme") matching
+// tenantIdentities; a tenant with no entry here cannot acquire a token via
+// tenantToken.
+func WithTenantClientSecrets(secrets map[string]string) Option {
+	return func(c *Client) {
+		c.tenantClientSecrets = secrets
+	}
 }
 
 // NewClient builds a Client. keycloakBaseURL and gatewayBaseURL must each
 // include a scheme (e.g. "https://keycloak.demo.example.com").
-// demoUserPassword is the shared password for every demoUsers entry.
-func NewClient(keycloakBaseURL, gatewayBaseURL, demoUserPassword string) *Client {
-	return &Client{
+// demoUserPassword is the shared password for every demoUsers entry. opts
+// configure the optional tenant auth path used by ProxyTenant.
+func NewClient(keycloakBaseURL, gatewayBaseURL, demoUserPassword string, opts ...Option) *Client {
+	c := &Client{
 		httpClient:       &http.Client{Timeout: requestTimeout},
 		keycloakBaseURL:  strings.TrimRight(keycloakBaseURL, "/"),
 		gatewayBaseURL:   strings.TrimRight(gatewayBaseURL, "/"),
 		demoUserPassword: demoUserPassword,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 // Token acquires an access token for one of the wizard's fixed demo
@@ -103,6 +144,56 @@ func (c *Client) Token(ctx context.Context, identity string) (string, error) {
 	return parsed.AccessToken, nil
 }
 
+// tenantToken acquires an access token for one of the multi-tenant
+// isolation pillar's org identities via a Keycloak client-credentials
+// grant against that identity's own realm, using the secret configured via
+// WithTenantClientSecrets.
+func (c *Client) tenantToken(ctx context.Context, identity string) (string, error) {
+	tenant, ok := tenantIdentities[identity]
+	if !ok {
+		return "", fmt.Errorf("unknown tenant identity %q", identity)
+	}
+	secret, ok := c.tenantClientSecrets[identity]
+	if !ok || secret == "" {
+		return "", fmt.Errorf("no client secret configured for tenant identity %q", identity)
+	}
+
+	form := url.Values{
+		"client_id":     {tenant.clientID},
+		"client_secret": {secret},
+		"grant_type":    {"client_credentials"},
+	}
+
+	endpoint := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", c.keycloakBaseURL, tenant.realm)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("building tenant token request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("requesting tenant token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading tenant token response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("keycloak tenant token request failed with status %d: %s", resp.StatusCode, body)
+	}
+
+	var parsed struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", fmt.Errorf("parsing tenant token response: %w", err)
+	}
+	return parsed.AccessToken, nil
+}
+
 // Request describes a single HTTP call to proxy to agentgateway.
 type Request struct {
 	Identity string
@@ -139,12 +230,36 @@ func (c *Client) Proxy(ctx context.Context, req Request) (*Response, error) {
 // identities. An empty token forwards the request with no Authorization
 // header, same as Proxy does for "anonymous".
 func (c *Client) ProxyWithToken(ctx context.Context, req Request, token string) (*Response, error) {
+	return c.proxyToBaseURL(ctx, c.gatewayBaseURL, req, token)
+}
+
+// ProxyTenant acquires a token for req.Identity via tenantToken (unless it
+// is "" or "anonymous", mirroring Proxy's anonymous-identity handling) and
+// forwards req to the dedicated tenants Gateway configured via
+// WithTenantsGatewayBaseURL, returning the raw response.
+func (c *Client) ProxyTenant(ctx context.Context, req Request) (*Response, error) {
+	var token string
+	if req.Identity != "" && req.Identity != "anonymous" {
+		t, err := c.tenantToken(ctx, req.Identity)
+		if err != nil {
+			return nil, fmt.Errorf("acquiring tenant token for %q: %w", req.Identity, err)
+		}
+		token = t
+	}
+	return c.proxyToBaseURL(ctx, c.tenantsGatewayBaseURL, req, token)
+}
+
+// proxyToBaseURL forwards req to baseURL using token as the bearer
+// credential, shared by ProxyWithToken (the shared gatewayBaseURL) and
+// ProxyTenant (the dedicated tenantsGatewayBaseURL). An empty token
+// forwards the request with no Authorization header.
+func (c *Client) proxyToBaseURL(ctx context.Context, baseURL string, req Request, token string) (*Response, error) {
 	method := req.Method
 	if method == "" {
 		method = http.MethodPost
 	}
 
-	endpoint := c.gatewayBaseURL + req.Path
+	endpoint := baseURL + req.Path
 	httpReq, err := http.NewRequestWithContext(ctx, method, endpoint, strings.NewReader(req.Body))
 	if err != nil {
 		return nil, fmt.Errorf("building gateway request: %w", err)

@@ -147,3 +147,46 @@ func TestLoadRespectsOpsAgentURLOverrides(t *testing.T) {
 		t.Fatalf("expected the overridden AccountsAgentURL, got %q", cfg.AccountsAgentURL)
 	}
 }
+
+func TestLoadDefaultsTenantFieldsWhenUnset(t *testing.T) {
+	t.Setenv("TENANTS_GATEWAY_INTERNAL_URL", "")
+	t.Setenv("TENANT_ACME_CLIENT_SECRET", "")
+	t.Setenv("TENANT_GLOBEX_CLIENT_SECRET", "")
+	t.Setenv("TENANT_INITECH_CLIENT_SECRET", "")
+
+	cfg := Load()
+
+	if cfg.TenantsGatewayInternalURL != defaultTenantsGatewayInternalURL {
+		t.Fatalf("expected the default tenants gateway URL, got %q", cfg.TenantsGatewayInternalURL)
+	}
+	if cfg.TenantAcmeClientSecret != defaultTenantAcmeClientSecret {
+		t.Fatalf("expected the default acme client secret, got %q", cfg.TenantAcmeClientSecret)
+	}
+	if cfg.TenantGlobexClientSecret != defaultTenantGlobexClientSecret {
+		t.Fatalf("expected the default globex client secret, got %q", cfg.TenantGlobexClientSecret)
+	}
+	if cfg.TenantInitechClientSecret != defaultTenantInitechClientSecret {
+		t.Fatalf("expected the default initech client secret, got %q", cfg.TenantInitechClientSecret)
+	}
+
+	for _, name := range cfg.Missing() {
+		switch name {
+		case "TENANTS_GATEWAY_INTERNAL_URL", "TENANT_ACME_CLIENT_SECRET", "TENANT_GLOBEX_CLIENT_SECRET", "TENANT_INITECH_CLIENT_SECRET":
+			t.Fatalf("expected %q to never appear in Missing(), got %v", name, cfg.Missing())
+		}
+	}
+}
+
+func TestLoadRespectsTenantFieldOverrides(t *testing.T) {
+	t.Setenv("TENANTS_GATEWAY_INTERNAL_URL", "http://agentgateway-tenants.other-namespace.svc.cluster.local:8080")
+	t.Setenv("TENANT_ACME_CLIENT_SECRET", "override-acme-secret")
+
+	cfg := Load()
+
+	if cfg.TenantsGatewayInternalURL != "http://agentgateway-tenants.other-namespace.svc.cluster.local:8080" {
+		t.Fatalf("expected the overridden tenants gateway URL, got %q", cfg.TenantsGatewayInternalURL)
+	}
+	if cfg.TenantAcmeClientSecret != "override-acme-secret" {
+		t.Fatalf("expected the overridden acme client secret, got %q", cfg.TenantAcmeClientSecret)
+	}
+}

@@ -9,14 +9,17 @@ import (
 func TestRegistryHasIntroAndWrap(t *testing.T) {
 	reg := Registry()
 
-	if len(reg) != 7 {
-		t.Fatalf("expected 7 pillars (intro, routing, auth, guardrails, cost, agent, wrap), got %d", len(reg))
+	if len(reg) != 8 {
+		t.Fatalf("expected 8 pillars (intro, routing, auth, guardrails, cost, agent, tenants, wrap), got %d", len(reg))
 	}
 	if reg[0].ID != "intro" {
 		t.Fatalf("expected first pillar id 'intro', got %q", reg[0].ID)
 	}
 	if reg[len(reg)-1].ID != "wrap" {
 		t.Fatalf("expected last pillar id 'wrap', got %q", reg[len(reg)-1].ID)
+	}
+	if reg[len(reg)-2].ID != "tenants" {
+		t.Fatalf("expected the pillar before 'wrap' to have id 'tenants', got %q", reg[len(reg)-2].ID)
 	}
 	if len(reg[0].Steps) == 0 || reg[0].Steps[0].Explanation == "" {
 		t.Fatalf("expected the intro pillar's first step to have explanation text")

@@ -7,8 +7,8 @@ import (
 
 func TestRegistryIncludesPillar3Cost(t *testing.T) {
 	reg := Registry()
-	if len(reg) != 7 {
-		t.Fatalf("expected 7 pillars (intro, routing, auth, guardrails, cost, agent, wrap), got %d", len(reg))
+	if len(reg) != 8 {
+		t.Fatalf("expected 8 pillars (intro, routing, auth, guardrails, cost, agent, tenants, wrap), got %d", len(reg))
 	}
 
 	cost := reg[4]

@@ -37,7 +37,17 @@ func main() {
 	}
 	applier := k8s.NewApplier(dyn, mapper)
 
-	gatewayClient := gateway.NewClient("https://"+cfg.KeycloakHost, "https://"+cfg.GatewayHost, cfg.DemoUserPassword)
+	gatewayClient := gateway.NewClient(
+		"https://"+cfg.KeycloakHost,
+		"https://"+cfg.GatewayHost,
+		cfg.DemoUserPassword,
+		gateway.WithTenantsGatewayBaseURL(cfg.TenantsGatewayInternalURL),
+		gateway.WithTenantClientSecrets(map[string]string{
+			"org-acme":    cfg.TenantAcmeClientSecret,
+			"org-globex":  cfg.TenantGlobexClientSecret,
+			"org-initech": cfg.TenantInitechClientSecret,
+		}),
+	)
 	mcpClient := mcp.NewClient("https://"+cfg.GatewayHost, "/mcp")
 	agentRunner := agent.NewRunner(gatewayClient, mcpClient, "/agent-chat")
 

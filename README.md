@@ -41,12 +41,17 @@ Provisioned ahead of the call, by `agentgateway-field-kit` - this repo provision
 | `STOCK_SERVER_MCP_IMAGE`             | no       | overrides the stock-lookup MCP server image                                                                                      |
 | `CURRENCY_SERVER_MCP_IMAGE`          | no       | overrides the currency-lookup MCP server image                                                                                   |
 | `EXT_MCP_GUARDRAIL_IMAGE`            | no       | overrides the ext-mcp-guardrail server image used by the agent pillar's MCP guardrail steps                                      |
+| `TENANT_ACME_CLIENT_SECRET`          | no       | overrides the `org-acme` tenant's client-credentials secret (default `acme-team-eng-secret`)                                     |
+| `TENANT_GLOBEX_CLIENT_SECRET`        | no       | overrides the `org-globex` tenant's client-credentials secret (default `globex-team-sales-secret`)                               |
+| `TENANT_INITECH_CLIENT_SECRET`       | no       | overrides the `org-initech` tenant's client-credentials secret (default `initech-team-dev-secret`)                               |
 | `WIZARD_ADDR`                        | no       | address the wizard listens on (default `:8080`)                                                                                  |
 | `KUBECONFIG`                         | no       | kubeconfig path when running outside the cluster (falls back to in-cluster config, then `~/.kube/config`)                        |
 
 `GET /api/config` reports which of the five required variables are unset; the UI shows a setup banner rather than failing silently on first click.
 
 `STOCK_SERVER_MCP_IMAGE`/`CURRENCY_SERVER_MCP_IMAGE`/`EXT_MCP_GUARDRAIL_IMAGE` default to Solo-internal Google Artifact Registry images. If the target cluster can't pull from that private registry, override them with images it can reach.
+
+The three tenant client secrets default to agentgateway-field-kit's seeded demo values for the multi-tenant isolation pillar - fixed, already-public-in-this-repo demo credentials, not real secrets requiring setup. Override them only if a profile ever points this usecase at different tenant realm credentials.
 
 The routing pillar's 3 "provider" policies (model-by-name, dynamic-tier, fallback) are pre-provisioned by the agentgateway-field-kit usecase that deploys this wizard, not applied by the wizard itself - the Configure pane shows their live config read-only. See agentgateway-field-kit's docs/superpowers/specs/2026-10-08-demo-wizard-field-kit-integration-design.md for the resource-naming contract.
 

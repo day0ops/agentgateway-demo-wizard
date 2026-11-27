@@ -171,4 +171,9 @@ type RequestPreset struct {
 	Headers  map[string]string `json:"headers"`
 	Body     string            `json:"body"`
 	Stream   bool              `json:"stream"`
+	// Gateway selects which gateway this preset's request is sent through.
+	// Empty (every existing preset) means the shared default Gateway;
+	// "tenants" routes through the dedicated multi-tenant-isolation Gateway
+	// instead.
+	Gateway string `json:"gateway"`
 }

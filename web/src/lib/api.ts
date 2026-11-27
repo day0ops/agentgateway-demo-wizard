@@ -15,6 +15,7 @@ export type RequestPreset = {
   headers: Record<string, string>;
   body: string;
   stream: boolean;
+  gateway?: string;
 };
 
 export type OpsAgentDemo = {
