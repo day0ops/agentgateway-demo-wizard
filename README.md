@@ -3,7 +3,7 @@
 [![ci](https://github.com/day0ops/agentgateway-demo-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/day0ops/agentgateway-demo-wizard/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-A clickops, visual-first web app for walking a customer through agentgateway's top enterprise capabilities in a single call: model routing and automatic fallback, identity-aware access control, content-safety guardrails, cost attribution, and governed agent-to-MCP tool calls. Every step explains a capability, shows a generated diagram, lets the presenter apply and revert real agentgateway configuration against a live cluster, and drives real requests to show the raw result.
+A clickops, visual-first web app for walking a customer through agentgateway's top enterprise capabilities in a single call: model routing and automatic fallback, identity-aware access control, content-safety guardrails, cost attribution, and governed and guarded agent-to-MCP tool calls. Every step explains a capability, shows a generated diagram, lets the presenter apply and revert real agentgateway configuration against a live cluster, and drives real requests to show the raw result.
 
 It pushes its own curated set of enterprise agentgateway CRD manifests to the cluster directly via `client-go` server-side apply.
 
@@ -40,12 +40,13 @@ Provisioned ahead of the call, by `agentgateway-field-kit` - this repo provision
 | `AGW_DEMO_WIZARD_USER_PASSWORD`      | yes      | shared password for the `user1`/`user2` demo identities, matching field-kit's realm `defaultPassword` - not hardcoded            |
 | `STOCK_SERVER_MCP_IMAGE`             | no       | overrides the stock-lookup MCP server image                                                                                      |
 | `CURRENCY_SERVER_MCP_IMAGE`          | no       | overrides the currency-lookup MCP server image                                                                                   |
+| `EXT_MCP_GUARDRAIL_IMAGE`            | no       | overrides the ext-mcp-guardrail server image used by the agent pillar's MCP guardrail steps                                      |
 | `WIZARD_ADDR`                        | no       | address the wizard listens on (default `:8080`)                                                                                  |
 | `KUBECONFIG`                         | no       | kubeconfig path when running outside the cluster (falls back to in-cluster config, then `~/.kube/config`)                        |
 
 `GET /api/config` reports which of the five required variables are unset; the UI shows a setup banner rather than failing silently on first click.
 
-`STOCK_SERVER_MCP_IMAGE`/`CURRENCY_SERVER_MCP_IMAGE` default to Solo-internal Google Artifact Registry images. If the target cluster can't pull from that private registry, override both with images it can reach.
+`STOCK_SERVER_MCP_IMAGE`/`CURRENCY_SERVER_MCP_IMAGE`/`EXT_MCP_GUARDRAIL_IMAGE` default to Solo-internal Google Artifact Registry images. If the target cluster can't pull from that private registry, override them with images it can reach.
 
 The routing pillar's 3 "provider" policies (model-by-name, dynamic-tier, fallback) are pre-provisioned by the agentgateway-field-kit usecase that deploys this wizard, not applied by the wizard itself - the Configure pane shows their live config read-only. See agentgateway-field-kit's docs/superpowers/specs/2026-10-08-demo-wizard-field-kit-integration-design.md for the resource-naming contract.
 

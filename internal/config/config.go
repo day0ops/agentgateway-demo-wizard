@@ -6,8 +6,9 @@ package config
 import "os"
 
 const (
-	defaultStockMCPImage    = "australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/stock-server-mcp:0.1.1"
-	defaultCurrencyMCPImage = "australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/currency-server-mcp:0.1.1"
+	defaultStockMCPImage        = "australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/stock-server-mcp:0.1.1"
+	defaultCurrencyMCPImage     = "australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/currency-server-mcp:0.1.1"
+	defaultExtMCPGuardrailImage = "australia-southeast1-docker.pkg.dev/field-engineering-apac/kasunt/ext-mcp-guardrail:0.1.2"
 	// defaultSTSHost/defaultSTSPort are Solo's enterprise-agentgateway Helm
 	// chart's own in-cluster STS service name and port, confirmed against
 	// agentgateway-field-kit's config/environments/aws-dev.yaml
@@ -31,6 +32,7 @@ type Config struct {
 	OpenAIKey                      string
 	StockMCPImage                  string
 	CurrencyMCPImage               string
+	ExtMCPGuardrailImage           string
 	OAuthTokenExchangeClientSecret string
 	DemoUserPassword               string
 	STSHost                        string
@@ -42,7 +44,7 @@ type Config struct {
 
 // Load reads configuration from environment variables. It never errors:
 // missing values are left empty and surfaced later via Missing.
-// StockMCPImage/CurrencyMCPImage are never "missing" - they default to
+// StockMCPImage/CurrencyMCPImage/ExtMCPGuardrailImage are never "missing" - they default to
 // Solo's internal demo images and are only overridden if a cluster can't
 // pull from that private registry.
 func Load() *Config {
@@ -52,6 +54,7 @@ func Load() *Config {
 		OpenAIKey:                      os.Getenv("OPENAI_API_KEY"),
 		StockMCPImage:                  envOrDefault("STOCK_SERVER_MCP_IMAGE", defaultStockMCPImage),
 		CurrencyMCPImage:               envOrDefault("CURRENCY_SERVER_MCP_IMAGE", defaultCurrencyMCPImage),
+		ExtMCPGuardrailImage:           envOrDefault("EXT_MCP_GUARDRAIL_IMAGE", defaultExtMCPGuardrailImage),
 		OAuthTokenExchangeClientSecret: os.Getenv("OAUTH_TOKEN_EXCHANGE_CLIENT_SECRET"),
 		DemoUserPassword:               os.Getenv("AGW_DEMO_WIZARD_USER_PASSWORD"),
 		STSHost:                        envOrDefault("STS_HOST", defaultSTSHost),
