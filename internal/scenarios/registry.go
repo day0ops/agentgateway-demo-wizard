@@ -1243,7 +1243,7 @@ func tenantsPillar() Pillar {
 					{
 						ID:       "initech-denied-403",
 						Title:    "initech asks (denied)",
-						Identity: "initech",
+						Identity: "org-initech",
 						Method:   "POST",
 						Path:     "/tenants/chat",
 						Gateway:  "tenants",
@@ -1253,7 +1253,7 @@ func tenantsPillar() Pillar {
 					{
 						ID:       "acme-allowed",
 						Title:    "acme asks (entitled)",
-						Identity: "acme",
+						Identity: "org-acme",
 						Method:   "POST",
 						Path:     "/tenants/chat",
 						Gateway:  "tenants",
@@ -1263,7 +1263,7 @@ func tenantsPillar() Pillar {
 					{
 						ID:       "initech-forged-header-still-403",
 						Title:    "initech forges acme's header (still denied)",
-						Identity: "initech",
+						Identity: "org-initech",
 						Method:   "POST",
 						Path:     "/tenants/chat",
 						Gateway:  "tenants",
@@ -1273,7 +1273,7 @@ func tenantsPillar() Pillar {
 					{
 						ID:       "initech-forged-header-echo-overwritten",
 						Title:    "initech's forged header, overwritten (echo)",
-						Identity: "initech",
+						Identity: "org-initech",
 						Method:   "GET",
 						Path:     "/org-routing/echo",
 						Gateway:  "tenants",
@@ -1329,7 +1329,7 @@ func tenantsPillar() Pillar {
 					{
 						ID:       "acme-budget-ok",
 						Title:    "acme asks (budget healthy)",
-						Identity: "acme",
+						Identity: "org-acme",
 						Method:   "POST",
 						Path:     "/tenants/chat",
 						Gateway:  "tenants",
@@ -1339,7 +1339,7 @@ func tenantsPillar() Pillar {
 					{
 						ID:       "globex-budget-exceeded",
 						Title:    "globex asks (budget exhausted)",
-						Identity: "globex",
+						Identity: "org-globex",
 						Method:   "POST",
 						Path:     "/tenants/chat",
 						Gateway:  "tenants",
