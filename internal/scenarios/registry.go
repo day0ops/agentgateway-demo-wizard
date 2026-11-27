@@ -990,6 +990,139 @@ func agentPillar() Pillar {
 				},
 			},
 			{
+				ID:    "agent-mcp-guardrails-deny",
+				Title: "Retire a tool without touching the server",
+				Explanation: "Not every tool a desk exposes should stay reachable forever - a deprecated " +
+					"or dangerous one needs to go, without waiting for the next deploy.\n\n" +
+					"- An external policy server sits on the call path and blocks one named tool before it " +
+					"ever reaches the Wealth Desk MCP server - every other tool keeps working.\n" +
+					"- The denied call still returns HTTP 200 - look at the JSON-RPC error body, not the " +
+					"status code, to see it was blocked.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant Guard as ext-mcp-guardrail\n" +
+					"  participant MCP as Wealth Desk MCP\n" +
+					"  Client->>AGW: tools/call get_stock_history\n" +
+					"  AGW->>Guard: check request\n" +
+					"  Guard-->>AGW: denied (blocked by policy)\n" +
+					"  AGW-->>Client: 200 (JSON-RPC error)\n" +
+					"  Client->>AGW: tools/call get_stock_price\n" +
+					"  AGW->>Guard: check request\n" +
+					"  Guard-->>AGW: allowed\n" +
+					"  AGW->>MCP: forward\n" +
+					"  MCP-->>Client: result",
+				Policies: []Policy{
+					{ID: "agent-mcp-guardrails-deny", Title: "Tool deny-list guardrail", ManifestPath: "mcp/guardrail-deny.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "guardrails-deny-get-stock-history",
+						Title:    "tools/call get_stock_history (denied)",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/mcp-guardrails/deny/mcp",
+						Headers:  map[string]string{"Accept": "application/json, text/event-stream"},
+						Body:     `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_stock_history","arguments":{"symbol":"AAPL"}}}`,
+					},
+					{
+						ID:       "guardrails-deny-get-stock-price",
+						Title:    "tools/call get_stock_price (unaffected)",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/mcp-guardrails/deny/mcp",
+						Headers:  map[string]string{"Accept": "application/json, text/event-stream"},
+						Body:     `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_stock_price","arguments":{"symbol":"AAPL"}}}`,
+					},
+				},
+			},
+			{
+				ID:    "agent-mcp-guardrails-poison",
+				Title: "A tool's description can't smuggle instructions",
+				Explanation: "A tool's description is read by the calling model, never shown to the " +
+					"human in the room - the perfect place to hide an instruction. Here, a composed " +
+					"\"stock-lookup\" tool, built at the gateway for this demo, carries a fake \"system " +
+					"override\" aimed at exfiltrating data to an attacker-controlled address.\n\n" +
+					"- The same guardrail server that masks PII in results can instead sanitize a " +
+					"poisoned tools/list response before the agent ever reads it.\n" +
+					"- Sanitizing the description doesn't touch the tool itself - stock-lookup still " +
+					"works exactly as before.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant Guard as ext-mcp-guardrail\n" +
+					"  participant MCP as Wealth Desk MCP\n" +
+					"  Client->>AGW: tools/list\n" +
+					"  AGW->>AGW: compose stock-lookup (description poisoned)\n" +
+					"  AGW->>Guard: check response\n" +
+					"  Guard-->>AGW: sanitized description\n" +
+					"  AGW-->>Client: tools/list (sanitized)\n" +
+					"  Client->>AGW: tools/call stock-lookup\n" +
+					"  AGW->>MCP: forward get_stock_price\n" +
+					"  MCP-->>Client: result (unaffected)",
+				Policies: []Policy{
+					{ID: "agent-mcp-guardrails-poison", Title: "Tool-poisoning sanitization guardrail", ManifestPath: "mcp/guardrail-poison.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "guardrails-poison-tools-list",
+						Title:    "tools/list (poisoned description sanitized)",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/mcp-guardrails/poison/mcp",
+						Headers:  map[string]string{"Accept": "application/json, text/event-stream"},
+						Body:     `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`,
+					},
+					{
+						ID:       "guardrails-poison-tools-call",
+						Title:    "tools/call stock-lookup (still callable)",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/mcp-guardrails/poison/mcp",
+						Headers:  map[string]string{"Accept": "application/json, text/event-stream"},
+						Body:     `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"stock-lookup","arguments":{"symbol":"AAPL"}}}`,
+					},
+				},
+			},
+			{
+				ID:    "agent-mcp-guardrails-pii",
+				Title: "Tool results don't leak customer data",
+				Explanation: "The same guardrail server, now pointed at a tools/call result instead of " +
+					"a tool's description - the mirror image of the previous step. A composed " +
+					"\"customer-lookup\" tool, built at the gateway for this demo, appends a synthetic " +
+					"customer record to its result.\n\n" +
+					"- The guardrail redacts the email and phone number before the response ever reaches " +
+					"the caller.\n" +
+					"- The underlying stock lookup itself is untouched - only the appended customer data " +
+					"is masked.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Client\n" +
+					"  participant AGW as agentgateway\n" +
+					"  participant Guard as ext-mcp-guardrail\n" +
+					"  participant MCP as Wealth Desk MCP\n" +
+					"  Client->>AGW: tools/call customer-lookup\n" +
+					"  AGW->>MCP: forward get_stock_price\n" +
+					"  MCP-->>AGW: stock price\n" +
+					"  AGW->>AGW: append synthetic customer record (email, phone)\n" +
+					"  AGW->>Guard: check response\n" +
+					"  Guard-->>AGW: masked result\n" +
+					"  AGW-->>Client: result (PII redacted)",
+				Policies: []Policy{
+					{ID: "agent-mcp-guardrails-pii", Title: "PII masking guardrail", ManifestPath: "mcp/guardrail-pii.yaml.tmpl"},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "guardrails-pii-tools-call",
+						Title:    "tools/call customer-lookup (PII masked in result)",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/mcp-guardrails/pii/mcp",
+						Headers:  map[string]string{"Accept": "application/json, text/event-stream"},
+						Body:     `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"customer-lookup","arguments":{"symbol":"AAPL"}}}`,
+					},
+				},
+			},
+			{
 				ID:    "tool-modes",
 				Title: "Fewer tokens, same answer",
 				Explanation: "An agent reaches a whole catalog of MCP tools - but how it reaches them changes the cost. agentgateway can expose the same catalog in multiple modes:\n\n" +
