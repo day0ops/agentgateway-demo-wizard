@@ -13,6 +13,7 @@ type RequestState = {
   identity: string;
   headers: Record<string, string>;
   stream: boolean;
+  gateway?: string;
 };
 
 const methodBadgeClassName: Record<string, string> = {
@@ -49,6 +50,7 @@ export function DriveRequestPane({
       identity: preset.identity,
       headers: preset.headers,
       stream: preset.stream,
+      gateway: preset.gateway,
     });
     setResult({ status: "idle" });
   }

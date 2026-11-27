@@ -76,6 +76,58 @@ describe("DriveRequestPane", () => {
     expect(sentBody.headers).toEqual({ "X-Demo-Model": "gpt-4o-mini" });
   });
 
+  it("forwards the preset's gateway in the request body sent to /api/request", async () => {
+    const tenantPreset: RequestPreset = {
+      ...preset,
+      id: "tenant-alpha-ask",
+      gateway: "tenants",
+    };
+
+    const calls: Parameters<typeof fetch>[] = [];
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      calls.push(args);
+      return {
+        ok: true,
+        json: async () => ({
+          statusCode: 200,
+          body: '{"id":"chatcmpl-1"}',
+          latencyMs: 42,
+        }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    render(<DriveRequestPane presets={[tenantPreset]} />);
+    fireEvent.click(screen.getByText("team-alpha asks a question"));
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => expect(calls.length).toBe(1));
+    const sentBody = JSON.parse(calls[0][1]?.body as string);
+    expect(sentBody.gateway).toBe("tenants");
+  });
+
+  it("omits the gateway field in the request body when the preset doesn't set one", async () => {
+    const calls: Parameters<typeof fetch>[] = [];
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      calls.push(args);
+      return {
+        ok: true,
+        json: async () => ({
+          statusCode: 200,
+          body: '{"id":"chatcmpl-1"}',
+          latencyMs: 42,
+        }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    render(<DriveRequestPane presets={[preset]} />);
+    fireEvent.click(screen.getByText("team-alpha asks a question"));
+    fireEvent.click(screen.getByText("Send"));
+
+    await waitFor(() => expect(calls.length).toBe(1));
+    const sentBody = JSON.parse(calls[0][1]?.body as string);
+    expect(sentBody.gateway).toBeUndefined();
+  });
+
   it("shows an error message when the request fails", async () => {
     globalThis.fetch = (async () =>
       ({
