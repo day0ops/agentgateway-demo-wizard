@@ -1301,7 +1301,7 @@ func tenantsPillar() Pillar {
 					"- acme's monthly token budget is healthy, so its request succeeds normally.\n" +
 					"- globex's is deliberately tiny - exhausted by design - so its identical-shaped " +
 					"request is blocked outright, with zero effect on acme's.\n\n" +
-					"Same shared model, same shared Gateway, fully separate spend per tenant.",
+					"Same model, same Gateway, fully separate spend per tenant.",
 				Diagram: "sequenceDiagram\n" +
 					"  participant Acme as org-acme\n" +
 					"  participant Globex as org-globex\n" +
