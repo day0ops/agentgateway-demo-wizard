@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,6 +22,11 @@ type driveRequest struct {
 	Path     string            `json:"path"`
 	Headers  map[string]string `json:"headers"`
 	Body     string            `json:"body"`
+	// Gateway selects which Gateway destination to proxy through: "" (the
+	// default) uses the shared Gateway via the routing below, "tenants"
+	// uses the dedicated tenants Gateway via ProxyTenant. Any other value
+	// is rejected.
+	Gateway string `json:"gateway"`
 }
 
 type driveResponse struct {
@@ -55,6 +61,31 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 		Path:     req.Path,
 		Headers:  req.Headers,
 		Body:     req.Body,
+	}
+
+	// Gateway selects an explicit destination before the stream/MCP
+	// branching below - it must run first because a presenter can
+	// hand-edit the request body, so a tenants-destined request could
+	// otherwise be misrouted through ProxyStream/ProxyMCP against the
+	// wrong gateway.
+	switch req.Gateway {
+	case "":
+		// Falls through to the existing routing below.
+	case "tenants":
+		if isStreamingRequest(req.Body) || strings.HasSuffix(req.Path, "/mcp") {
+			writeJSONError(w, http.StatusBadRequest, fmt.Errorf("gateway %q does not support streaming or MCP requests", req.Gateway))
+			return
+		}
+		resp, err := s.gatewayClient.ProxyTenant(r.Context(), gwReq)
+		if err != nil {
+			writeJSONError(w, http.StatusBadGateway, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, driveResponse{StatusCode: resp.StatusCode, Body: resp.Body, LatencyMS: resp.LatencyMS})
+		return
+	default:
+		writeJSONError(w, http.StatusBadRequest, fmt.Errorf("unrecognized gateway %q", req.Gateway))
+		return
 	}
 
 	if isStreamingRequest(req.Body) {
