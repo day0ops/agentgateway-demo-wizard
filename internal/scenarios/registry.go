@@ -26,14 +26,25 @@ var opsAgentHTTPRouteGVR = schema.GroupVersionResource{
 }
 
 // opsAgentPolicyGVR identifies the enterpriseagentgateway.solo.io Policy CRD
-// the auth pillar's read-only steps display alongside their HTTPRoute - MCP
-// tool-level RBAC policies and PayPal elicitation policies. These
-// objects are pre-provisioned by the agentgateway-field-kit ops-agents
-// usecase, not by this repo.
+// used by every read-only policy ViewRef in this file - the auth pillar's MCP
+// tool-level RBAC and PayPal elicitation policies, and the tenants pillar's
+// JWT and merged CEL/budget policies. These objects are pre-provisioned by
+// agentgateway-field-kit usecases, not by this repo.
 var opsAgentPolicyGVR = schema.GroupVersionResource{
 	Group:    "enterpriseagentgateway.solo.io",
 	Version:  "v1alpha1",
 	Resource: "enterpriseagentgatewaypolicies",
+}
+
+// tenantBudgetGVR identifies the enterpriseagentgateway.solo.io Budget CRD
+// holding the tenants pillar's real per-org spend limits. Same
+// group/version as opsAgentPolicyGVR but a different resource, so it needs
+// its own literal. Pre-provisioned by the agentgateway-field-kit
+// demo-wizard usecase, not by this repo.
+var tenantBudgetGVR = schema.GroupVersionResource{
+	Group:    "enterpriseagentgateway.solo.io",
+	Version:  "v1alpha1",
+	Resource: "enterpriseagentgatewaybudgets",
 }
 
 // Registry returns the wizard's full demo script, in presentation order.
@@ -45,6 +56,7 @@ func Registry() []Pillar {
 		guardrailsPillar(),
 		costPillar(),
 		agentPillar(),
+		tenantsPillar(),
 		wrapPillar(),
 	}
 	normalizeNilSlices(pillars)
@@ -1146,6 +1158,200 @@ func agentPillar() Pillar {
 	}
 }
 
+func tenantsPillar() Pillar {
+	return Pillar{
+		ID:     "tenants",
+		Title:  "One route, three tenants, zero crossover",
+		Teaser: "Real cross-tenant isolation: entitlement, not just identity, and independent spend.",
+		Steps: []Step{
+			{
+				ID:    "tenants-intro",
+				Title: "Entitlement, not just identity",
+				Explanation: "You're no longer running one bank's traffic - you're running a platform " +
+					"that puts several separate customer organizations behind the same gateway address. " +
+					"Every one of them can log in with a real token. That isn't the same question as " +
+					"whether they're allowed to be here at all.\n\n" +
+					"- This traffic gets its own dedicated Gateway. The JWT check this pillar relies on " +
+					"is Strict, and applying it to the shared Gateway the rest of this demo uses would " +
+					"start rejecting every other request through it.\n" +
+					"- A valid, correctly-signed token from one customer org says nothing about whether " +
+					"*that org* is entitled to this particular route - identity answers \"who are you,\" " +
+					"not \"should you be here.\"\n" +
+					"- So the gateway enforces entitlement as a deny-by-default rule on top of identity, " +
+					"refuses to be fooled by a client that fakes its way past that rule, and keeps every " +
+					"tenant's spend fully independent of every other's - all on the same shared model " +
+					"route.\n\n" +
+					"Three customer organizations share that route next: acme and globex are entitled, " +
+					"initech is not.",
+				Diagram: "flowchart LR\n" +
+					"  Acme[org-acme JWT] -->|entitled| AGW[agentgateway-tenants]\n" +
+					"  Globex[org-globex JWT] -->|entitled| AGW\n" +
+					"  Initech[org-initech JWT] -->|not entitled| AGW\n" +
+					"  AGW -->|allowed| Model[Shared gpt-4o-mini route]\n" +
+					"  AGW -->|403 deny-by-default| Denied[(Rejected)]",
+			},
+			{
+				ID:    "tenants-entitlement",
+				Title: "Deny by default, verified not spoofed",
+				Explanation: "- initech has a real, valid login - and still can't get in. A CEL rule on " +
+					"the shared route checks each verified token's org against an explicit entitlement " +
+					"list; anything not on it is denied by default, not merely unconfigured.\n" +
+					"- acme is on that list, so the identical kind of request succeeds.\n" +
+					"- initech can't talk its way past the rule by attaching a forged " +
+					"`x-gw-org-id: acme` header either - the rule reads only the verified `org_id` claim " +
+					"out of the JWT itself, never a client-supplied header, so the forgery changes " +
+					"nothing.\n" +
+					"- Sending that same forged header to a different route with no entitlement rule at " +
+					"all (an echo route this feature also stands up) proves why: the gateway overwrites " +
+					"the header with the verified identity before forwarding, rather than trusting what " +
+					"the client sent - look for `initech`, not `acme`, in the echoed response.\n" +
+					"- And without a valid token in the first place, none of this matters: the request " +
+					"never reaches the entitlement check at all.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Initech as org-initech\n" +
+					"  participant Acme as org-acme\n" +
+					"  participant AGW as agentgateway-tenants\n" +
+					"  participant Model as OpenAI gpt-4o-mini\n" +
+					"  Initech->>AGW: POST /tenants/chat (Bearer JWT, org_id=initech)\n" +
+					"  AGW->>AGW: CEL: org_id in [acme, globex]? no\n" +
+					"  AGW-->>Initech: 403\n" +
+					"  Acme->>AGW: POST /tenants/chat (Bearer JWT, org_id=acme)\n" +
+					"  AGW->>AGW: CEL: org_id in [acme, globex]? yes\n" +
+					"  AGW->>Model: forward\n" +
+					"  Model-->>Acme: 200\n" +
+					"  Initech->>AGW: POST /tenants/chat (JWT org_id=initech, forged x-gw-org-id: acme)\n" +
+					"  AGW->>AGW: inject x-gw-org-id from verified org_id, overwriting the forged value\n" +
+					"  AGW->>AGW: CEL: org_id in [acme, globex]? still no\n" +
+					"  AGW-->>Initech: 403\n" +
+					"  Initech->>AGW: GET /org-routing/echo (same forged header, no CEL rule here)\n" +
+					"  AGW->>AGW: inject x-gw-org-id: initech, overwriting the forged acme\n" +
+					"  AGW-->>Initech: 200 (X-Gw-Org-Id: initech, not acme)\n" +
+					"  Initech->>AGW: POST /tenants/chat (invalid Authorization)\n" +
+					"  AGW-->>Initech: 401",
+				Policies: []Policy{
+					{
+						ID:       "tenants-entitlement",
+						Title:    "Tenant identity and entitlement",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: opsAgentPolicyGVR, Name: "multi-org-jwt-auth-agentgateway-tenants"},
+							{GVR: opsAgentPolicyGVR, Name: "merged-cel-based-rbac-budget-limits-agentgateway-tenants-openai"},
+						},
+					},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "initech-denied-403",
+						Title:    "initech asks (denied)",
+						Identity: "initech",
+						Method:   "POST",
+						Path:     "/tenants/chat",
+						Gateway:  "tenants",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"What is agentgateway in one sentence?"}]}`,
+					},
+					{
+						ID:       "acme-allowed",
+						Title:    "acme asks (entitled)",
+						Identity: "acme",
+						Method:   "POST",
+						Path:     "/tenants/chat",
+						Gateway:  "tenants",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"What is agentgateway in one sentence?"}]}`,
+					},
+					{
+						ID:       "initech-forged-header-still-403",
+						Title:    "initech forges acme's header (still denied)",
+						Identity: "initech",
+						Method:   "POST",
+						Path:     "/tenants/chat",
+						Gateway:  "tenants",
+						Headers:  map[string]string{"x-gw-org-id": "acme"},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"What is agentgateway in one sentence?"}]}`,
+					},
+					{
+						ID:       "initech-forged-header-echo-overwritten",
+						Title:    "initech's forged header, overwritten (echo)",
+						Identity: "initech",
+						Method:   "GET",
+						Path:     "/org-routing/echo",
+						Gateway:  "tenants",
+						Headers:  map[string]string{"x-gw-org-id": "acme"},
+					},
+					{
+						ID:       "invalid-jwt-401",
+						Title:    "Invalid JWT (rejected)",
+						Identity: "anonymous",
+						Method:   "POST",
+						Path:     "/tenants/chat",
+						Gateway:  "tenants",
+						Headers:  map[string]string{"Authorization": "Bearer invalid-token"},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"What is agentgateway in one sentence?"}]}`,
+					},
+				},
+			},
+			{
+				ID:    "tenants-budget",
+				Title: "Independent budgets, same route",
+				Explanation: "Entitlement decides who's let in at all - budgets decide how far each one " +
+					"that's in can go, completely independent of each other.\n\n" +
+					"- acme and globex are both entitled and call through the exact same route with the " +
+					"exact same kind of request.\n" +
+					"- acme's monthly token budget is healthy, so its request succeeds normally.\n" +
+					"- globex's is deliberately tiny - exhausted by design - so its identical-shaped " +
+					"request is blocked outright, with zero effect on acme's.\n\n" +
+					"Same shared model, same shared Gateway, fully separate spend per tenant.",
+				Diagram: "sequenceDiagram\n" +
+					"  participant Acme as org-acme\n" +
+					"  participant Globex as org-globex\n" +
+					"  participant AGW as agentgateway-tenants\n" +
+					"  participant Model as OpenAI gpt-4o-mini\n" +
+					"  Acme->>AGW: POST /tenants/chat (Bearer JWT, org_id=acme)\n" +
+					"  AGW->>AGW: budget 'acme-monthly' has headroom\n" +
+					"  AGW->>Model: forward\n" +
+					"  Model-->>Acme: 200\n" +
+					"  Globex->>AGW: POST /tenants/chat (Bearer JWT, org_id=globex)\n" +
+					"  AGW->>AGW: budget 'globex-monthly' exhausted (Block)\n" +
+					"  AGW-->>Globex: 429",
+				Policies: []Policy{
+					{
+						ID:       "tenants-budget",
+						Title:    "Per-tenant budgets",
+						ReadOnly: true,
+						ViewRefs: []ViewRef{
+							{GVR: tenantBudgetGVR, Name: "tenant-budgets"},
+							{GVR: opsAgentPolicyGVR, Name: "merged-cel-based-rbac-budget-limits-agentgateway-tenants-openai"},
+						},
+					},
+				},
+				Presets: []RequestPreset{
+					{
+						ID:       "acme-budget-ok",
+						Title:    "acme asks (budget healthy)",
+						Identity: "acme",
+						Method:   "POST",
+						Path:     "/tenants/chat",
+						Gateway:  "tenants",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}`,
+					},
+					{
+						ID:       "globex-budget-exceeded",
+						Title:    "globex asks (budget exhausted)",
+						Identity: "globex",
+						Method:   "POST",
+						Path:     "/tenants/chat",
+						Gateway:  "tenants",
+						Headers:  map[string]string{},
+						Body:     `{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}`,
+					},
+				},
+			},
+		},
+	}
+}
+
 func wrapPillar() Pillar {
 	return Pillar{
 		ID:    "wrap",
@@ -1153,17 +1359,19 @@ func wrapPillar() Pillar {
 		Steps: []Step{
 			{
 				ID:    "recap",
-				Title: "One gateway, five guarantees",
+				Title: "One control point, six guarantees",
 				Explanation: "Every request we just ran - chatbot replies, blocked and masked content, " +
-					"budget-limited calls, and agent tool calls - went through the same agentgateway " +
-					"control point. Five jobs, one gateway:\n\n" +
+					"budget-limited calls, agent tool calls, and cross-tenant isolation - went through " +
+					"agentgateway, whether that was the shared Gateway or the dedicated one the tenants " +
+					"pillar stood up. Six jobs, one control point:\n\n" +
 					"- Routing to the right model\n" +
 					"- Identity - who's allowed to do what\n" +
 					"- Content safety\n" +
 					"- Cost tracking and limits\n" +
-					"- Governed agent tool access\n\n" +
-					"They aren't five separate systems to buy, wire together, and maintain - they're all " +
-					"just policies on one gateway.",
+					"- Governed agent tool access\n" +
+					"- Cross-tenant isolation - entitlement, anti-spoofing, and independent budgets\n\n" +
+					"They aren't six separate systems to buy, wire together, and maintain - they're all " +
+					"just policies on agentgateway, however many Gateways front your traffic.",
 			},
 		},
 	}
