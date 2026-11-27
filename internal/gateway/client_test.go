@@ -383,6 +383,224 @@ func TestProxyMCPPassesThroughANonSuccessInitializeResponse(t *testing.T) {
 	}
 }
 
+func TestNewClientWithNoOptionsStillBuildsAWorkingClient(t *testing.T) {
+	client := NewClient("http://keycloak", "http://gateway", "test-password")
+	if client.gatewayBaseURL != "http://gateway" {
+		t.Fatalf("expected gatewayBaseURL set from the positional arg, got %q", client.gatewayBaseURL)
+	}
+	if client.tenantsGatewayBaseURL != "" {
+		t.Fatalf("expected no tenants gateway URL without WithTenantsGatewayBaseURL, got %q", client.tenantsGatewayBaseURL)
+	}
+	if len(client.tenantClientSecrets) != 0 {
+		t.Fatalf("expected no tenant client secrets without WithTenantClientSecrets, got %v", client.tenantClientSecrets)
+	}
+}
+
+func TestTenantTokenUnknownIdentityErrors(t *testing.T) {
+	client := NewClient("http://unused", "http://unused", "test-password",
+		WithTenantClientSecrets(map[string]string{"org-acme": "acme-secret"}))
+
+	token, err := client.tenantToken(context.Background(), "org-nope")
+	if err == nil {
+		t.Fatalf("expected an error for an unrecognized tenant identity")
+	}
+	if token != "" {
+		t.Fatalf("expected an empty token alongside the error, got %q", token)
+	}
+}
+
+func TestTenantTokenKnownIdentityWithNoConfiguredSecretErrors(t *testing.T) {
+	client := NewClient("http://unused", "http://unused", "test-password")
+
+	if _, err := client.tenantToken(context.Background(), "org-acme"); err == nil {
+		t.Fatalf("expected an error when org-acme has no configured client secret")
+	}
+}
+
+func TestTenantTokenKnownIdentityFetchesTokenFromCorrectRealm(t *testing.T) {
+	var gotPath, gotBody string
+	keycloak := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		gotBody = string(body)
+		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "acme-token"})
+	}))
+	defer keycloak.Close()
+
+	client := NewClient(keycloak.URL, "http://unused", "test-password",
+		WithTenantClientSecrets(map[string]string{"org-acme": "acme-secret"}))
+
+	token, err := client.tenantToken(context.Background(), "org-acme")
+	if err != nil {
+		t.Fatalf("tenantToken: %v", err)
+	}
+	if token != "acme-token" {
+		t.Fatalf("expected acme-token, got %q", token)
+	}
+	if gotPath != "/realms/org-acme/protocol/openid-connect/token" {
+		t.Fatalf("expected the org-acme realm token endpoint, got %s", gotPath)
+	}
+	if !strings.Contains(gotBody, "client_id=acme-team-eng") {
+		t.Fatalf("expected acme-team-eng client_id in form body, got: %s", gotBody)
+	}
+	if !strings.Contains(gotBody, "client_secret=acme-secret") {
+		t.Fatalf("expected the configured secret in form body, got: %s", gotBody)
+	}
+	if !strings.Contains(gotBody, "grant_type=client_credentials") {
+		t.Fatalf("expected a client-credentials grant, got: %s", gotBody)
+	}
+}
+
+func TestProxyTenantAnonymousIdentitySkipsTokenFetch(t *testing.T) {
+	for _, identity := range []string{"", "anonymous"} {
+		t.Run(identity, func(t *testing.T) {
+			var gotAuth string
+			tenantsGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotAuth = r.Header.Get("Authorization")
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer tenantsGateway.Close()
+
+			// A keycloak URL that can never be reached: if tenantToken were
+			// called anyway, the request would fail and ProxyTenant would
+			// return an error instead of the gateway's 200.
+			client := NewClient("http://127.0.0.1:1", "http://unused", "test-password",
+				WithTenantsGatewayBaseURL(tenantsGateway.URL))
+
+			resp, err := client.ProxyTenant(context.Background(), Request{Identity: identity, Path: "/openai", Body: "{}"})
+			if err != nil {
+				t.Fatalf("ProxyTenant: %v", err)
+			}
+			if gotAuth != "" {
+				t.Fatalf("expected no Authorization header for identity %q, got %q", identity, gotAuth)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("expected 200, got %d", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestProxyTenantAnonymousIdentityForwardsOwnAuthorizationHeader covers the
+// invalid-JWT demo preset: a bogus Authorization header set directly in the
+// preset's own Headers, with no Identity, must still reach the gateway -
+// the same mechanism Proxy already relies on for headers being set before
+// any token (client.go's ProxyWithToken).
+func TestProxyTenantAnonymousIdentityForwardsOwnAuthorizationHeader(t *testing.T) {
+	var gotAuth string
+	tenantsGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer tenantsGateway.Close()
+
+	client := NewClient("http://127.0.0.1:1", "http://unused", "test-password",
+		WithTenantsGatewayBaseURL(tenantsGateway.URL))
+
+	resp, err := client.ProxyTenant(context.Background(), Request{
+		Path:    "/openai",
+		Body:    "{}",
+		Headers: map[string]string{"Authorization": "Bearer invalid-jwt"},
+	})
+	if err != nil {
+		t.Fatalf("ProxyTenant: %v", err)
+	}
+	if gotAuth != "Bearer invalid-jwt" {
+		t.Fatalf("expected the preset's own Authorization header to pass through, got %q", gotAuth)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestProxyTenantUnrecognizedIdentityErrorsInsteadOfSkippingAuth(t *testing.T) {
+	var tenantsGatewayCalled bool
+	tenantsGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tenantsGatewayCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer tenantsGateway.Close()
+
+	client := NewClient("http://unused", "http://unused", "test-password",
+		WithTenantsGatewayBaseURL(tenantsGateway.URL))
+
+	if _, err := client.ProxyTenant(context.Background(), Request{Identity: "org-typo", Path: "/openai", Body: "{}"}); err == nil {
+		t.Fatalf("expected an error for an unrecognized tenant identity instead of a silent unauthenticated request")
+	}
+	if tenantsGatewayCalled {
+		t.Fatalf("expected ProxyTenant to never reach the gateway for an unrecognized identity")
+	}
+}
+
+func TestProxyTenantUsesTenantsBaseURLNotSharedGatewayBaseURL(t *testing.T) {
+	var sharedGatewayCalled bool
+	sharedGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sharedGatewayCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer sharedGateway.Close()
+
+	var tenantsGatewayCalled bool
+	tenantsGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tenantsGatewayCalled = true
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	defer tenantsGateway.Close()
+
+	client := NewClient("http://unused", sharedGateway.URL, "test-password",
+		WithTenantsGatewayBaseURL(tenantsGateway.URL))
+
+	resp, err := client.ProxyTenant(context.Background(), Request{Path: "/openai", Body: "{}"})
+	if err != nil {
+		t.Fatalf("ProxyTenant: %v", err)
+	}
+	if sharedGatewayCalled {
+		t.Fatalf("expected ProxyTenant to never call the shared gatewayBaseURL")
+	}
+	if !tenantsGatewayCalled {
+		t.Fatalf("expected ProxyTenant to call the tenants gateway base URL")
+	}
+	if resp.StatusCode != http.StatusTeapot {
+		t.Fatalf("expected the tenants gateway's raw response to pass through, got %d", resp.StatusCode)
+	}
+}
+
+func TestProxyTenantKnownIdentityFetchesTokenFromCorrectRealmAndAttachesIt(t *testing.T) {
+	keycloak := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/realms/org-acme/protocol/openid-connect/token" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), "client_id=acme-team-eng") {
+			t.Fatalf("expected acme-team-eng client_id in form body, got: %s", body)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "acme-token"})
+	}))
+	defer keycloak.Close()
+
+	var gotAuth string
+	tenantsGateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer tenantsGateway.Close()
+
+	client := NewClient(keycloak.URL, "http://unused", "test-password",
+		WithTenantsGatewayBaseURL(tenantsGateway.URL),
+		WithTenantClientSecrets(map[string]string{"org-acme": "acme-secret"}))
+
+	resp, err := client.ProxyTenant(context.Background(), Request{Identity: "org-acme", Path: "/openai", Body: "{}"})
+	if err != nil {
+		t.Fatalf("ProxyTenant: %v", err)
+	}
+	if gotAuth != "Bearer acme-token" {
+		t.Fatalf("expected the fetched tenant token as a bearer header, got %q", gotAuth)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
 // TestProxyMCPWorksWithoutServerAssignedSessionID covers a session-less
 // server - per spec, session IDs are optional, so ProxyMCP must still
 // forward the final request even when initialize never assigns one.
